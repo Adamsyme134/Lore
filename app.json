@@ -1,0 +1,62 @@
+{
+  "expo": {
+    "name": "Lore",
+    "slug": "lore",
+    "version": "0.2.0",
+    "orientation": "portrait",
+    "scheme": "lore",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "splash": {
+      "backgroundColor": "#F5F0E7",
+      "resizeMode": "contain"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.adamsyme.lore"
+    },
+    "android": {
+      "package": "com.adamsyme.lore",
+      "edgeToEdgeEnabled": true,
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "CAMERA",
+        "READ_MEDIA_IMAGES"
+      ],
+      "adaptiveIcon": {
+        "backgroundColor": "#F5F0E7"
+      }
+    },
+    "plugins": [
+      "expo-router",
+      "expo-font",
+      "expo-splash-screen",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Lore uses location to place completed memories on your private map."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Lore lets you attach photographs to completed quests.",
+          "cameraPermission": "Lore lets you capture photographs when completing a quest."
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Lore lets you capture photographs when completing a quest."
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "web": {
+      "bundler": "metro"
+    }
+  }
+}
