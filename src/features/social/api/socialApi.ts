@@ -135,6 +135,7 @@ export function useFriendsList() {
   return useQuery({
     queryKey: ["friendsList", user?.id],
     queryFn: async () => {
+      if (!supabase) throw new Error("Supabase is not initialized");
       if (!user) return [];
 
       // 1. Get the raw friendship records where the user is either A or B
@@ -157,8 +158,14 @@ export function useFriendsList() {
 
       if (profileError) throw profileError;
 
-      return profiles as Profile[];
+      return (profiles || []).map((p) => ({
+        id: p.id,
+        fullName: p.full_name,
+        handle: p.handle,
+        avatarUrl: p.avatar_url,
+        pointsTotal: p.points_total,
+      })) as Profile[];
     },
-    enabled: !!user,
+    enabled: !!user && !!supabase,
   });
 }

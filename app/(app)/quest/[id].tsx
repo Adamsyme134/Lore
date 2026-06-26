@@ -8,14 +8,16 @@ import { Button } from "../../../src/shared/components/Button";
 import { TopBar } from "../../../src/shared/components/TopBar";
 import { QuestDetailBlock } from "../../../src/features/quests/components/QuestDetailBlock";
 import { useExperienceStore } from "../../../src/features/app/store/useExperienceStore";
-import { useQuest, useSaveQuest } from "../../../src/features/quests/api/questApi";
+import { useQuest, useSaveQuest, useActivateQuest } from "../../../src/features/quests/api/questApi";
+
+
 
 export default function QuestDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { data: quest } = useQuest(id);
   const { savedQuestIds } = useExperienceStore();
   const saveQuest = useSaveQuest();
-
+  const activateQuest = useActivateQuest();
   if (!quest) {
     return (
       <Screen>
@@ -64,6 +66,10 @@ export default function QuestDetailScreen() {
             variant="secondary"
             className="flex-1"
             onPress={() => saveQuest.mutate(quest.id)}
+          />
+          <Button 
+            label={activateQuest.isPending ? "Starting..." : "Start quest"} 
+            onPress={() => activateQuest.mutate(quest.id)} 
           />
           <Button
             label="Complete"

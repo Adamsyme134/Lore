@@ -13,7 +13,10 @@ type QuestHeroProps = {
 
 export function QuestHero({ quest }: QuestHeroProps) {
   return (
-    <Pressable onPress={() => router.push({ pathname: "/quest/[id]", params: { id: quest.id } })} className="overflow-hidden rounded-[40px] bg-charcoal">
+    <Pressable 
+  onPress={() => router.push(`/(app)/quest/${quest.id}`)} 
+  className="overflow-hidden rounded-[40px] bg-charcoal"
+      >
       <View className="h-[520px]">
         <Image
           source={{ uri: quest.imageUrl }}
@@ -21,7 +24,7 @@ export function QuestHero({ quest }: QuestHeroProps) {
           contentFit="cover"
           style={{ height: "100%", width: "100%", opacity: 0.86 }}
         />
-        <View className="absolute inset-0 bg-charcoal/30" />
+        <View className="absolute inset-0 bg-black/40" />
         <View className="absolute bottom-0 left-0 right-0 px-6 pb-7">
           <Animated.View entering={FadeInDown.duration(500).springify()}>
             <View className="mb-5 flex-row flex-wrap gap-2">

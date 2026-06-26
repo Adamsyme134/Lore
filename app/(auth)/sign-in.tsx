@@ -29,26 +29,15 @@ export default function SignInScreen() {
 
   return (
     <Screen scroll={false} contentClassName="flex-1 px-5 pb-8">
-      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} className="flex-1 justify-between">
-        <View className="pt-8">
-          <AppText variant="eyebrow">Lore</AppText>
-          <AppText variant="display" className="mt-4">Build a life worth remembering.</AppText>
-          <AppText className="mt-5 max-w-[330px]">
-            Sign in to save quests, preserve completed memories, map where they happened, and invite friends into small adventures.
-          </AppText>
-        </View>
-
+      {/* 1. Add behavior="padding" and keyboardVerticalOffset to push the view up */}
+      <KeyboardAvoidingView 
+        behavior={Platform.OS === "ios" ? "padding" : "height"} 
+        keyboardVerticalOffset={Platform.OS === "ios" ? 40 : 0} 
+        className="flex-1 justify-center" // Center the form when keyboard is closed
+      >
         <View className="rounded-[36px] border border-line bg-cream p-5">
-          {!isSupabaseConfigured ? (
-            <View className="mb-5 rounded-[28px] bg-ivory p-4">
-              <AppText variant="eyebrow">Local preview</AppText>
-              <AppText className="mt-2 text-ink/70">
-                Supabase is not configured yet. Preview mode keeps the app runnable while you set up the database.
-              </AppText>
-            </View>
-          ) : null}
-
           <AppText variant="subtitle">Sign in</AppText>
+          
           <TextInput
             autoCapitalize="none"
             autoComplete="email"
@@ -59,6 +48,7 @@ export default function SignInScreen() {
             onChangeText={setEmail}
             className="mt-5 rounded-3xl border border-line bg-ivory px-5 py-4 font-sans text-[15px] text-ink"
           />
+          
           <TextInput
             autoCapitalize="none"
             secureTextEntry
@@ -69,18 +59,9 @@ export default function SignInScreen() {
             className="mt-3 rounded-3xl border border-line bg-ivory px-5 py-4 font-sans text-[15px] text-ink"
           />
 
-          {error ? <AppText className="mt-4 text-burgundy">{error}</AppText> : null}
-
-          <Button label={isSubmitting ? "Signing in" : "Sign in"} className="mt-5" onPress={handleSignIn} disabled={isSubmitting} />
-          
-
-          <Pressable className="mt-5 items-center">
-            <Link href="/sign-up" asChild>
-              <AppText variant="caption" className="font-sansSemi text-ink">Create an account</AppText>
-            </Link>
-          </Pressable>
+          <Button label="Sign In" className="mt-5" onPress={handleSignIn} />
         </View>
       </KeyboardAvoidingView>
     </Screen>
-  );
+ );
 }

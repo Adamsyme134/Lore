@@ -61,20 +61,64 @@ export function useQuests() {
   return useQuery({
     queryKey: ["quests", isBackendReady ? "remote" : "preview"],
     queryFn: () => (isBackendReady ? fetchQuestsFromSupabase() : Promise.resolve(previewQuests)),
-    // ✨ FIX: Only inject demo data if we are NOT connected to the backend
+    
     initialData: isBackendReady ? undefined : previewQuests
   });
 }
 
-// ... (keep useQuest and useSaveQuest the same) ...
+export function useActivateQuest() {
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (questId: string) => {
+      if (!user || !supabase) throw new Error("Not logged in");
+
+      const { error } = await supabase
+        .from("user_quests")
+        .upsert({ user_id: user.id, quest_id: questId, status: "active" }, { onConflict: "user_id,quest_id" });
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["user-quests"] });
+    }
+  });
+}
 
 export function useQuest(id?: string) {
   const questsQuery = useQuests();
 
   return {
     ...questsQuery,
-    data: questsQuery.data.find((quest) => quest.id === id || quest.slug === id) ?? null
+    data: questsQuery.data?.find((quest) => quest.id === id || quest.slug === id) ?? null,
   };
+}
+
+export function useActiveQuests() {
+  const { user } = useAuth();
+  
+  return useQuery({
+    queryKey: ["active-quests", user?.id],
+    queryFn: async () => {
+      if (!user || !supabase) return [];
+      
+      const { data, error } = await supabase
+        .from("user_quests")
+        .select("quest_id, quests(*)") // Join with quest details
+        .eq("user_id", user.id)
+        .eq("status", "active");
+        
+      if (error) throw error;
+      return (data || []).map((item) => {
+  // 1. Cast item.quests as 'any' first to bypass the initial structural check
+  // 2. Then cast it as 'QuestRow' to satisfy your mapping function
+  const questData = item.quests as any; 
+  return mapQuest(questData as QuestRow);
+});
+    },
+    enabled: !!user
+  });
 }
 
 export function useSaveQuest() {
