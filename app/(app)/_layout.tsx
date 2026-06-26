@@ -1,10 +1,11 @@
+
 import { Redirect, Slot } from "expo-router";
 import { View } from "react-native";
 import { AppText } from "../../src/shared/components/AppText";
 import { useAuth } from "../../src/features/auth/AuthProvider";
 
 export default function AppLayout() {
-  const { isLoading, isPreviewMode, session } = useAuth();
+  const { isLoading, session } = useAuth();
 
   if (isLoading) {
     return (
@@ -15,7 +16,8 @@ export default function AppLayout() {
     );
   }
 
-  if (!session && !isPreviewMode) {
+  // Strictly require a session to view anything inside (app)
+  if (!session) {
     return <Redirect href="/sign-in" />;
   }
 

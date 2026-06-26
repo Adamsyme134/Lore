@@ -1,12 +1,13 @@
 import { useState } from "react";
 import { KeyboardAvoidingView, Platform, Pressable, TextInput, View } from "react-native";
-import { Link } from "expo-router";
+import { Link, useRouter } from "expo-router";
 import { Screen } from "../../src/shared/components/Screen";
 import { AppText } from "../../src/shared/components/AppText";
 import { Button } from "../../src/shared/components/Button";
 import { useAuth } from "../../src/features/auth/AuthProvider";
 
 export default function SignUpScreen() {
+  const router = useRouter();
   const { signUpWithEmail } = useAuth();
   const [fullName, setFullName] = useState("");
   const [handle, setHandle] = useState("");
@@ -14,6 +15,7 @@ export default function SignUpScreen() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isVerificationSent, setIsVerificationSent] = useState(false);
 
   async function handleSignUp() {
     setError(null);
@@ -21,11 +23,31 @@ export default function SignUpScreen() {
 
     try {
       await signUpWithEmail(email.trim(), password, fullName, handle);
+      setIsVerificationSent(true);
     } catch (nextError) {
       setError(nextError instanceof Error ? nextError.message : "Could not create account.");
     } finally {
       setIsSubmitting(false);
     }
+  }
+
+  if (isVerificationSent) {
+    return (
+      <Screen scroll={false} contentClassName="flex-1 px-5 justify-center">
+        <View className="rounded-[36px] border border-line bg-cream p-6 items-center">
+          <AppText variant="subtitle" className="text-center">Check your email</AppText>
+          <AppText className="mt-4 text-center max-w-[280px]">
+            We've sent a verification link to <AppText className="font-sansSemi">{email}</AppText>. 
+            Tap the link on this device to activate your account.
+          </AppText>
+          <Button 
+            label="Back to Sign In" 
+            className="mt-8 w-full" 
+            onPress={() => router.replace("/sign-in")} 
+          />
+        </View>
+      </Screen>
+    );
   }
 
   return (

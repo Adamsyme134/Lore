@@ -8,7 +8,7 @@ import { useAuth } from "../../src/features/auth/AuthProvider";
 import { isSupabaseConfigured } from "../../src/lib/supabase";
 
 export default function SignInScreen() {
-  const { signInWithEmail, continueInPreviewMode } = useAuth();
+  const { signInWithEmail} = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -72,7 +72,7 @@ export default function SignInScreen() {
           {error ? <AppText className="mt-4 text-burgundy">{error}</AppText> : null}
 
           <Button label={isSubmitting ? "Signing in" : "Sign in"} className="mt-5" onPress={handleSignIn} disabled={isSubmitting} />
-          <Button label="Preview without backend" className="mt-3" variant="secondary" onPress={continueInPreviewMode} />
+          
 
           <Pressable className="mt-5 items-center">
             <Link href="/sign-up" asChild>

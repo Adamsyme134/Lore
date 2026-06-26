@@ -2,31 +2,21 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 import type { Session, User } from "@supabase/supabase-js";
 import { isSupabaseConfigured, supabase } from "../../lib/supabase";
 import type { Profile } from "../../shared/types/domain";
+import * as Linking from "expo-linking";
 
 type AuthContextValue = {
   session: Session | null;
   user: User | null;
   profile: Profile | null;
   isLoading: boolean;
-  isPreviewMode: boolean;
   isBackendReady: boolean;
   signInWithEmail: (email: string, password: string) => Promise<void>;
   signUpWithEmail: (email: string, password: string, fullName: string, handle: string) => Promise<void>;
   signOut: () => Promise<void>;
-  continueInPreviewMode: () => void;
   refreshProfile: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
-
-const previewProfile: Profile = {
-  id: "preview-user",
-  handle: "adam",
-  fullName: "Adam",
-  avatarUrl: null,
-  homeCity: "Oxford",
-  pointsTotal: 36
-};
 
 function mapProfile(row: any): Profile {
   return {
@@ -47,14 +37,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [isPreviewMode, setIsPreviewMode] = useState(!isSupabaseConfigured);
 
   const refreshProfile = useCallback(async () => {
-    if (isPreviewMode) {
-      setProfile(previewProfile);
-      return;
-    }
-
     if (!supabase) {
       setProfile(null);
       return;
@@ -80,7 +64,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
 
     setProfile(mapProfile(data));
-  }, [isPreviewMode]);
+  }, []);
 
   useEffect(() => {
     let mounted = true;
@@ -89,7 +73,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
       if (!supabase) {
         if (mounted) {
           setSession(null);
-          setProfile(previewProfile);
           setIsLoading(false);
         }
         return;
@@ -105,11 +88,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
     void loadSession();
 
-    if (!supabase) {
-      return () => {
-        mounted = false;
-      };
-    }
+    if (!supabase) return;
 
     const { data: listener } = supabase.auth.onAuthStateChange((_event, nextSession) => {
       setSession(nextSession);
@@ -128,61 +107,37 @@ export function AuthProvider({ children }: AuthProviderProps) {
     if (!isLoading) {
       void refreshProfile();
     }
-  }, [isLoading, session?.user.id, isPreviewMode, refreshProfile]);
+  }, [isLoading, session?.user.id, refreshProfile]);
 
   const signInWithEmail = useCallback(async (email: string, password: string) => {
-    if (!supabase) {
-      throw new Error("Supabase is not configured yet. Use preview mode or add your environment variables.");
-    }
-
+    if (!supabase) throw new Error("Supabase is not configured yet.");
     const { error } = await supabase.auth.signInWithPassword({ email, password });
-
-    if (error) {
-      throw error;
-    }
-
-    setIsPreviewMode(false);
+    if (error) throw error;
   }, []);
 
   const signUpWithEmail = useCallback(async (email: string, password: string, fullName: string, handle: string) => {
-    if (!supabase) {
-      throw new Error("Supabase is not configured yet. Use preview mode or add your environment variables.");
-    }
-
+    if (!supabase) throw new Error("Supabase is not configured yet.");
     const cleanedHandle = handle.trim().toLowerCase().replace(/[^a-z0-9_]/g, "");
+    
+    const redirectUrl = Linking.createURL("/(app)/(tabs)/today");
     const { error } = await supabase.auth.signUp({
       email,
       password,
       options: {
         data: {
+          emailRedirectTo: redirectUrl,
           full_name: fullName.trim(),
           handle: cleanedHandle
         }
       }
     });
-
-    if (error) {
-      throw error;
-    }
-
-    setIsPreviewMode(false);
+    if (error) throw error;
   }, []);
 
   const signOut = useCallback(async () => {
-    if (isPreviewMode) {
-      setIsPreviewMode(false);
-      setProfile(null);
-      return;
-    }
-
     if (supabase) {
       await supabase.auth.signOut();
     }
-  }, [isPreviewMode]);
-
-  const continueInPreviewMode = useCallback(() => {
-    setIsPreviewMode(true);
-    setProfile(previewProfile);
   }, []);
 
   const value = useMemo<AuthContextValue>(() => ({
@@ -190,24 +145,20 @@ export function AuthProvider({ children }: AuthProviderProps) {
     user: session?.user ?? null,
     profile,
     isLoading,
-    isPreviewMode,
-    isBackendReady: isSupabaseConfigured && !isPreviewMode,
+    isBackendReady: isSupabaseConfigured,
     signInWithEmail,
     signUpWithEmail,
     signOut,
-    continueInPreviewMode,
     refreshProfile
-  }), [continueInPreviewMode, isLoading, isPreviewMode, profile, refreshProfile, session, signInWithEmail, signOut, signUpWithEmail]);
+  }), [isLoading, profile, refreshProfile, session, signInWithEmail, signOut, signUpWithEmail]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth() {
   const value = useContext(AuthContext);
-
   if (!value) {
     throw new Error("useAuth must be used inside AuthProvider");
   }
-
   return value;
 }
