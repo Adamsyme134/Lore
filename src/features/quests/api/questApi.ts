@@ -50,9 +50,7 @@ async function fetchQuestsFromSupabase() {
     .eq("is_active", true)
     .order("created_at", { ascending: false });
 
-  if (error) {
-    throw error;
-  }
+  if (error) throw error;
 
   return (data ?? []).map((row) => mapQuest(row as QuestRow));
 }
@@ -63,9 +61,12 @@ export function useQuests() {
   return useQuery({
     queryKey: ["quests", isBackendReady ? "remote" : "preview"],
     queryFn: () => (isBackendReady ? fetchQuestsFromSupabase() : Promise.resolve(previewQuests)),
-    initialData: previewQuests
+    // ✨ FIX: Only inject demo data if we are NOT connected to the backend
+    initialData: isBackendReady ? undefined : previewQuests
   });
 }
+
+// ... (keep useQuest and useSaveQuest the same) ...
 
 export function useQuest(id?: string) {
   const questsQuery = useQuests();

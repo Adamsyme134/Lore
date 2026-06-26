@@ -5,6 +5,7 @@ import { previewFriendMoments } from "../../../shared/data/previewData";
 import type { FriendMoment, Profile } from "../../../shared/types/domain";
 import type { Accent } from "../../../shared/design/tokens";
 
+
 type FriendMomentRow = {
   id: string;
   title: string;
@@ -126,5 +127,38 @@ export function useSendFriendRequest() {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["friend-requests"] });
     }
+  });
+}
+export function useFriendsList() {
+  const { user } = useAuth();
+
+  return useQuery({
+    queryKey: ["friendsList", user?.id],
+    queryFn: async () => {
+      if (!user) return [];
+
+      // 1. Get the raw friendship records where the user is either A or B
+      const { data: friendships, error: friendError } = await supabase
+        .from("friendships")
+        .select("user_a, user_b")
+        .or(`user_a.eq.${user.id},user_b.eq.${user.id}`);
+
+      if (friendError) throw friendError;
+      if (!friendships || friendships.length === 0) return [];
+
+      // 2. Extract the IDs of the *other* people in those friendships
+      const friendIds = friendships.map(f => f.user_a === user.id ? f.user_b : f.user_a);
+
+      // 3. Fetch their profiles
+      const { data: profiles, error: profileError } = await supabase
+        .from("profiles")
+        .select("id, full_name, handle, avatar_url, points_total")
+        .in("id", friendIds);
+
+      if (profileError) throw profileError;
+
+      return profiles as Profile[];
+    },
+    enabled: !!user,
   });
 }
