@@ -1,7 +1,7 @@
 // src/features/quests/components/QuestHero.tsx
 import { Pressable, View } from "react-native";
 import { Image } from "expo-image";
-import { LinearGradient } from "expo-linear-gradient"; // ✨ Import the gradient
+import { LinearGradient } from "expo-linear-gradient"; 
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { router } from "expo-router";
 import type { Quest } from "../../../shared/types/domain";
@@ -15,9 +15,12 @@ type QuestHeroProps = {
 };
 
 export function QuestHero({ quest, className }: QuestHeroProps) {
+  // Shared navigation handler
+  const handlePress = () => router.push({ pathname: "/quest/[id]", params: { id: quest.id } });
+
   return (
     <Pressable 
-      onPress={() => router.push({ pathname: "/quest/[id]", params: { id: quest.id } })} 
+      onPress={handlePress} 
       className={`overflow-hidden bg-charcoal ${className ?? 'rounded-[40px]'}`}
     >
       <View className="h-[520px]">
@@ -28,11 +31,10 @@ export function QuestHero({ quest, className }: QuestHeroProps) {
           style={{ height: "100%", width: "100%", opacity: 0.9 }}
         />
         
-        {/* ✨ FIX: Replaced flat overlay with a smooth gradient. 
-            The top 30% is crystal clear, fading into dark charcoal for text reading. */}
+        {/* We keep a lighter gradient just so the white title text above the widget stands out */}
         <LinearGradient
-          colors={['transparent', 'rgba(28, 26, 23, 0.95)']} // Matches your charcoal vibe
-          locations={[0.3, 0.9]} 
+          colors={['transparent', 'rgba(28, 26, 23, 0.8)']}
+          locations={[0.4, 0.9]} 
           className="absolute inset-0"
         />
 
@@ -49,10 +51,20 @@ export function QuestHero({ quest, className }: QuestHeroProps) {
             <AppText variant="display" className="text-ivory">
               {quest.title}
             </AppText>
-            <AppText className="mt-4 text-ivory/80">
-              {quest.description}
-            </AppText>
-            <Button label="Open quest" className="mt-7" variant="primary" />
+            
+            {/* ✨ FIX: Wrapped the description text in a solid bg-ink widget */}
+            <View className="mt-4 rounded-[20px] bg-ink p-4 shadow-md border border-line/5">
+              <AppText className="text-ivory/90 leading-6">
+                {quest.description}
+              </AppText>
+            </View>
+            
+            <Button 
+              label="Open quest" 
+              className="mt-5" 
+              variant="primary" 
+              onPress={handlePress} 
+            />
           </Animated.View>
         </View>
       </View>

@@ -1,15 +1,22 @@
-import { Redirect, Slot } from "expo-router";
+import { Slot, useRouter } from "expo-router";
+import { useEffect } from "react";
 import { useAuth } from "../../src/features/auth/AuthProvider";
 
 export default function AuthLayout() {
-  const { isLoading, isPreviewMode, session } = useAuth();
+  const { isLoading, session } = useAuth();
+  const router = useRouter();
 
-  if (isLoading) {
+  useEffect(() => {
+    if (!isLoading) {
+      
+      router.replace("/(app)/(tabs)/today");
+      
+    }
+  }, [isLoading, session, router]);
+
+  // Return null while loading or while the effect is handling the redirect
+  if (isLoading || session ) {
     return null;
-  }
-
-  if (session || isPreviewMode) {
-    return <Redirect href="/today" />;
   }
 
   return <Slot />;

@@ -1,11 +1,18 @@
-
-import { Redirect, Slot } from "expo-router";
+import { Slot, useRouter } from "expo-router";
 import { View } from "react-native";
+import { useEffect } from "react";
 import { AppText } from "../../src/shared/components/AppText";
 import { useAuth } from "../../src/features/auth/AuthProvider";
 
 export default function AppLayout() {
   const { isLoading, session } = useAuth();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (!isLoading && !session) {
+      router.replace("/sign-in");
+    }
+  }, [isLoading, session, router]);
 
   if (isLoading) {
     return (
@@ -16,9 +23,9 @@ export default function AppLayout() {
     );
   }
 
-  // Strictly require a session to view anything inside (app)
+  // Return null while the useEffect catches the unauthenticated state and redirects
   if (!session) {
-    return <Redirect href="/sign-in" />;
+    return null; 
   }
 
   return <Slot />;

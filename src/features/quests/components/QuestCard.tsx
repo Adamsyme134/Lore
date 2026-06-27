@@ -2,7 +2,6 @@
 import { Pressable, View } from "react-native";
 import { router } from "expo-router";
 import { Image } from "expo-image"; 
-import { LinearGradient } from "expo-linear-gradient"; // ✨ Import the gradient
 import type { Quest } from "../../../shared/types/domain";
 import { AppText } from "../../../shared/components/AppText";
 import { Chip } from "../../../shared/components/Chip";
@@ -26,7 +25,7 @@ export function QuestCard({ quest, compact = false }: QuestCardProps) {
     return (
       <Pressable 
         onPress={() => router.push({ pathname: "/quest/[id]", params: { id: quest.id } })} 
-        className="h-32 w-32 overflow-hidden rounded-[24px] border border-line"
+        className="h-32 w-32 overflow-hidden rounded-[24px] border border-line bg-stone"
       >
         {({ pressed }) => (
           <View className={`flex-1 ${pressed ? "opacity-90" : ""}`}>
@@ -37,33 +36,32 @@ export function QuestCard({ quest, compact = false }: QuestCardProps) {
               style={{ width: '100%', height: '100%', position: 'absolute' }} 
             />
             
-            {/* ✨ FIX: Smooth gradient instead of a flat muddy overlay */}
-            <LinearGradient
-              colors={['transparent', 'rgba(0, 0, 0, 0.8)']}
-              locations={[0.3, 1]} // Starts fading 30% down the image
-              className="absolute inset-0"
-            />
-            
-            {/* ✨ Grouped the text and bar at the bottom for maximum readability */}
-            <View className="flex-1 justify-end p-3">
-              <AppText variant="caption" className="font-sansSemi text-ivory mb-2.5" numberOfLines={2}>
-                {quest.title}
-              </AppText>
-              
-              <View className="w-full h-1.5 overflow-hidden rounded-full bg-ivory/30">
-                <View 
-                  className={`h-full ${accent.bg}`} 
-                  style={{ width: `${progress * 100}%` }} 
-                />
+            {/* ✨ FIX: Replaced gradient with a solid, bottom-anchored widget */}
+            <View className="flex-1 justify-end p-2">
+              <View className="w-full bg-ink rounded-[18px] p-3 shadow-md">
+                
+                {/* ✨ FIX: Matched text variant to the Hero Card Title */}
+                <AppText variant="display" className="text-ivory text-sm mb-2.5" numberOfLines={2}>
+                  {quest.title}
+                </AppText>
+                
+                {/* Horizontal Progress Bar */}
+                <View className="w-full h-1.5 overflow-hidden rounded-full bg-ivory/20">
+                  <View 
+                    className={`h-full ${accent.bg}`} 
+                    style={{ width: `${progress * 100}%` }} 
+                  />
+                </View>
               </View>
             </View>
+
           </View>
         )}
       </Pressable>
     );
   }
 
-  // Default Standard Layout
+  // Default Standard Layout (Used on the Explore Tab)
   return (
     <Pressable onPress={() => router.push({ pathname: "/quest/[id]", params: { id: quest.id } })} className="mb-4 overflow-hidden rounded-card border border-line bg-cream">
       {({ pressed }) => (
