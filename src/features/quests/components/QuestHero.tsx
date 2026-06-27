@@ -1,3 +1,4 @@
+// src/features/quests/components/QuestHero.tsx
 import { Pressable, View } from "react-native";
 import { Image } from "expo-image";
 import Animated, { FadeInDown } from "react-native-reanimated";
@@ -9,14 +10,16 @@ import { Chip } from "../../../shared/components/Chip";
 
 type QuestHeroProps = {
   quest: Quest;
+  className?: string; // ✨ Added className prop
 };
 
-export function QuestHero({ quest }: QuestHeroProps) {
+export function QuestHero({ quest, className }: QuestHeroProps) {
   return (
     <Pressable 
-  onPress={() => router.push(`/(app)/quest/${quest.id}`)} 
-  className="overflow-hidden rounded-[40px] bg-charcoal"
-      >
+      onPress={() => router.push({ pathname: "/quest/[id]", params: { id: quest.id } })} 
+      // ✨ Use the passed className or default to rounded-[40px]
+      className={`overflow-hidden bg-charcoal ${className ?? 'rounded-[40px]'}`}
+    >
       <View className="h-[520px]">
         <Image
           source={{ uri: quest.imageUrl }}
@@ -24,7 +27,7 @@ export function QuestHero({ quest }: QuestHeroProps) {
           contentFit="cover"
           style={{ height: "100%", width: "100%", opacity: 0.86 }}
         />
-        <View className="absolute inset-0 bg-black/40" />
+        <View className="absolute inset-0 bg-charcoal/30" />
         <View className="absolute bottom-0 left-0 right-0 px-6 pb-7">
           <Animated.View entering={FadeInDown.duration(500).springify()}>
             <View className="mb-5 flex-row flex-wrap gap-2">

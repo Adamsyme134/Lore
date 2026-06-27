@@ -11,6 +11,7 @@ import { useQuests } from "../../../src/features/quests/api/questApi";
 import { useLoreEntries } from "../../../src/features/lore/api/loreApi";
 import { useAuth } from "../../../src/features/auth/AuthProvider";
 import { useExperienceStore } from "../../../src/features/app/store/useExperienceStore";
+import { router } from "expo-router";
 
 export default function TodayScreen() {
   const { data: quests = [], isLoading: isLoadingQuests } = useQuests();
@@ -30,8 +31,9 @@ export default function TodayScreen() {
   const [mainQuestIndex, setMainQuestIndex] = useState(0);
 
   const handleReroll = () => {
-    if (rerollsLeft > 0 && quests.length > mainQuestIndex + 1) {
-      setMainQuestIndex((prev) => prev + 1);
+    if (rerollsLeft > 0) {
+      // Using modulo (%) ensures we don't crash if your mock data has fewer than 3 quests
+      setMainQuestIndex((prev) => (prev + 1) % quests.length); 
       setRerollsLeft((prev) => prev - 1);
     }
   };
@@ -74,14 +76,45 @@ export default function TodayScreen() {
         </View>
         
         {/* PrP (Profile Picture) */}
-        <TouchableOpacity className="h-10 w-10 items-center justify-center rounded-full border border-line bg-cream">
+        <TouchableOpacity 
+          onPress={() => router.push("/profile")}
+          className="h-10 w-10 items-center justify-center rounded-full border border-line bg-cream"
+        >
           <AppText variant="caption" className="font-sansBold text-ink">
             {profile?.fullName?.[0] ?? "A"}
           </AppText>
         </TouchableOpacity>
       </View>
 
-      {/* --- PAGE 1: IN PROGRESS HORIZONTAL SCROLL --- */}
+
+      {/* --- PAGE 1: RECOMMENDED QUEST FOR TODAY --- */}
+      <Animated.View entering={FadeInDown.delay(120).duration(420)} className="px-5 mb-10">
+        <View className="items-center mb-4">
+          <AppText variant="eyebrow" className="text-muted mb-2 uppercase tracking-widest text-center">
+            Recommended Quest For Today
+          </AppText>
+        </View>
+        
+        {/* Parent container handles the rounding and clipping */}
+        <View className="rounded-[32px] border border-line bg-cream overflow-hidden shadow-sm shadow-charcoal/5">
+          
+          {/* ✨ FIX 2: Pass rounded-none so it creates a straight line separating it from the button below */}
+          <QuestHero quest={todayQuest} className="rounded-none" />
+          
+          {/* ✨ FIX 3: Component hides entirely when rerollsLeft hits 0 */}
+          {rerollsLeft > 0 && (
+            <TouchableOpacity 
+              onPress={handleReroll}
+              className="w-full border-t border-line py-4 items-center bg-cream active:bg-line/30"
+            >
+              <AppText variant="caption" className="font-sansSemi text-ink">
+                Different vibe ({rerollsLeft})
+              </AppText>
+            </TouchableOpacity>
+          )}
+        </View>
+      </Animated.View>
+      {/* --- PAGE 2: IN PROGRESS HORIZONTAL SCROLL --- */}
       <View className="mb-8">
         <ScrollView 
           horizontal 
@@ -103,31 +136,7 @@ export default function TodayScreen() {
         </ScrollView>
       </View>
 
-      {/* --- PAGE 1: RECOMMENDED QUEST FOR TODAY --- */}
-      <Animated.View entering={FadeInDown.delay(120).duration(420)} className="px-5 mb-10">
-        <View className="items-center mb-4">
-          <AppText variant="eyebrow" className="text-muted mb-2 uppercase tracking-widest text-center">
-            Recommended Quest For Today
-          </AppText>
-        </View>
-        
-        <View className="rounded-[32px] border border-line bg-cream overflow-hidden shadow-sm shadow-charcoal/5">
-          <QuestHero quest={todayQuest} />
-          
-          {/* Different Vibe Button */}
-          <TouchableOpacity 
-            onPress={handleReroll}
-            disabled={rerollsLeft === 0}
-            className="w-full border-t border-line py-4 items-center bg-cream active:bg-line/30"
-          >
-            <AppText variant="caption" className={`font-sansSemi ${rerollsLeft > 0 ? 'text-ink' : 'text-muted'}`}>
-              Different vibe ({rerollsLeft})
-            </AppText>
-          </TouchableOpacity>
-        </View>
-      </Animated.View>
-
-      {/* --- PAGE 2: FRIEND'S LORE --- */}
+      {/* --- PAGE 3: FRIEND'S LORE --- */}
       <View className="px-5 pb-32"> 
         {/* pb-32 ensures content isn't hidden behind your absolute TabBar */}
         <AppText variant="title" className="mb-6">
