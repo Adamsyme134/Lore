@@ -38,7 +38,6 @@ export default function CompleteQuestScreen() {
     if (!quest) {
       return 0;
     }
-
     return quest.pointsValue + Math.min(3, photos.length) * 2;
   }, [photos.length, quest]);
 
@@ -125,7 +124,13 @@ export default function CompleteQuestScreen() {
     }
   }
 
-  async function handleSubmit() {
+async function handleSubmit() {
+    // ✨ ADD THIS: Explicit check to satisfy TypeScript
+    if (!quest) {
+      Alert.alert("Error", "Quest data is missing.");
+      return;
+    }
+
     if (!title.trim() || !journal.trim() || !locationName.trim()) {
       Alert.alert("Missing detail", "Add a title, journal note and location before saving the entry.");
       return;
@@ -133,7 +138,7 @@ export default function CompleteQuestScreen() {
 
     try {
       const entry = await createLoreEntry.mutateAsync({
-        quest,
+        quest, // TypeScript now knows 100% that 'quest' is not null here
         title: title.trim(),
         journal: journal.trim(),
         location: locationName.trim(),
@@ -149,18 +154,24 @@ export default function CompleteQuestScreen() {
       Alert.alert("Could not save Lore entry", error instanceof Error ? error.message : "Try again.");
     }
   }
-
   return (
     <Screen contentClassName="px-0 pb-36">
       <TopBar showBack title="Complete Quest" />
       <View className="px-5">
-        <View className="rounded-[40px] border border-line bg-cream p-6">
-          <AppText variant="eyebrow">Turn quest into Lore</AppText>
-          <AppText variant="title" className="mt-3">{quest.title}</AppText>
-          <AppText className="mt-3 text-ink/70">{quest.journalPrompt}</AppText>
-          <View className="mt-5 flex-row flex-wrap gap-2">
-            <Chip label={`+${pointsPreview} LP`} />
-            <Chip label={photos.length === 1 ? "1 photo" : `${photos.length} photos`} />
+        
+        {/* ✨ FIX 4: The top Titlecard now embeds the newly selected photo dynamically! */}
+        <View className="rounded-[40px] border border-line bg-cream overflow-hidden">
+          {photos.length > 0 && (
+             <Image source={{ uri: photos[0].uri }} contentFit="cover" style={{ width: '100%', height: 180 }} />
+          )}
+          <View className="p-6">
+            <AppText variant="eyebrow">Turn quest into Lore</AppText>
+            <AppText variant="title" className="mt-3">{quest.title}</AppText>
+            <AppText className="mt-3 text-ink/70">{quest.journalPrompt}</AppText>
+            <View className="mt-5 flex-row flex-wrap gap-2">
+              <Chip label={`+${pointsPreview} LP`} />
+              <Chip label={photos.length === 1 ? "1 photo" : `${photos.length} photos`} />
+            </View>
           </View>
         </View>
 

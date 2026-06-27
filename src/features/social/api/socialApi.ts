@@ -41,11 +41,19 @@ function mapProfile(row: ProfileRow): Profile {
   };
 }
 
-async function fetchFriendMomentsFromSupabase() {
+// ✨ Notice the newly added userId parameter
+async function fetchFriendMomentsFromSupabase(userId?: string) {
   const client = requireSupabase();
-  const { data, error } = await client
+  let query = client
     .from("lore_entries")
-    .select("id, title, location_name, cover_photo_url, profiles(id, handle, full_name), quests(accent)")
+    .select("id, title, location_name, cover_photo_url, profiles(id, handle, full_name), quests(accent)");
+
+  // Filter out the current user's entries so it's strictly "Friends"
+  if (userId) {
+    query = query.neq("user_id", userId);
+  }
+
+  const { data, error } = await query
     .order("occurred_at", { ascending: false })
     .limit(12);
 
@@ -70,14 +78,15 @@ async function fetchFriendMomentsFromSupabase() {
 }
 
 export function useFriendMoments() {
-  const { isBackendReady } = useAuth();
+  const { isBackendReady, user } = useAuth(); // ✨ Grab the user
 
   return useQuery({
-    queryKey: ["friend-moments", isBackendReady ? "remote" : "preview"],
-    queryFn: () => (isBackendReady ? fetchFriendMomentsFromSupabase() : Promise.resolve(previewFriendMoments)),
+    queryKey: ["friend-moments", isBackendReady ? "remote" : "preview", user?.id],
+    queryFn: () => (isBackendReady ? fetchFriendMomentsFromSupabase(user?.id) : Promise.resolve(previewFriendMoments)),
     initialData: previewFriendMoments
   });
 }
+
 
 export function useSendFriendRequest() {
   const { isBackendReady, user } = useAuth();

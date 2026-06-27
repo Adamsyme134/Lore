@@ -69,10 +69,13 @@ export function useQuests() {
 export function useActivateQuest() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const activateQuest = useExperienceStore((state) => state.activateQuest); // ✨ Grab local action
 
   return useMutation({
     mutationFn: async (questId: string) => {
-      if (!user || !supabase) throw new Error("Not logged in");
+      activateQuest(questId); // ✨ Ensure instant UI update locally
+      
+      if (!user || !supabase) return;
 
       const { error } = await supabase
         .from("user_quests")
@@ -82,6 +85,7 @@ export function useActivateQuest() {
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["user-quests"] });
+      void queryClient.invalidateQueries({ queryKey: ["active-quests"] });
     }
   });
 }

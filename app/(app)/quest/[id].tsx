@@ -10,14 +10,13 @@ import { QuestDetailBlock } from "../../../src/features/quests/components/QuestD
 import { useExperienceStore } from "../../../src/features/app/store/useExperienceStore";
 import { useQuest, useSaveQuest, useActivateQuest } from "../../../src/features/quests/api/questApi";
 
-
-
 export default function QuestDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { data: quest } = useQuest(id);
-  const { savedQuestIds } = useExperienceStore();
+  const { savedQuestIds, activeQuests, toggleQuestStep } = useExperienceStore(); // ✨ Brought in new state
   const saveQuest = useSaveQuest();
   const activateQuest = useActivateQuest();
+
   if (!quest) {
     return (
       <Screen>
@@ -28,6 +27,9 @@ export default function QuestDetailScreen() {
   }
 
   const isSaved = savedQuestIds.includes(quest.id);
+  const isActive = activeQuests[quest.id] !== undefined;
+  const checkedSteps = activeQuests[quest.id] || [];
+  const isCompleteReady = quest.steps && quest.steps.length > 0 && checkedSteps.length === quest.steps.length;
 
   return (
     <Screen contentClassName="px-0 pb-36">
@@ -57,7 +59,12 @@ export default function QuestDetailScreen() {
         </View>
 
         <View className="mt-5">
-          <QuestDetailBlock quest={quest} />
+          <QuestDetailBlock 
+            quest={quest} 
+            checkedSteps={checkedSteps}
+            onToggleStep={(index) => toggleQuestStep(quest.id, index)}
+            isActive={isActive}
+          />
         </View>
 
         <View className="mt-6 flex-row gap-3">
@@ -67,15 +74,26 @@ export default function QuestDetailScreen() {
             className="flex-1"
             onPress={() => saveQuest.mutate(quest.id)}
           />
-          <Button 
-            label={activateQuest.isPending ? "Starting..." : "Start quest"} 
-            onPress={() => activateQuest.mutate(quest.id)} 
-          />
-          <Button
-            label="Complete"
-            className="flex-1"
-            onPress={() => router.push({ pathname: "/complete/[questId]", params: { questId: quest.id } })}
-          />
+          {!isActive ? (
+            <Button 
+              label={activateQuest.isPending ? "Starting..." : "Start quest"} 
+              onPress={() => activateQuest.mutate(quest.id)} 
+              className="flex-1"
+            />
+          ) : isCompleteReady ? (
+            <Button
+              label="Complete"
+              className="flex-1"
+              onPress={() => router.push({ pathname: "/complete/[questId]", params: { questId: quest.id } })}
+            />
+          ) : (
+            <Button
+              label={`${checkedSteps.length}/${quest.steps.length} Steps`}
+              variant="secondary"
+              className="flex-1"
+              disabled
+            />
+          )}
         </View>
       </View>
     </Screen>

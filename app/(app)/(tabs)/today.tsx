@@ -1,4 +1,3 @@
-// app/(app)/(tabs)/today.tsx
 import { View, ActivityIndicator, ScrollView, TouchableOpacity } from "react-native";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { useState } from "react";
@@ -16,33 +15,36 @@ import { router } from "expo-router";
 export default function TodayScreen() {
   const { data: quests = [], isLoading: isLoadingQuests } = useQuests();
   const { data: loreEntries = [] } = useLoreEntries();
-  
   const { profile } = useAuth();
 
   const previewPoints = useExperienceStore((state) => state.previewPoints);
-  const points = profile?.pointsTotal ?? 0;
-  // ✨ Added Functionality: Level Bar calculation
+  const activeQuestsMap = useExperienceStore((state) => state.activeQuests); // ✨ Load active store
+  
+  const points = profile?.pointsTotal ?? previewPoints;
   const currentLevel = Math.floor(points / 100) + 1;
   const nextLevel = currentLevel + 1;
   const progressToNextLevel = (points % 100) / 100;
 
-  // ✨ Added Functionality: "Different Vibe" Reroll Logic
   const [rerollsLeft, setRerollsLeft] = useState(3);
   const [mainQuestIndex, setMainQuestIndex] = useState(0);
 
+  // ✨ FIX 2: Correctly identify which quests are genuinely In Progress
+  const activeQuestIds = Object.keys(activeQuestsMap);
+  const inProgressQuests = quests.filter((q) => activeQuestIds.includes(q.id));
+
+  // ✨ RECOMMENDED QUEST LOGIC: Don't recommend quests we are already doing
+  const unstartedQuests = quests.filter((q) => !activeQuestIds.includes(q.id));
+  const displayQuests = unstartedQuests.length > 0 ? unstartedQuests : quests;
+  const todayQuest = displayQuests[mainQuestIndex % displayQuests.length];
+
   const handleReroll = () => {
     if (rerollsLeft > 0) {
-      // Using modulo (%) ensures we don't crash if your mock data has fewer than 3 quests
-      setMainQuestIndex((prev) => (prev + 1) % quests.length); 
+      setMainQuestIndex((prev) => prev + 1); 
       setRerollsLeft((prev) => prev - 1);
     }
   };
 
-  const todayQuest = quests[mainQuestIndex];
-  // Filter out the main quest to show the rest as "In Progress"
-  const inProgressQuests = quests.filter((_, idx) => idx !== mainQuestIndex).slice(0, 3);
-
-  if (isLoadingQuests) {
+  if (isLoadingQuests && quests.length === 0) {
     return (
       <Screen contentClassName="flex-1 items-center justify-center">
         <ActivityIndicator color="#2c2a25" />
@@ -63,7 +65,6 @@ export default function TodayScreen() {
       
       {/* --- PAGE 1: HEADER & LEVEL BAR --- */}
       <View className="mb-6 flex-row items-center justify-between gap-4 px-5">
-        {/* Level Bar */}
         <View className="flex-1 flex-row items-center gap-3">
           <AppText variant="body" className="font-sansBold text-ink">{currentLevel}</AppText>
           <View className="flex-1 h-3 rounded-full bg-line overflow-hidden">
@@ -75,7 +76,6 @@ export default function TodayScreen() {
           <AppText variant="body" className="font-sansBold text-ink">{nextLevel}</AppText>
         </View>
         
-        {/* PrP (Profile Picture) */}
         <TouchableOpacity 
           onPress={() => router.push("/profile")}
           className="h-10 w-10 items-center justify-center rounded-full border border-line bg-cream"
@@ -86,7 +86,6 @@ export default function TodayScreen() {
         </TouchableOpacity>
       </View>
 
-
       {/* --- PAGE 1: RECOMMENDED QUEST FOR TODAY --- */}
       <Animated.View entering={FadeInDown.delay(120).duration(420)} className="px-5 mb-10">
         <View className="items-center mb-4">
@@ -95,13 +94,9 @@ export default function TodayScreen() {
           </AppText>
         </View>
         
-        {/* Parent container handles the rounding and clipping */}
         <View className="rounded-[32px] border border-line bg-cream overflow-hidden shadow-sm shadow-charcoal/5">
-          
-          {/* ✨ FIX 2: Pass rounded-none so it creates a straight line separating it from the button below */}
           <QuestHero quest={todayQuest} className="rounded-none" />
           
-          {/* ✨ FIX 3: Component hides entirely when rerollsLeft hits 0 */}
           {rerollsLeft > 0 && (
             <TouchableOpacity 
               onPress={handleReroll}
@@ -126,7 +121,6 @@ export default function TodayScreen() {
             >
               {inProgressQuests.map((quest) => (
                 <View key={quest.id} className="w-32">
-                  {/* Relying on your existing compact variant which handles the progress circles */}
                   <QuestCard quest={quest} compact />
                 </View>
               ))}
@@ -141,7 +135,6 @@ export default function TodayScreen() {
 
       {/* --- PAGE 3: FRIEND'S LORE --- */}
       <View className="px-5 pb-32"> 
-        {/* pb-32 ensures content isn't hidden behind your absolute TabBar */}
         <AppText variant="title" className="mb-6">
           Friend's Lore
         </AppText>

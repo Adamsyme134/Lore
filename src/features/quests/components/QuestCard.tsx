@@ -5,6 +5,7 @@ import { AppText } from "../../../shared/components/AppText";
 import { Chip } from "../../../shared/components/Chip";
 import { ImageFrame } from "../../../shared/components/ImageFrame";
 import { accentClass } from "../../../shared/design/tokens";
+import { useExperienceStore } from "../../app/store/useExperienceStore";
 
 type QuestCardProps = {
   quest: Quest;
@@ -13,6 +14,10 @@ type QuestCardProps = {
 
 export function QuestCard({ quest, compact = false }: QuestCardProps) {
   const accent = accentClass[quest.accent];
+  const activeQuests = useExperienceStore(state => state.activeQuests);
+  
+  const checkedSteps = activeQuests[quest.id] || [];
+  const progress = quest.steps?.length ? checkedSteps.length / quest.steps.length : 0;
 
   return (
     <Pressable onPress={() => router.push({ pathname: "/quest/[id]", params: { id: quest.id } })} className="mb-4 overflow-hidden rounded-card border border-line bg-cream">
@@ -22,7 +27,19 @@ export function QuestCard({ quest, compact = false }: QuestCardProps) {
           <View className="p-5">
             <View className="mb-3 flex-row items-center justify-between gap-3">
               <Chip label={quest.duration} />
-              <View className={`h-2.5 w-2.5 rounded-full ${accent.bg}`} />
+              
+              {/* ✨ Progress fill indicator replacing static dot for compact cards */}
+              {compact ? (
+                <View className="h-6 w-6 items-center justify-center rounded-full border-2 border-line overflow-hidden bg-ivory">
+                  <View 
+                    className={`absolute bottom-0 w-full ${accent.bg}`} 
+                    style={{ height: `${progress * 100}%` }} 
+                  />
+                </View>
+              ) : (
+                <View className={`h-2.5 w-2.5 rounded-full ${accent.bg}`} />
+              )}
+
             </View>
             <AppText variant="subtitle">{quest.title}</AppText>
             <AppText className="mt-2">{quest.kicker}</AppText>
