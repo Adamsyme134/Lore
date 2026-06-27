@@ -1,4 +1,4 @@
-
+// app/(app)/(tabs)/today.tsx
 import { View, ActivityIndicator, ScrollView, TouchableOpacity } from "react-native";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { useState } from "react";
@@ -114,26 +114,29 @@ export default function TodayScreen() {
           )}
         </View>
       </Animated.View>
+
       {/* --- PAGE 2: IN PROGRESS HORIZONTAL SCROLL --- */}
-      <View className="mb-8">
-        <ScrollView 
-          horizontal 
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{ paddingHorizontal: 20, gap: 12 }}
-        >
+      <View className="px-5 mb-8">
+        <View className="rounded-[32px] border border-line bg-cream py-5 overflow-hidden">
           {inProgressQuests.length > 0 ? (
-            inProgressQuests.map((quest) => (
-              <View key={quest.id} className="w-32">
-                {/* Relying on your existing compact variant which handles the progress circles */}
-                <QuestCard quest={quest} compact />
-              </View>
-            ))
+            <ScrollView 
+              horizontal 
+              showsHorizontalScrollIndicator={true}
+              contentContainerStyle={{ paddingHorizontal: 20, gap: 12 }}
+            >
+              {inProgressQuests.map((quest) => (
+                <View key={quest.id} className="w-32">
+                  {/* Relying on your existing compact variant which handles the progress circles */}
+                  <QuestCard quest={quest} compact />
+                </View>
+              ))}
+            </ScrollView>
           ) : (
-            <View className="w-32 h-24 items-center justify-center rounded-2xl border border-line bg-cream">
-              <AppText className="text-muted">...</AppText>
+            <View className="py-2 items-center justify-center">
+              <AppText className="text-muted font-sansMedium">No quests in progress</AppText>
             </View>
           )}
-        </ScrollView>
+        </View>
       </View>
 
       {/* --- PAGE 3: FRIEND'S LORE --- */}
@@ -160,4 +163,3 @@ export default function TodayScreen() {
     </Screen>
   );
 }
-
