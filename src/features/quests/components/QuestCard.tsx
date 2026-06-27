@@ -1,5 +1,8 @@
+// src/features/quests/components/QuestCard.tsx
 import { Pressable, View } from "react-native";
 import { router } from "expo-router";
+import { Image } from "expo-image"; 
+import { LinearGradient } from "expo-linear-gradient"; // ✨ Import the gradient
 import type { Quest } from "../../../shared/types/domain";
 import { AppText } from "../../../shared/components/AppText";
 import { Chip } from "../../../shared/components/Chip";
@@ -19,27 +22,57 @@ export function QuestCard({ quest, compact = false }: QuestCardProps) {
   const checkedSteps = activeQuests[quest.id] || [];
   const progress = quest.steps?.length ? checkedSteps.length / quest.steps.length : 0;
 
+  if (compact) {
+    return (
+      <Pressable 
+        onPress={() => router.push({ pathname: "/quest/[id]", params: { id: quest.id } })} 
+        className="h-32 w-32 overflow-hidden rounded-[24px] border border-line"
+      >
+        {({ pressed }) => (
+          <View className={`flex-1 ${pressed ? "opacity-90" : ""}`}>
+            <Image 
+              source={{ uri: quest.imageUrl }} 
+              contentFit="cover" 
+              transition={200} 
+              style={{ width: '100%', height: '100%', position: 'absolute' }} 
+            />
+            
+            {/* ✨ FIX: Smooth gradient instead of a flat muddy overlay */}
+            <LinearGradient
+              colors={['transparent', 'rgba(0, 0, 0, 0.8)']}
+              locations={[0.3, 1]} // Starts fading 30% down the image
+              className="absolute inset-0"
+            />
+            
+            {/* ✨ Grouped the text and bar at the bottom for maximum readability */}
+            <View className="flex-1 justify-end p-3">
+              <AppText variant="caption" className="font-sansSemi text-ivory mb-2.5" numberOfLines={2}>
+                {quest.title}
+              </AppText>
+              
+              <View className="w-full h-1.5 overflow-hidden rounded-full bg-ivory/30">
+                <View 
+                  className={`h-full ${accent.bg}`} 
+                  style={{ width: `${progress * 100}%` }} 
+                />
+              </View>
+            </View>
+          </View>
+        )}
+      </Pressable>
+    );
+  }
+
+  // Default Standard Layout
   return (
     <Pressable onPress={() => router.push({ pathname: "/quest/[id]", params: { id: quest.id } })} className="mb-4 overflow-hidden rounded-card border border-line bg-cream">
       {({ pressed }) => (
         <View className={pressed ? "opacity-90" : undefined}>
-          <ImageFrame uri={quest.imageUrl} className={compact ? "h-40 overflow-hidden rounded-t-card bg-stone" : "h-56 overflow-hidden rounded-t-card bg-stone"} />
+          <ImageFrame uri={quest.imageUrl} className="h-56 overflow-hidden rounded-t-card bg-stone" />
           <View className="p-5">
             <View className="mb-3 flex-row items-center justify-between gap-3">
               <Chip label={quest.duration} />
-              
-              {/* ✨ Progress fill indicator replacing static dot for compact cards */}
-              {compact ? (
-                <View className="h-6 w-6 items-center justify-center rounded-full border-2 border-line overflow-hidden bg-ivory">
-                  <View 
-                    className={`absolute bottom-0 w-full ${accent.bg}`} 
-                    style={{ height: `${progress * 100}%` }} 
-                  />
-                </View>
-              ) : (
-                <View className={`h-2.5 w-2.5 rounded-full ${accent.bg}`} />
-              )}
-
+              <View className={`h-2.5 w-2.5 rounded-full ${accent.bg}`} />
             </View>
             <AppText variant="subtitle">{quest.title}</AppText>
             <AppText className="mt-2">{quest.kicker}</AppText>

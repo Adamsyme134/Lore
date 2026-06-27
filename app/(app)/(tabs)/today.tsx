@@ -111,6 +111,7 @@ export default function TodayScreen() {
       </Animated.View>
 
       {/* --- PAGE 2: IN PROGRESS HORIZONTAL SCROLL --- */}
+      {/* --- PAGE 2: IN PROGRESS HORIZONTAL SCROLL --- */}
       <View className="px-5 mb-8">
         <View className="rounded-[32px] border border-line bg-cream py-5 overflow-hidden">
           {inProgressQuests.length > 0 ? (
@@ -119,10 +120,9 @@ export default function TodayScreen() {
               showsHorizontalScrollIndicator={true}
               contentContainerStyle={{ paddingHorizontal: 20, gap: 12 }}
             >
+              {/* ✨ FIX: Removed the outer <View className="w-32"> wrapper, letting the card shape itself */}
               {inProgressQuests.map((quest) => (
-                <View key={quest.id} className="w-32">
-                  <QuestCard quest={quest} compact />
-                </View>
+                <QuestCard key={quest.id} quest={quest} compact />
               ))}
             </ScrollView>
           ) : (
