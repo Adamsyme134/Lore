@@ -1,33 +1,45 @@
-// app/(app)/(tabs)/today.tsx
-import { View, ActivityIndicator } from "react-native";
+
+import { View, ActivityIndicator, ScrollView, TouchableOpacity } from "react-native";
 import Animated, { FadeInDown } from "react-native-reanimated";
+import { useState } from "react";
 import { Screen } from "../../../src/shared/components/Screen";
 import { AppText } from "../../../src/shared/components/AppText";
-import { SectionHeader } from "../../../src/shared/components/SectionHeader";
 import { QuestHero } from "../../../src/features/quests/components/QuestHero";
 import { QuestCard } from "../../../src/features/quests/components/QuestCard";
 import { LoreEntryCard } from "../../../src/features/lore/components/LoreEntryCard";
-import { useQuests, useActiveQuests } from "../../../src/features/quests/api/questApi";
+import { useQuests } from "../../../src/features/quests/api/questApi";
 import { useLoreEntries } from "../../../src/features/lore/api/loreApi";
-import { PointsPill } from "../../../src/features/points/components/PointsPill";
 import { useAuth } from "../../../src/features/auth/AuthProvider";
 import { useExperienceStore } from "../../../src/features/app/store/useExperienceStore";
-import { TopBar } from "../../../src/shared/components/TopBar"; // <-- Add this if you want the profile picture up top!
 
 export default function TodayScreen() {
-  const { data: activeQuests = [] } = useActiveQuests();
-  // ✨ FIX: Add empty array fallbacks and grab isLoading
   const { data: quests = [], isLoading: isLoadingQuests } = useQuests();
   const { data: loreEntries = [] } = useLoreEntries();
   
   const { profile } = useAuth();
-  const previewPoints = useExperienceStore((state) => state.previewPoints);
-  
-  const todayQuest = quests[0];
-  const secondaryQuests = quests.slice(1, 3);
-  const points = profile?.pointsTotal ?? 0;
 
-  // ✨ FIX: Show a loading state while fetching the real database
+  const previewPoints = useExperienceStore((state) => state.previewPoints);
+  const points = profile?.pointsTotal ?? 0;
+  // ✨ Added Functionality: Level Bar calculation
+  const currentLevel = Math.floor(points / 100) + 1;
+  const nextLevel = currentLevel + 1;
+  const progressToNextLevel = (points % 100) / 100;
+
+  // ✨ Added Functionality: "Different Vibe" Reroll Logic
+  const [rerollsLeft, setRerollsLeft] = useState(3);
+  const [mainQuestIndex, setMainQuestIndex] = useState(0);
+
+  const handleReroll = () => {
+    if (rerollsLeft > 0 && quests.length > mainQuestIndex + 1) {
+      setMainQuestIndex((prev) => prev + 1);
+      setRerollsLeft((prev) => prev - 1);
+    }
+  };
+
+  const todayQuest = quests[mainQuestIndex];
+  // Filter out the main quest to show the rest as "In Progress"
+  const inProgressQuests = quests.filter((_, idx) => idx !== mainQuestIndex).slice(0, 3);
+
   if (isLoadingQuests) {
     return (
       <Screen contentClassName="flex-1 items-center justify-center">
@@ -39,55 +51,104 @@ export default function TodayScreen() {
   if (!todayQuest) {
     return (
       <Screen contentClassName="pt-3 px-5">
-        <TopBar showProfile={true} />
         <AppText variant="title" className="mt-8 text-center text-ink/60">No quests available.</AppText>
       </Screen>
     );
   }
 
   return (
-    <Screen contentClassName="pt-3">
-      {/* 1. Use the TopBar component here, which already has the Pressable logic */}
-      <TopBar title="Lore" showProfile={true} />
-
-      <View className="mb-5 flex-row items-start justify-between gap-4 px-5">
-        <View className="flex-1">
-          {/* Removed the manual "Lore" header text since it's now in the TopBar */}
-          <AppText variant="title" className="mt-1">Do something worth remembering.</AppText>
+    <Screen contentClassName="pt-2">
+      
+      {/* --- PAGE 1: HEADER & LEVEL BAR --- */}
+      <View className="mb-6 flex-row items-center justify-between gap-4 px-5">
+        {/* Level Bar */}
+        <View className="flex-1 flex-row items-center gap-3">
+          <AppText variant="body" className="font-sansBold text-ink">{currentLevel}</AppText>
+          <View className="flex-1 h-3 rounded-full bg-line overflow-hidden">
+            <View 
+              className="h-full bg-ink rounded-full" 
+              style={{ width: `${progressToNextLevel * 100}%` }} 
+            />
+          </View>
+          <AppText variant="body" className="font-sansBold text-ink">{nextLevel}</AppText>
         </View>
-        <View className="items-end gap-3">
-          {/* 2. Remove the manual circle View here entirely, 
-              as TopBar now handles the profile button */}
-          <PointsPill points={points} />
-        </View>
+        
+        {/* PrP (Profile Picture) */}
+        <TouchableOpacity className="h-10 w-10 items-center justify-center rounded-full border border-line bg-cream">
+          <AppText variant="caption" className="font-sansBold text-ink">
+            {profile?.fullName?.[0] ?? "A"}
+          </AppText>
+        </TouchableOpacity>
       </View>
-      {activeQuests.length > 0 && (
-  <View className="mb-6">
-    <SectionHeader eyebrow="In progress" title="Current adventures" />
-    {activeQuests.map(q => (
-      <QuestCard key={q.id} quest={q} compact />
-    ))}
-  </View>
-)}
-      <QuestHero quest={todayQuest} />
 
-      <Animated.View entering={FadeInDown.delay(120).duration(420)}>
-        <SectionHeader
-          eyebrow="This week"
-          title="Small openings"
-          body="Lore Points acknowledge completed memories. No streaks, rankings, or chore loops."
-        />
-        {secondaryQuests.map((quest) => (
-          <QuestCard key={quest.id} quest={quest} compact />
-        ))}
+      {/* --- PAGE 1: IN PROGRESS HORIZONTAL SCROLL --- */}
+      <View className="mb-8">
+        <ScrollView 
+          horizontal 
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={{ paddingHorizontal: 20, gap: 12 }}
+        >
+          {inProgressQuests.length > 0 ? (
+            inProgressQuests.map((quest) => (
+              <View key={quest.id} className="w-32">
+                {/* Relying on your existing compact variant which handles the progress circles */}
+                <QuestCard quest={quest} compact />
+              </View>
+            ))
+          ) : (
+            <View className="w-32 h-24 items-center justify-center rounded-2xl border border-line bg-cream">
+              <AppText className="text-muted">...</AppText>
+            </View>
+          )}
+        </ScrollView>
+      </View>
+
+      {/* --- PAGE 1: RECOMMENDED QUEST FOR TODAY --- */}
+      <Animated.View entering={FadeInDown.delay(120).duration(420)} className="px-5 mb-10">
+        <View className="items-center mb-4">
+          <AppText variant="eyebrow" className="text-muted mb-2 uppercase tracking-widest text-center">
+            Recommended Quest For Today
+          </AppText>
+        </View>
+        
+        <View className="rounded-[32px] border border-line bg-cream overflow-hidden shadow-sm shadow-charcoal/5">
+          <QuestHero quest={todayQuest} />
+          
+          {/* Different Vibe Button */}
+          <TouchableOpacity 
+            onPress={handleReroll}
+            disabled={rerollsLeft === 0}
+            className="w-full border-t border-line py-4 items-center bg-cream active:bg-line/30"
+          >
+            <AppText variant="caption" className={`font-sansSemi ${rerollsLeft > 0 ? 'text-ink' : 'text-muted'}`}>
+              Different vibe ({rerollsLeft})
+            </AppText>
+          </TouchableOpacity>
+        </View>
       </Animated.View>
 
-      <SectionHeader
-        eyebrow="Recent lore"
-        title="What you have been collecting"
-        body="The archive should feel like evidence that your life has texture."
-      />
-      {loreEntries[0] ? <LoreEntryCard entry={loreEntries[0]} featured /> : null}
+      {/* --- PAGE 2: FRIEND'S LORE --- */}
+      <View className="px-5 pb-32"> 
+        {/* pb-32 ensures content isn't hidden behind your absolute TabBar */}
+        <AppText variant="title" className="mb-6">
+          Friend's Lore
+        </AppText>
+        
+        {loreEntries.length > 0 ? (
+          loreEntries.map((entry) => (
+            <View key={entry.id} className="mb-6">
+              <LoreEntryCard entry={entry} />
+            </View>
+          ))
+        ) : (
+          <AppText className="text-center text-muted mt-4">No recent lore from friends.</AppText>
+        )}
+        
+        <View className="items-center py-6">
+           <AppText className="text-muted font-sansBold tracking-widest">. . .</AppText>
+        </View>
+      </View>
     </Screen>
   );
 }
+

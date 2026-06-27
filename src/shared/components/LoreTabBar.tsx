@@ -1,3 +1,4 @@
+// src/shared/components/LoreTabBar.tsx
 import { Pressable, View } from "react-native";
 import { AppText } from "./AppText";
 
@@ -17,20 +18,26 @@ type LoreTabBarProps = {
   };
 };
 
+// ✨ Updated labels to match Sketch 1 Bottom Tab Bar exactly
 const labels: Record<string, string> = {
   today: "Today",
   explore: "Explore",
-  archive: "Lore",
+  archive: "My Lore", 
   map: "Map",
-  friends: "People"
+  friends: "Friends"
 };
 
 export function LoreTabBar({ state, navigation }: LoreTabBarProps) {
+  // We can filter out map if you only want the 4 tabs shown in the sketch
+  const visibleRoutes = state.routes.filter(route => route.name !== 'map');
+
   return (
     <View className="absolute bottom-6 left-5 right-5 rounded-full border border-line bg-ivory/95 px-2 py-2 shadow-lg shadow-charcoal/10">
       <View className="flex-row items-center justify-between">
-        {state.routes.map((route, index) => {
-          const focused = state.index === index;
+        {visibleRoutes.map((route, index) => {
+          // adjust active index check since we filtered routes
+          const originalIndex = state.routes.findIndex(r => r.key === route.key);
+          const focused = state.index === originalIndex;
           const label = labels[route.name] ?? route.name;
 
           const onPress = () => {
