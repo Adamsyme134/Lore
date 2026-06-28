@@ -1,13 +1,10 @@
 // src/features/quests/components/QuestCard.tsx
 import { Pressable, View } from "react-native";
+import { Image } from "expo-image";
+import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
-import { Image } from "expo-image"; 
 import type { Quest } from "../../../shared/types/domain";
 import { AppText } from "../../../shared/components/AppText";
-import { Chip } from "../../../shared/components/Chip";
-import { ImageFrame } from "../../../shared/components/ImageFrame";
-import { accentClass } from "../../../shared/design/tokens";
-import { useExperienceStore } from "../../app/store/useExperienceStore";
 
 type QuestCardProps = {
   quest: Quest;
@@ -15,77 +12,45 @@ type QuestCardProps = {
 };
 
 export function QuestCard({ quest, compact = false }: QuestCardProps) {
-  const accent = accentClass[quest.accent];
-  const activeQuests = useExperienceStore(state => state.activeQuests);
-  
-  const checkedSteps = activeQuests[quest.id] || [];
-  const progress = quest.steps?.length ? checkedSteps.length / quest.steps.length : 0;
+  // ✨ NEW: Group Quest styling logic
+  const isGroup = quest.maxParticipants > 1;
+  const borderClass = isGroup ? 'border-[3px] border-[#2D6A4F]' : 'border border-line/20';
 
-  if (compact) {
-    return (
-      <Pressable 
-        onPress={() => router.push({ pathname: "/quest/[id]", params: { id: quest.id } })} 
-        className="h-40 w-40 overflow-hidden rounded-[24px] border border-line"
-      >
-        {({ pressed }) => (
-          <View className={`flex-1 ${pressed ? "opacity-90" : ""}`}>
-            <Image 
-              source={{ uri: quest.imageUrl }} 
-              contentFit="cover" 
-              transition={200} 
-              style={{ width: '100%', height: '100%', position: 'absolute' }} 
-            />
-            
-            {/* ✨ FIX: Replaced gradient with a solid, bottom-anchored widget */}
-            <View className="flex-1 justify-end p-2">
-              <View className="w-full bg-ink rounded-[18px] p-3 shadow-md">
-                
-                {/* ✨ FIX: Matched text variant to the Hero Card Title */}
-                <AppText variant="display" className="text-ivory text-sm mb-2.5" numberOfLines={2}>
-                  {quest.title}
-                </AppText>
-                
-                {/* Horizontal Progress Bar */}
-                <View className="w-full h-1.5 overflow-hidden rounded-full bg-ivory/20">
-                  <View 
-                    className={`h-full ${accent.bg}`} 
-                    style={{ width: `${progress * 100}%` }} 
-                  />
-                </View>
-              </View>
-            </View>
-
-          </View>
-        )}
-      </Pressable>
-    );
-  }
-
-  // Default Standard Layout (Used on the Explore Tab)
   return (
-    <Pressable onPress={() => router.push({ pathname: "/quest/[id]", params: { id: quest.id } })} className="mb-4 overflow-hidden rounded-card border border-line bg-cream">
-      {({ pressed }) => (
-        <View className={pressed ? "opacity-90" : undefined}>
-          <ImageFrame uri={quest.imageUrl} className="h-56 overflow-hidden rounded-t-card bg-stone" />
-          <View className="p-5">
-            <View className="mb-3 flex-row items-center justify-between gap-3">
-              <Chip label={quest.duration} />
-              <View className={`h-2.5 w-2.5 rounded-full ${accent.bg}`} />
-            </View>
-            <AppText 
-              variant="subtitle" 
-              className="font-sansSemi text-ivory mb-2.5" 
-              numberOfLines={2}
-              adjustsFontSizeToFit={true}
-              minimumFontScale={0.7}
-            >
-              {quest.title}
-            </AppText>
-            <AppText className="mt-2">{quest.kicker}</AppText>
-            <AppText variant="caption" className="mt-4 font-sansSemi text-ink">
-              {quest.pointsValue} Lore Points on completion
-            </AppText>
-          </View>
+    <Pressable
+      onPress={() => router.push({ pathname: "/quest/[id]", params: { id: quest.id } })}
+      className={`overflow-hidden rounded-[24px] bg-stone relative ${borderClass}`}
+      style={{ height: compact ? 160 : 280 }}
+    >
+      <Image
+        source={{ uri: quest.imageUrl }}
+        style={{ height: "100%", width: "100%" }}
+        contentFit="cover"
+        transition={300}
+      />
+
+      {/* ✨ NEW: Charcoal gradient overlay to make text highly readable */}
+      <LinearGradient
+        colors={['transparent', 'rgba(28, 26, 23, 0.95)']}
+        locations={[0.2, 1]}
+        className="absolute inset-0"
+      />
+
+      <View className="absolute bottom-0 left-0 right-0 p-5">
+        <AppText variant={compact ? "subtitle" : "display"} className="text-ivory">
+          {quest.title}
+        </AppText>
+        {!compact && (
+          <AppText numberOfLines={2} className="text-ivory/80 mt-1">
+            {quest.description}
+          </AppText>
+        )}
+      </View>
+
+      {/* ✨ NEW: Top right floating badge for group quests */}
+      {isGroup && (
+        <View className="absolute top-4 right-4 bg-[#2D6A4F] px-3 py-1.5 rounded-full shadow-md border border-white/20">
+          <AppText className="text-white text-xs font-sansSemi">Group Quest</AppText>
         </View>
       )}
     </Pressable>
