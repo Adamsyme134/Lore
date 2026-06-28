@@ -18,7 +18,7 @@ export default function TodayScreen() {
   const { profile } = useAuth();
 
   const previewPoints = useExperienceStore((state) => state.previewPoints);
-  const activeQuestsMap = useExperienceStore((state) => state.activeQuests); // ✨ Load active store
+  const activeQuestsMap = useExperienceStore((state) => state.activeQuests); 
   
   const points = profile?.pointsTotal ?? previewPoints;
   const currentLevel = Math.floor(points / 100) + 1;
@@ -28,11 +28,9 @@ export default function TodayScreen() {
   const [rerollsLeft, setRerollsLeft] = useState(3);
   const [mainQuestIndex, setMainQuestIndex] = useState(0);
 
-  // ✨ FIX 2: Correctly identify which quests are genuinely In Progress
   const activeQuestIds = Object.keys(activeQuestsMap);
   const inProgressQuests = quests.filter((q) => activeQuestIds.includes(q.id));
 
-  // ✨ RECOMMENDED QUEST LOGIC: Don't recommend quests we are already doing
   const unstartedQuests = quests.filter((q) => !activeQuestIds.includes(q.id));
   const displayQuests = unstartedQuests.length > 0 ? unstartedQuests : quests;
   const todayQuest = displayQuests[mainQuestIndex % displayQuests.length];
@@ -111,26 +109,26 @@ export default function TodayScreen() {
       </Animated.View>
 
       {/* --- PAGE 2: IN PROGRESS HORIZONTAL SCROLL --- */}
-      {/* --- PAGE 2: IN PROGRESS HORIZONTAL SCROLL --- */}
-      <View className="px-5 mb-8">
-        <View className="rounded-[32px] border border-line bg-cream py-5 overflow-hidden">
-          {inProgressQuests.length > 0 ? (
-            <ScrollView 
-              horizontal 
-              showsHorizontalScrollIndicator={true}
-              contentContainerStyle={{ paddingHorizontal: 20, gap: 12 }}
-            >
-              {/* ✨ FIX: Removed the outer <View className="w-32"> wrapper, letting the card shape itself */}
-              {inProgressQuests.map((quest) => (
-                <QuestCard key={quest.id} quest={quest} compact />
-              ))}
-            </ScrollView>
-          ) : (
-            <View className="py-2 items-center justify-center">
-              <AppText className="text-muted font-sansMedium">No quests in progress</AppText>
-            </View>
-          )}
+      <View className="mb-8">
+        <View className="px-5 mb-4">
+          <AppText variant="title">In Progress</AppText>
         </View>
+        
+        {inProgressQuests.length > 0 ? (
+          <ScrollView 
+            horizontal 
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{ paddingHorizontal: 20, gap: 12 }}
+          >
+            {inProgressQuests.map((quest) => (
+              <QuestCard key={quest.id} quest={quest} compact />
+            ))}
+          </ScrollView>
+        ) : (
+          <View className="px-5 py-2">
+            <AppText className="text-muted font-sansMedium">No quests in progress</AppText>
+          </View>
+        )}
       </View>
 
       {/* --- PAGE 3: FRIEND'S LORE --- */}

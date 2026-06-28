@@ -41,9 +41,9 @@ export function QuestHero({ quest, className }: QuestHeroProps) {
         <View className="absolute bottom-0 left-0 right-0 px-6 pb-7">
           <Animated.View entering={FadeInDown.duration(500).springify()}>
             <View className="mb-5 flex-row flex-wrap gap-2">
-              <Chip label={quest.duration} tone="dark" />
-              <Chip label={quest.locationHint} tone="dark" />
-              <Chip label={`${quest.pointsValue} LP`} tone="dark" />
+              <Chip label={quest.duration} tone="light" />
+              <Chip label={quest.locationHint} tone="light" />
+              <Chip label={`${quest.pointsValue} LP`} tone="light" />
             </View>
             <AppText variant="eyebrow" className="mb-3 text-ivory/80">
               {quest.kicker}

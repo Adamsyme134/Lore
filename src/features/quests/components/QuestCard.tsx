@@ -25,7 +25,7 @@ export function QuestCard({ quest, compact = false }: QuestCardProps) {
     return (
       <Pressable 
         onPress={() => router.push({ pathname: "/quest/[id]", params: { id: quest.id } })} 
-        className="h-32 w-32 overflow-hidden rounded-[24px] border border-line bg-stone"
+        className="h-40 w-40 overflow-hidden rounded-[24px] border border-line"
       >
         {({ pressed }) => (
           <View className={`flex-1 ${pressed ? "opacity-90" : ""}`}>
@@ -72,7 +72,15 @@ export function QuestCard({ quest, compact = false }: QuestCardProps) {
               <Chip label={quest.duration} />
               <View className={`h-2.5 w-2.5 rounded-full ${accent.bg}`} />
             </View>
-            <AppText variant="subtitle">{quest.title}</AppText>
+            <AppText 
+              variant="subtitle" 
+              className="font-sansSemi text-ivory mb-2.5" 
+              numberOfLines={2}
+              adjustsFontSizeToFit={true}
+              minimumFontScale={0.7}
+            >
+              {quest.title}
+            </AppText>
             <AppText className="mt-2">{quest.kicker}</AppText>
             <AppText variant="caption" className="mt-4 font-sansSemi text-ink">
               {quest.pointsValue} Lore Points on completion
