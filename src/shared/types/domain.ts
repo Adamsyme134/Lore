@@ -21,12 +21,14 @@ export type Quest = {
   description: string;
   whyItMatters: string;
   locationHint: string; 
+  duration: string; // ✨ Add this back!
   mood: QuestMood;
   accent: Accent;
   imageUrl: string;
   steps: string[];
   journalPrompt: string;
   pointsValue: number;
+
 
   // --- VISIBLE TAGS ---
   category: QuestCategory;

@@ -1,4 +1,4 @@
-import { View } from "react-native";
+import { View, Pressable } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { Image } from "expo-image";
 import Animated, { FadeInDown } from "react-native-reanimated";
@@ -9,6 +9,7 @@ import { TopBar } from "../../../src/shared/components/TopBar";
 import { QuestDetailBlock } from "../../../src/features/quests/components/QuestDetailBlock";
 import { useExperienceStore } from "../../../src/features/app/store/useExperienceStore";
 import { useQuest, useSaveQuest, useActivateQuest } from "../../../src/features/quests/api/questApi";
+import { Ionicons } from '@expo/vector-icons'; // ✨ Added for bookmark symbol
 
 export default function QuestDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -68,22 +69,40 @@ export default function QuestDetailScreen() {
         </View>
 
         <View className="mt-6 flex-row gap-3">
-          <Button
-            label={isSaved ? "Saved" : "Save"}
-            variant="secondary"
-            className="flex-1"
+          
+          {/* Bookmark Button */}
+          <Pressable
             onPress={() => saveQuest.mutate(quest.id)}
-          />
-          {!isActive ? (
-            <Button 
-              label={activateQuest.isPending ? "Starting..." : "Start quest"} 
-              onPress={() => activateQuest.mutate(quest.id)} 
-              className="flex-1"
+            className={`h-[56px] w-[56px] items-center justify-center rounded-[20px] border ${
+              isSaved ? 'bg-ink border-ink' : 'bg-white border-line'
+            }`}
+          >
+            <Ionicons 
+              name={isSaved ? "bookmark" : "bookmark-outline"} 
+              size={24} 
+              color={isSaved ? "#F6F5F2" : "#1C1A17"} 
             />
+          </Pressable>
+
+          {/* Start / Group / Complete Button Logic */}
+          {!isActive ? (
+            quest.maxParticipants > 1 ? (
+              <Button 
+                label="Start with Group" 
+                onPress={() => router.push({ pathname: "/(app)/group/select", params: { questId: quest.id } })} 
+                className="flex-1" 
+              />
+            ) : (
+              <Button 
+                label={activateQuest.isPending ? "Starting..." : "Start quest"} 
+                onPress={() => activateQuest.mutate(quest.id)} 
+                className="flex-1"
+              />
+            )
           ) : isCompleteReady ? (
             <Button
               label="Complete"
-              className="flex-1"
+              className="flex-1 bg-orange"
               onPress={() => router.push({ pathname: "/complete/[questId]", params: { questId: quest.id } })}
             />
           ) : (
@@ -94,6 +113,7 @@ export default function QuestDetailScreen() {
               disabled
             />
           )}
+        
         </View>
       </View>
     </Screen>

@@ -49,13 +49,13 @@ export function QuestHero({ quest, className, onPressOverride }: QuestHeroProps)
           <Animated.View entering={FadeInDown.duration(500).springify()}>
             
             <View className="mb-5 flex-row flex-wrap gap-2">
-              <Chip label={quest.category} tone="light" />
-              <Chip label={quest.length} tone="light" />
-              <Chip label={quest.difficulty} tone="light" />
-              <Chip label={quest.cost} tone="light" />
-              <Chip label={groupLabel} tone="light" />
-              <Chip label={`${quest.pointsValue} LP`} tone="light" />
-            </View>
+            {quest.category ? <Chip label={quest.category} tone="light" /> : null}
+            {quest.length ? <Chip label={quest.length} tone="light" /> : null}
+            {quest.difficulty ? <Chip label={quest.difficulty} tone="light" /> : null}
+            {quest.cost ? <Chip label={quest.cost} tone="light" /> : null}
+            {groupLabel ? <Chip label={groupLabel} tone="light" /> : null}
+            {quest.pointsValue ? <Chip label={`${quest.pointsValue} LP`} tone="light" /> : null}
+          </View>
 
             <AppText variant="eyebrow" className="mb-3 text-ivory/80">
               {quest.kicker}

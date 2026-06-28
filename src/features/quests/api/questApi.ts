@@ -2,7 +2,16 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../../auth/AuthProvider";
 import { requireSupabase, supabase } from "../../../lib/supabase";
 import { previewQuests } from "../../../shared/data/previewData";
-import type { Quest } from "../../../shared/types/domain";
+import type { 
+  Quest, 
+  QuestCategory, 
+  QuestCost, 
+  QuestLength, 
+  QuestDifficulty, 
+  QuestSeason, 
+  QuestAccessibility, 
+  QuestLocationType 
+} from "../../../shared/types/domain";
 import type { Accent } from "../../../shared/design/tokens";
 import { useExperienceStore } from "../../app/store/useExperienceStore";
 
@@ -21,6 +30,17 @@ type QuestRow = {
   steps: string[] | null;
   journal_prompt: string;
   points_value: number;
+  
+  // ✨ Add the dynamic columns so TS knows they might exist
+  category?: string;
+  cost?: string;
+  length?: string;
+  difficulty?: string;
+  min_participants?: number;
+  max_participants?: number;
+  seasons?: string[];
+  accessibility?: string[];
+  location_types?: string[];
 };
 
 function mapQuest(row: QuestRow): Quest {
@@ -30,23 +50,35 @@ function mapQuest(row: QuestRow): Quest {
     title: row.title,
     kicker: row.kicker,
     description: row.description,
-    whyItMatters: row.why_it_matters,
-    locationHint: row.location_hint,
-    duration: row.duration_label,
-    mood: row.mood,
-    accent: row.accent,
+    whyItMatters: row.why_it_matters || "",
+    locationHint: row.location_hint || "Anywhere",
+    duration: row.duration_label || row.length || "Half day", // ✨ Added fallback
+    mood: row.mood || "wild",
+    accent: row.accent || "orange",
     imageUrl: row.image_url,
     steps: row.steps ?? [],
-    journalPrompt: row.journal_prompt,
-    pointsValue: row.points_value
+    journalPrompt: row.journal_prompt || "",
+    pointsValue: row.points_value || 10,
+    
+    // ✨ Typecast the new fields
+    category: (row.category as QuestCategory) || "Adventure",
+    cost: (row.cost as QuestCost) || "Free",
+    length: (row.length as QuestLength) || "Half day",
+    difficulty: (row.difficulty as QuestDifficulty) || "Medium",
+    minParticipants: row.min_participants || 1,
+    maxParticipants: row.max_participants || 1,
+    seasons: (row.seasons as QuestSeason[]) || ["All year"],
+    accessibility: (row.accessibility as QuestAccessibility[]) || [],
+    locationTypes: (row.location_types as QuestLocationType[]) || ["Anywhere"]
   };
 }
+
 
 async function fetchQuestsFromSupabase() {
   const client = requireSupabase();
   const { data, error } = await client
     .from("quests")
-    .select("id, slug, title, kicker, description, why_it_matters, location_hint, duration_label, mood, accent, image_url, steps, journal_prompt, points_value")
+    .select("*") // ✨ Changed this to "*" so it grabs all the new columns automatically
     .eq("is_active", true)
     .order("created_at", { ascending: false });
 
@@ -54,6 +86,7 @@ async function fetchQuestsFromSupabase() {
 
   return (data ?? []).map((row) => mapQuest(row as QuestRow));
 }
+
 
 export function useQuests() {
   const { isBackendReady } = useAuth();
@@ -132,16 +165,21 @@ export function useSaveQuest() {
 
   return useMutation({
     mutationFn: async (questId: string) => {
+      // ✨ FIX: Always toggle the local state immediately for instant UI feedback (the bookmark filling in)
+      toggleSavedQuest(questId);
+
+      // If the backend isn't ready or user isn't logged in, just rely on local state
       if (!isBackendReady || !user || !supabase) {
-        toggleSavedQuest(questId);
         return;
       }
 
+      // Otherwise, sync this change to Supabase
       const { error } = await supabase
         .from("user_quests")
         .upsert({ user_id: user.id, quest_id: questId, status: "saved" }, { onConflict: "user_id,quest_id" });
 
       if (error) {
+        console.error("Failed to sync save state to backend:", error);
         throw error;
       }
     },

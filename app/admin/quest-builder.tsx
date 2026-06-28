@@ -5,7 +5,16 @@ import { AppText } from "../../src/shared/components/AppText";
 import { QuestHero } from "../../src/features/quests/components/QuestHero";
 import { QuestDetailBlock } from "../../src/features/quests/components/QuestDetailBlock";
 import { QuestCard } from "../../src/features/quests/components/QuestCard";
-import type { Quest, QuestCategory, QuestCost, QuestDifficulty, QuestLength } from "../../src/shared/types/domain";
+import type { 
+  Quest, 
+  QuestCategory, 
+  QuestCost, 
+  QuestLength, 
+  QuestDifficulty, 
+  QuestSeason, 
+  QuestAccessibility, 
+  QuestLocationType 
+} from "../../src/shared/types/domain";
 import { requireSupabase } from "../../src/lib/supabase";
 
 // --- CUSTOM UI COMPONENTS FOR ADMIN ---
@@ -96,21 +105,24 @@ const createBlankQuest = (): Quest => ({
   description: "Describe the adventure here...",
   whyItMatters: "Explain why they should do this...",
   locationHint: "Anywhere",
+  duration: "Half day", // ✨ Added missing property
   mood: "wild",
   accent: "orange",
   imageUrl: "https://images.unsplash.com/photo-1501555088652-021faa106b9b",
   steps: ["Step 1...", "Step 2..."],
   journalPrompt: "What did you learn?",
   pointsValue: 15,
-  category: "Adventure",
-  cost: "Free",
-  length: "Half day",
-  difficulty: "Medium",
+  
+  // ✨ Fix: Tell TS exactly what types these defaults are
+  category: "Adventure" as QuestCategory,
+  cost: "Free" as QuestCost,
+  length: "Half day" as QuestLength,
+  difficulty: "Medium" as QuestDifficulty,
   minParticipants: 1,
   maxParticipants: 1,
-  seasons: ["All year"],
-  accessibility: [],
-  locationTypes: ["Anywhere"]
+  seasons: ["All year"] as QuestSeason[],
+  accessibility: [] as QuestAccessibility[],
+  locationTypes: ["Anywhere"] as QuestLocationType[]
 });
 
 export default function QuestBuilderAdmin() {
@@ -141,21 +153,24 @@ export default function QuestBuilderAdmin() {
             description: q.description,
             whyItMatters: q.why_it_matters || "",
             locationHint: q.location_hint || "Anywhere",
+            duration: q.duration_label || q.length || "Half day", // ✨ Added fallback
             mood: q.mood || "wild",
             accent: q.accent || "orange",
             imageUrl: q.image_url,
             steps: q.steps || [],
             journalPrompt: q.journal_prompt || "",
             pointsValue: q.points_value || 10,
-            category: q.category || "Adventure",
-            cost: q.cost || "Free",
-            length: q.length || "Half day",
-            difficulty: q.difficulty || "Medium",
+            
+            // ✨ Fix: Strict type casting for the DB response
+            category: (q.category as QuestCategory) || "Adventure",
+            cost: (q.cost as QuestCost) || "Free",
+            length: (q.length as QuestLength) || "Half day",
+            difficulty: (q.difficulty as QuestDifficulty) || "Medium",
             minParticipants: q.min_participants || 1,
             maxParticipants: q.max_participants || 1,
-            seasons: q.seasons || ["All year"],
-            accessibility: q.accessibility || [],
-            locationTypes: q.location_types || ["Anywhere"]
+            seasons: (q.seasons as QuestSeason[]) || ["All year"],
+            accessibility: (q.accessibility as QuestAccessibility[]) || [],
+            locationTypes: (q.location_types as QuestLocationType[]) || ["Anywhere"]
           }));
           setSavedQuests(mappedQuests);
         }
@@ -231,16 +246,16 @@ export default function QuestBuilderAdmin() {
     try {
       const client = requireSupabase();
       
-      // If the ID exists in Supabase, remove it
       if (!quest.id.startsWith('draft-')) {
-        const { error } = await client.from('quests').delete().eq('id', quest.id);
-        if (error) {
-          console.error("Supabase delete error:", error);
-          throw error; // This will trigger the catch block
-        }
+        // ✨ FIX: "Soft Delete" the quest. This hides it from the app and builder, 
+        // but preserves it in the database so users' past journal entries don't break.
+        const { error } = await client.from('quests')
+          .update({ is_active: false })
+          .eq('id', quest.id);
+          
+        if (error) throw error;
       }
       
-      // Update local UI state
       setSavedQuests(prev => prev.filter(q => q.id !== quest.id));
       setView('grid');
       alert("Quest deleted successfully.");

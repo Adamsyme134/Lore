@@ -4,22 +4,33 @@ import { View, ScrollView, TextInput, Pressable, ActivityIndicator } from "react
 import { Screen } from "../../../src/shared/components/Screen";
 import { AppText } from "../../../src/shared/components/AppText";
 import { QuestCard } from "../../../src/features/quests/components/QuestCard";
-import type { Quest, QuestCategory } from "../../../src/shared/types/domain";
+import type { 
+  Quest, 
+  QuestCategory, 
+  QuestCost, 
+  QuestLength, 
+  QuestDifficulty, 
+  QuestSeason, 
+  QuestAccessibility, 
+  QuestLocationType 
+} from "../../../src/shared/types/domain";
 import { requireSupabase } from "../../../src/lib/supabase";
+import { useExperienceStore } from "../../../src/features/app/store/useExperienceStore";
 
-const CATEGORIES: (QuestCategory | "All")[] = [
-  "All", "Adventure", "Skill", "Culture", "Food & Drink", "Wellness", "Social"
+const CATEGORIES: (QuestCategory | "All" | "Saved")[] = [
+  "All", "Saved", "Adventure", "Skill", "Culture", "Food & Drink", "Wellness", "Social"
 ];
 
 export default function Explore() {
   const [searchQuery, setSearchQuery] = useState("");
-  const [activeCategory, setActiveCategory] = useState<QuestCategory | "All">("All");
+  const [activeCategory, setActiveCategory] = useState<QuestCategory | "All" | "Saved">("All");
   
   // State for real Supabase data
   const [quests, setQuests] = useState<Quest[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  // ✨ NEW: Fetch real quests from Supabase
+  const { savedQuestIds } = useExperienceStore();
+  // Fetch real quests from Supabase
   useEffect(() => {
     const fetchQuests = async () => {
       try {
@@ -37,21 +48,24 @@ export default function Explore() {
             description: q.description,
             whyItMatters: q.why_it_matters || "",
             locationHint: q.location_hint || "Anywhere",
+            duration: q.duration_label || q.length || "Half day", // ✨ Missing duration fixed
             mood: q.mood || "wild",
             accent: q.accent || "orange",
             imageUrl: q.image_url,
             steps: q.steps || [],
             journalPrompt: q.journal_prompt || "",
             pointsValue: q.points_value || 10,
-            category: q.category || "Adventure",
-            cost: q.cost || "Free",
-            length: q.length || "Half day",
-            difficulty: q.difficulty || "Medium",
+            
+            // ✨ Strict Type Casting to fix the string errors
+            category: (q.category as QuestCategory) || "Adventure",
+            cost: (q.cost as QuestCost) || "Free",
+            length: (q.length as QuestLength) || "Half day",
+            difficulty: (q.difficulty as QuestDifficulty) || "Medium",
             minParticipants: q.min_participants || 1,
             maxParticipants: q.max_participants || 1,
-            seasons: q.seasons || ["All year"],
-            accessibility: q.accessibility || [],
-            locationTypes: q.location_types || ["Anywhere"]
+            seasons: (q.seasons as QuestSeason[]) || ["All year"],
+            accessibility: (q.accessibility as QuestAccessibility[]) || [],
+            locationTypes: (q.location_types as QuestLocationType[]) || ["Anywhere"]
           }));
           setQuests(mappedQuests);
         }
@@ -69,12 +83,18 @@ export default function Explore() {
     return quests.filter(q => {
       const matchesSearch = q.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
                             q.description.toLowerCase().includes(searchQuery.toLowerCase());
+      
+      // IF Saved is selected, ensure it's in the Zustand array
+      if (activeCategory === "Saved") {
+        return matchesSearch && savedQuestIds.includes(q.id);
+      }
+      
       const safeCategory = q.category || "Adventure";
       const matchesCategory = activeCategory === "All" || safeCategory === activeCategory;
       
       return matchesSearch && matchesCategory;
     });
-  }, [searchQuery, activeCategory, quests]);
+  }, [searchQuery, activeCategory, quests, savedQuestIds]);
 
   return (
     <Screen>
