@@ -12,18 +12,26 @@ import { Chip } from "../../../shared/components/Chip";
 type QuestHeroProps = {
   quest: Quest;
   className?: string;
+  onPressOverride?: () => void; // ✨ NEW: Allows the admin tool to intercept clicks
 };
 
-export function QuestHero({ quest, className }: QuestHeroProps) {
-  // Shared navigation handler
-  const handlePress = () => router.push({ pathname: "/quest/[id]", params: { id: quest.id } });
+export function QuestHero({ quest, className, onPressOverride }: QuestHeroProps) {
+  
+  // ✨ NEW: Use the override if it exists, otherwise do standard mobile navigation
+  const handlePress = () => {
+    if (onPressOverride) {
+      onPressOverride();
+    } else {
+      router.push({ pathname: "/quest/[id]", params: { id: quest.id } });
+    }
+  };
+
+  const isGroup = quest.maxParticipants > 1;
+  const groupLabel = isGroup ? `Group (${quest.minParticipants}-${quest.maxParticipants})` : "Solo";
 
   return (
-    <Pressable 
-      onPress={handlePress} 
-      className={`overflow-hidden bg-charcoal ${className ?? 'rounded-[40px]'}`}
-    >
-      <View className="h-[520px]">
+    <Pressable onPress={handlePress} className={`overflow-hidden bg-charcoal ${className ?? 'rounded-[40px]'}`}>
+      <View className="h-[560px]">
         <Image
           source={{ uri: quest.imageUrl }}
           transition={400}
@@ -31,20 +39,24 @@ export function QuestHero({ quest, className }: QuestHeroProps) {
           style={{ height: "100%", width: "100%", opacity: 0.9 }}
         />
         
-        {/* We keep a lighter gradient just so the white title text above the widget stands out */}
         <LinearGradient
-          colors={['transparent', 'rgba(28, 26, 23, 0.8)']}
-          locations={[0.4, 0.9]} 
+          colors={['transparent', 'rgba(28, 26, 23, 0.9)']}
+          locations={[0.3, 0.95]} 
           className="absolute inset-0"
         />
 
         <View className="absolute bottom-0 left-0 right-0 px-6 pb-7">
           <Animated.View entering={FadeInDown.duration(500).springify()}>
+            
             <View className="mb-5 flex-row flex-wrap gap-2">
-              <Chip label={quest.duration} tone="light" />
-              <Chip label={quest.locationHint} tone="light" />
+              <Chip label={quest.category} tone="light" />
+              <Chip label={quest.length} tone="light" />
+              <Chip label={quest.difficulty} tone="light" />
+              <Chip label={quest.cost} tone="light" />
+              <Chip label={groupLabel} tone="light" />
               <Chip label={`${quest.pointsValue} LP`} tone="light" />
             </View>
+
             <AppText variant="eyebrow" className="mb-3 text-ivory/80">
               {quest.kicker}
             </AppText>
@@ -52,19 +64,13 @@ export function QuestHero({ quest, className }: QuestHeroProps) {
               {quest.title}
             </AppText>
             
-            {/* ✨ FIX: Wrapped the description text in a solid bg-ink widget */}
             <View className="mt-4 rounded-[20px] bg-ink p-4 shadow-md border border-line/5">
               <AppText className="text-ivory/90 leading-6">
                 {quest.description}
               </AppText>
             </View>
             
-            <Button 
-              label="Open quest" 
-              className="mt-5" 
-              variant="primary" 
-              onPress={handlePress} 
-            />
+            <Button label="Open quest" className="mt-5" variant="primary" onPress={handlePress} />
           </Animated.View>
         </View>
       </View>

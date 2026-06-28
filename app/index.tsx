@@ -1,22 +1,25 @@
 import { useEffect } from "react";
-import { View } from "react-native";
-import { useRouter } from "expo-router";
+import { View, ActivityIndicator } from "react-native";
+import { router } from "expo-router";
 import { useAuth } from "../src/features/auth/AuthProvider";
 
-export default function IndexRoute() {
-  const { isLoading, session } = useAuth();
-  const router = useRouter();
+export default function Index() {
+  const { session, isLoading } = useAuth();
 
   useEffect(() => {
     if (!isLoading) {
       if (session) {
         router.replace("/(app)/(tabs)/today");
       } else {
-        router.replace("/sign-in");
+        router.replace("/(auth)/sign-in");
       }
     }
-  }, [isLoading, session, router]);
+  }, [session, isLoading]);
 
-  // Render a blank screen matching your ivory background while determining auth state
-  return <View style={{ flex: 1, backgroundColor: '#F5F0E7' }} />; 
+  // Show a blank screen or a spinner while the effect runs
+  return (
+    <View className="flex-1 items-center justify-center bg-cream">
+      <ActivityIndicator size="large" color="#1C1A17" />
+    </View>
+  );
 }
