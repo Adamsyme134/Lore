@@ -16,7 +16,6 @@ import type {
 } from "../../src/shared/types/domain";
 import { requireSupabase } from "../../src/lib/supabase";
 
-
 const CATEGORIES: (QuestCategory | "All")[] = ["All", "Adventure", "Skill", "Culture", "Food & Drink", "Wellness", "Social"];
 // -- WIDGETS SETUP -- //
 type WidgetType = 'RANDOMISER' | 'LOCATION';
@@ -35,32 +34,64 @@ export const WIDGET_REGISTRY: Record<WidgetType, {
     theme: { bg: "bg-orange/10", border: "border-orange/40",containerBorder: "border-orange/30", text: "text-orange", containerBg: "bg-orange/5", activeBg: "active:bg-orange/20" }
   },
   LOCATION: {
-    id: "location", // Just an example to show how easy it is to add a new one!
+    id: "location",
     icon: "📍",
     label: "Location Drop",
-    placeholder: "Search for a place...",
+    placeholder: "Configure Location...",
     theme: { bg: "bg-blue/10", border: "border-blue/40", text: "text-blue", containerBg: "bg-blue/5", containerBorder: "border-blue/30", activeBg: "active:bg-blue/20" }
   }
 };
 
 const SLASH_WIDGETS = Object.entries(WIDGET_REGISTRY).map(([type, data]) => ({ type, ...data }));
-const WIDGET_REGEX = /(\[[A-Z_]+:.*?\])/g; // Universal regex catches ANY widget pattern
+const WIDGET_REGEX = /(\[[A-Z_]+:.*?\])/g;
 
-//Code start
+// Helpers for Config String Serialization (e.g., q=cafe&qType=static)
+const parseConfig = (str: string) => {
+  const obj: Record<string, string> = {};
+  str.split('&').forEach(pair => {
+    const [k, v] = pair.split('=');
+    if (k) obj[k] = decodeURIComponent(v || '');
+  });
+  return obj;
+};
+
+const serializeConfig = (obj: Record<string, string>) => {
+  return Object.entries(obj)
+    .filter(([_, v]) => v !== undefined && v !== '')
+    .map(([k, v]) => `${k}=${encodeURIComponent(v)}`)
+    .join('&');
+};
+
+// Helper to extract exposed variables from steps
+const extractExposedVariables = (steps: string[]): string[] => {
+  const vars: string[] = ["$current_city", "$user_home"]; // Built-in defaults
+  let randomiserCount = 1;
+  steps.forEach(step => {
+    const matches = step.match(/\[RANDOMISER:.*?\]/g);
+    if (matches) {
+      matches.forEach(() => {
+        vars.push(`$randomChoice_${randomiserCount}`);
+        randomiserCount++;
+      });
+    }
+  });
+  return vars;
+};
+
 function Dropdown({ label, value, options, onSelect }: { label: string, value: string, options: string[], onSelect: (val: any) => void }) {
   const [isOpen, setIsOpen] = useState(false);
   return (
     <View className="flex-1 relative z-50 mb-6">
-      <AppText variant="subtitle" className="mb-2">{label}</AppText>
-      <Pressable onPress={() => setIsOpen(!isOpen)} className="bg-white border border-line rounded-lg p-4 flex-row justify-between items-center">
-        <AppText className="text-ink font-sans">{value}</AppText>
-        <AppText className="text-ink/50">▼</AppText>
+      {label ? <AppText variant="subtitle" className="mb-2 text-xs">{label}</AppText> : null}
+      <Pressable onPress={() => setIsOpen(!isOpen)} className="bg-white border border-line rounded-lg p-3 flex-row justify-between items-center">
+        <AppText className="text-ink font-sans">{value || 'Select an option'}</AppText>
+        <AppText className="text-ink/50 text-xs">▼</AppText>
       </Pressable>
       {isOpen && (
-        <View className="absolute top-20 left-0 right-0 bg-white border border-line rounded-lg shadow-lg z-50 max-h-48 overflow-hidden">
+        <View className="absolute top-full mt-1 left-0 right-0 bg-white border border-line rounded-lg shadow-lg z-[100] max-h-48 overflow-hidden">
           <ScrollView nestedScrollEnabled>
             {options.map((opt) => (
-              <Pressable key={opt} onPress={() => { onSelect(opt); setIsOpen(false); }} className="p-4 border-b border-line/50 hover:bg-stone">
+              <Pressable key={opt} onPress={() => { onSelect(opt); setIsOpen(false); }} className="p-3 border-b border-line/50 hover:bg-stone">
                 <AppText className={value === opt ? "font-sansSemi text-orange" : "text-ink"}>{opt}</AppText>
               </Pressable>
             ))}
@@ -73,14 +104,14 @@ function Dropdown({ label, value, options, onSelect }: { label: string, value: s
 
 function ToggleGroup({ label, options, selected, onSelect }: { label: string, options: string[], selected: string, onSelect: (val: string) => void }) {
   return (
-    <View className="mb-6">
-      <AppText variant="subtitle" className="mb-2">{label}</AppText>
+    <View className="mb-4">
+      {label ? <AppText variant="subtitle" className="mb-2 text-xs">{label}</AppText> : null}
       <View className="flex-row rounded-lg border border-line overflow-hidden bg-white">
         {options.map((opt) => {
           const isActive = selected === opt;
           return (
-            <Pressable key={opt} onPress={() => onSelect(opt)} className={`flex-1 p-3 items-center justify-center ${isActive ? 'bg-ink' : 'bg-transparent'}`}>
-              <AppText className={isActive ? 'text-ivory font-sansSemi' : 'text-ink'}>{opt}</AppText>
+            <Pressable key={opt} onPress={() => onSelect(opt)} className={`flex-1 p-2 items-center justify-center ${isActive ? 'bg-ink' : 'bg-transparent'}`}>
+              <AppText className={isActive ? 'text-ivory font-sansSemi text-xs' : 'text-ink text-xs'}>{opt}</AppText>
             </Pressable>
           );
         })}
@@ -131,7 +162,7 @@ const createBlankQuest = (): Quest => ({
   mood: "wild",
   accent: "orange",
   imageUrl: "https://images.unsplash.com/photo-1501555088652-021faa106b9b",
-  steps: [""], // Start with one empty block
+  steps: [""], 
   journalPrompt: "What did you learn?",
   pointsValue: 15,
   imagePosition: "center",
@@ -148,26 +179,21 @@ const createBlankQuest = (): Quest => ({
 
 export default function QuestBuilderAdmin() {
   const [view, setView] = useState<'grid' | 'editor'>('grid');
-  // 🗑️ REMOVED 'inside' TAB ENTIRELY
   const [activeTab, setActiveTab] = useState<'basic' | 'tags' | 'metadata'>('basic');
   const [previewMode, setPreviewMode] = useState<'hero' | 'details'>('hero');
   const [activeWidgetConfig, setActiveWidgetConfig] = useState<{
-  stepIndex: number; 
-  chunkIndex: number; 
-  type: WidgetType; 
-  config: string;
-} | null>(null);
+    stepIndex: number; 
+    chunkIndex: number; 
+    type: WidgetType; 
+    config: string;
+  } | null>(null);
+  
   const [slashMenu, setSlashMenu] = useState<{
     visible: boolean;
     query: string;
     stepIndex: number;
     chunkIndex: number;
-}>({
-    visible: false,
-    query: "",
-    stepIndex: -1,
-    chunkIndex: -1,
-});
+  }>({ visible: false, query: "", stepIndex: -1, chunkIndex: -1 });
   
   const [savedQuests, setSavedQuests] = useState<Quest[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -179,10 +205,10 @@ export default function QuestBuilderAdmin() {
       try {
         const client = requireSupabase();
         const { data, error } = await client
-        .from('quests')
-        .select('*')
-        .eq('is_active', true) 
-        .order('created_at', { ascending: false });
+          .from('quests')
+          .select('*')
+          .eq('is_active', true) 
+          .order('created_at', { ascending: false });
         if (error) throw error;
 
         if (data) {
@@ -239,7 +265,7 @@ export default function QuestBuilderAdmin() {
         mood: quest.mood,
         accent: quest.accent,
         image_url: quest.imageUrl,
-        steps: quest.steps.filter(s => s.trim() !== ""), // Clean up empty blocks
+        steps: quest.steps.filter(s => s.trim() !== ""),
         journal_prompt: quest.journalPrompt,
         points_value: quest.pointsValue,
         image_position: quest.imagePosition,
@@ -345,11 +371,13 @@ export default function QuestBuilderAdmin() {
     );
   }
 
+  // Generate available variables to feed to location widget
+  const exposedVariables = extractExposedVariables(quest.steps);
+
   return (
     <View className="flex-1 flex-row bg-cream">
       {/* --- LEFT PANEL: Base Configuration --- */}
       <View className="w-1/3 border-r border-line bg-cream flex-1 max-w-[500px]">
-        {/* ... KEEP EXISTING TABS AND METADATA RENDER ... */}
         <View className="p-6 border-b border-line flex-row justify-between items-center bg-white">
           <Pressable onPress={() => setView('grid')} className="px-4 py-2 bg-stone rounded-md"><AppText className="text-ink">← Back</AppText></Pressable>
           <View className="flex-row gap-3">
@@ -424,7 +452,7 @@ export default function QuestBuilderAdmin() {
               <View className="mb-8 items-center bg-orange/10 p-4 rounded-xl border border-orange border-dashed">
                 <AppText className="text-orange font-sansSemi">✨ True Inline Editor</AppText>
                 <AppText className="text-orange/80 text-sm text-center mt-1">
-                  Type <AppText className="font-bold">/randomiser</AppText> directly in your sentence. It will magically convert into an inline widget.
+                  Type <AppText className="font-bold">/randomiser</AppText> or <AppText className="font-bold">/location</AppText> directly in your sentence.
                 </AppText>
               </View>
 
@@ -436,33 +464,30 @@ export default function QuestBuilderAdmin() {
                 multiline scrollEnabled={false} value={quest.whyItMatters} onChangeText={(txt) => updateField("whyItMatters", txt)}
               />
 
-              {/* Replace the current 'A clean way to do it' block with this refined inline version */}
               <View className="my-6 h-px bg-line" />
               <AppText variant="subtitle" className="mb-4">A clean way to do it</AppText>
 
-              <View className="gap-2">
+              <View className="gap-2 z-50">
                 {(quest.steps?.length ? quest.steps : [""]).map((step, index) => {
                   
-                  // 1. Splitting universally using our new regex
                   const parsed = step.split(WIDGET_REGEX);
                   const matchingWidgets = SLASH_WIDGETS.filter(widget => widget.id.startsWith(slashMenu.query));
 
                   return (
-                    <View key={`step-${index}`} className="group mb-4">
-                      <View className="flex-row items-start min-h-[50px]">
+                    <View key={`step-${index}`} className="group mb-4 z-50">
+                      <View className="flex-row items-start min-h-[50px] z-50">
                         
-                        {/* Reordering Controls (Unchanged) */}
+                        {/* Reordering Controls */}
                         <View className="w-10 pt-3 flex-col items-center gap-2 opacity-30 hover:opacity-100">
                           <Pressable onPress={() => { if (index > 0) { const n = [...quest.steps]; [n[index-1], n[index]] = [n[index], n[index-1]]; updateField('steps', n); } }}><AppText className="text-[10px]">▲</AppText></Pressable>
                           <AppText className="text-xs">⋮⋮</AppText>
                           <Pressable onPress={() => { if (index < quest.steps.length - 1) { const n = [...quest.steps]; [n[index+1], n[index]] = [n[index], n[index+1]]; updateField('steps', n); } }}><AppText className="text-[10px]">▼</AppText></Pressable>
                         </View>
 
-                        {/* ✨ FLAWLESS INLINE EDITOR */}
-                        <View className="flex-1 ml-2 flex-row flex-wrap items-center bg-white/40 border border-transparent focus:bg-white focus:border-line focus:shadow-sm rounded-xl px-4 py-2 min-h-[50px]">
+                        {/* Inline Text & Widget Rendering */}
+                        <View className="flex-1 ml-2 flex-row flex-wrap items-center bg-white/40 border border-transparent focus:bg-white focus:border-line focus:shadow-sm rounded-xl px-4 py-2 min-h-[50px] z-50">
                           {parsed.map((part, chunkIndex) => {
                             
-                            // 2. IS IT A WIDGET?
                             const widgetMatch = part.match(/^\[([A-Z_]+):(.*)\]$/);
                             
                             if (widgetMatch) {
@@ -470,7 +495,14 @@ export default function QuestBuilderAdmin() {
                               const widgetConfig = widgetMatch[2];
                               const widgetDef = WIDGET_REGISTRY[widgetType];
 
-                              if (!widgetDef) return <AppText key={chunkIndex}>{part}</AppText>; // Fallback if invalid widget
+                              if (!widgetDef) return <AppText key={chunkIndex}>{part}</AppText>;
+
+                              // Display configuration snippet on button
+                              let displayLabel = widgetConfig || 'Empty';
+                              if (widgetType === 'LOCATION') {
+                                const cfg = parseConfig(widgetConfig);
+                                displayLabel = cfg.q || 'Unconfigured';
+                              }
 
                               return (
                                 <Pressable
@@ -480,16 +512,15 @@ export default function QuestBuilderAdmin() {
                                   style={{ height: 26, transform: [{ translateY: 1 }] }}
                                 >
                                   <AppText className={`${widgetDef.theme.text} font-sansSemi text-[13px]`}>
-                                    {widgetDef.icon} {widgetConfig || 'Empty'}
+                                    {widgetDef.icon} {displayLabel}
                                   </AppText>
                                   <AppText className={`${widgetDef.theme.text} ml-1 text-[10px] opacity-60`}>✏️</AppText>
                                 </Pressable>
                               );
                             }
 
-                            // 3. THE GHOST-TEXT AUTO-WIDTH INPUT
+                            // The Text Input
                             return (
-                              // FIX: Removed `style={{ minWidth: 180 }}` to eliminate the gap! Let it naturally hug.
                               <View key={chunkIndex} className="relative justify-center" style={{ minWidth: 20 }}>
                                 <AppText className="opacity-0 font-sans text-base py-1" style={{ minWidth: 15, pointerEvents: 'none' }}>
                                   {part + ' '} 
@@ -517,7 +548,7 @@ export default function QuestBuilderAdmin() {
                                   onKeyPress={(e) => {
                                     if (e.nativeEvent.key === "Enter" && slashMenu.visible && matchingWidgets.length > 0) {
                                         const widget = matchingWidgets[0];
-                                        const updated = part.replace(/\/[a-z]*$/i, `[${widget.type}:]`); // Dynamic insertion!
+                                        const updated = part.replace(/\/[a-z]*$/i, `[${widget.type}:]`); 
                                         const newParts = [...parsed];
                                         newParts[chunkIndex] = updated;
                                         const newSteps = [...quest.steps];
@@ -543,7 +574,7 @@ export default function QuestBuilderAdmin() {
                                   }}
                                 />
 
-                                {/* SLASH MENU DROPDOWN */}
+                                {/* SLASH MENU */}
                                 {slashMenu.visible && slashMenu.stepIndex === index && slashMenu.chunkIndex === chunkIndex && (
                                   <View className="absolute left-0 top-full mt-2 bg-white rounded-xl border border-line shadow-lg w-72 z-50 overflow-hidden">
                                     {matchingWidgets.map(widget => (
@@ -575,33 +606,97 @@ export default function QuestBuilderAdmin() {
                         </View>
                       </View>
 
-                      {/* 4. DYNAMIC INLINE CONFIG POPUP */}
+                      {/* DYNAMIC INLINE CONFIG POPUP */}
                       {activeWidgetConfig?.stepIndex === index && (
-                        <View className={`ml-12 mt-2 border p-4 rounded-xl shadow-sm mb-2 max-w-[400px] ${WIDGET_REGISTRY[activeWidgetConfig.type].theme.containerBg} ${WIDGET_REGISTRY[activeWidgetConfig.type].theme.containerBorder}`}>
-                          <AppText className={`${WIDGET_REGISTRY[activeWidgetConfig.type].theme.text} font-sansSemi text-sm mb-2`}>
-                            {WIDGET_REGISTRY[activeWidgetConfig.type].icon} Edit {WIDGET_REGISTRY[activeWidgetConfig.type].label}
-                          </AppText>
+                        <View className={`ml-12 mt-2 border p-4 rounded-xl shadow-sm mb-2 max-w-[400px] z-[90] ${WIDGET_REGISTRY[activeWidgetConfig.type].theme.containerBg} ${WIDGET_REGISTRY[activeWidgetConfig.type].theme.containerBorder}`}>
+                          <View className="flex-row justify-between items-center mb-3">
+                            <AppText className={`${WIDGET_REGISTRY[activeWidgetConfig.type].theme.text} font-sansSemi text-sm`}>
+                              {WIDGET_REGISTRY[activeWidgetConfig.type].icon} Edit {WIDGET_REGISTRY[activeWidgetConfig.type].label}
+                            </AppText>
+                            <Pressable onPress={() => setActiveWidgetConfig(null)}><AppText className="text-ink/40">✕</AppText></Pressable>
+                          </View>
                           
-                          <TextInput
-                            className="bg-white p-3 rounded-lg border border-line font-sans text-sm outline-none"
-                            placeholder={WIDGET_REGISTRY[activeWidgetConfig.type].placeholder}
-                            value={activeWidgetConfig.config}
-                            autoFocus
-                            onChangeText={(txt) => {
-                              setActiveWidgetConfig(prev => prev ? {...prev, config: txt} : null);
-                              
-                              // Re-split universally to update the exact string position
-                              const newParts = step.split(WIDGET_REGEX);
-                              newParts[activeWidgetConfig!.chunkIndex] = `[${activeWidgetConfig!.type}:${txt}]`;
-                              
-                              const newSteps = [...quest.steps];
-                              newSteps[index] = newParts.join('');
-                              updateField('steps', newSteps);
-                            }}
-                          />
-                          <Pressable onPress={() => setActiveWidgetConfig(null)} className="mt-3 self-end bg-ink px-5 py-2 rounded-full shadow-sm active:opacity-80">
-                              <AppText className="text-white text-xs font-sansSemi">Done</AppText>
-                          </Pressable>
+                          {/* RANDOMISER UI */}
+                          {activeWidgetConfig.type === 'RANDOMISER' && (
+                            <TextInput
+                              className="bg-white p-3 rounded-lg border border-line font-sans text-sm outline-none"
+                              placeholder={WIDGET_REGISTRY[activeWidgetConfig.type].placeholder}
+                              value={activeWidgetConfig.config}
+                              autoFocus
+                              onChangeText={(txt) => {
+                                setActiveWidgetConfig(prev => prev ? {...prev, config: txt} : null);
+                                const newParts = step.split(WIDGET_REGEX);
+                                newParts[activeWidgetConfig!.chunkIndex] = `[${activeWidgetConfig!.type}:${txt}]`;
+                                const newSteps = [...quest.steps];
+                                newSteps[index] = newParts.join('');
+                                updateField('steps', newSteps);
+                              }}
+                            />
+                          )}
+
+                          {/* LOCATION CONFIG UI */}
+                          {activeWidgetConfig.type === 'LOCATION' && (() => {
+                            const currentCfg = parseConfig(activeWidgetConfig.config);
+                            const q = currentCfg.q || '';
+                            const qType = currentCfg.qType || 'static';
+                            const center = currentCfg.center || 'current';
+                            const lat = currentCfg.lat || '';
+                            const lng = currentCfg.lng || '';
+                            const rad = currentCfg.rad || '1000';
+
+                            const modifyLocConfig = (key: string, val: string) => {
+                                const nextCfg = { ...currentCfg, [key]: val };
+                                const newConfigStr = serializeConfig(nextCfg);
+                                setActiveWidgetConfig(prev => prev ? {...prev, config: newConfigStr} : null);
+                                
+                                const newParts = step.split(WIDGET_REGEX);
+                                newParts[activeWidgetConfig!.chunkIndex] = `[LOCATION:${newConfigStr}]`;
+                                const newSteps = [...quest.steps];
+                                newSteps[index] = newParts.join('');
+                                updateField('steps', newSteps);
+                            };
+
+                            return (
+                              <View className="flex-col gap-2">
+                                <ToggleGroup label="Search Input Type" options={["Static", "Variable"]} selected={qType === 'variable' ? 'Variable' : 'Static'} onSelect={(v) => modifyLocConfig('qType', v.toLowerCase())} />
+                                
+                                {qType === 'variable' ? (
+                                  <Dropdown 
+                                    label="Map to Variable" 
+                                    value={q || exposedVariables[0]} 
+                                    options={exposedVariables} 
+                                    onSelect={(v) => modifyLocConfig('q', v)} 
+                                  />
+                                ) : (
+                                  <TextInput
+                                    className="bg-white p-3 mb-4 rounded-lg border border-line font-sans text-sm outline-none"
+                                    placeholder="Search string (e.g. Cafe)"
+                                    value={q}
+                                    onChangeText={(txt) => modifyLocConfig('q', txt)}
+                                  />
+                                )}
+
+                                <ToggleGroup label="Center Point" options={["Current Location", "Fixed Point"]} selected={center === 'fixed' ? 'Fixed Point' : 'Current Location'} onSelect={(v) => modifyLocConfig('center', v === 'Fixed Point' ? 'fixed' : 'current')} />
+                                
+                                {center === 'fixed' && (
+                                  <View className="flex-row gap-3 mb-4">
+                                    <TextInput className="flex-1 bg-white p-3 rounded-lg border border-line font-sans text-sm" placeholder="Latitude" value={lat} onChangeText={(txt) => modifyLocConfig('lat', txt)} keyboardType="numeric" />
+                                    <TextInput className="flex-1 bg-white p-3 rounded-lg border border-line font-sans text-sm" placeholder="Longitude" value={lng} onChangeText={(txt) => modifyLocConfig('lng', txt)} keyboardType="numeric" />
+                                  </View>
+                                )}
+
+                                <AppText variant="subtitle" className="mb-2 text-xs mt-2">Search Radius (Meters)</AppText>
+                                <TextInput
+                                  className="bg-white p-3 mb-4 rounded-lg border border-line font-sans text-sm outline-none w-1/2"
+                                  placeholder="E.g. 500"
+                                  value={rad}
+                                  keyboardType="number-pad"
+                                  onChangeText={(txt) => modifyLocConfig('rad', txt)}
+                                />
+                              </View>
+                            );
+                          })()}
+
                         </View>
                       )}
 

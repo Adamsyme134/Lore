@@ -3,19 +3,53 @@
 import type { Accent } from "../design/tokens";
 
 // WIDGETS //
-export type WidgetType = "randomiser";
+export type WidgetType = "randomiser" | "location" | "variableDisplay";
 
 export type RandomiserConfig = {
   options: string[];
+  output?: string;
+  source?: string;
 };
 
-export type QuestWidget = {
-  type: "widget";
-  id: string;
-  widgetType: WidgetType;
-  version: number;
-  config: RandomiserConfig;
+export type LocationWidgetConfig = {
+  query?: string;
+  queryType?: "static" | "variable";
+  centerType?: "current" | "fixed";
+  radius?: number | string;
+  lat?: number | string;
+  lng?: number | string;
+  source?: string; 
+  output?: string; // Resolved: Property 'output' missing error
 };
+
+// Resolved: Missing export member error
+export type VariableDisplayConfig = {
+  sourceVariable: string;
+  fallback?: string;
+};
+
+export type QuestWidget = 
+  | {
+      type: "widget";
+      id: string;
+      widgetType: "randomiser";
+      version: number;
+      config: RandomiserConfig;
+    }
+  | {
+      type: "widget";
+      id: string;
+      widgetType: "location";
+      version: number;
+      config: LocationWidgetConfig;
+    }
+  | {
+      type: "widget";
+      id: string;
+      widgetType: "variableDisplay";
+      version: number;
+      config: VariableDisplayConfig;
+    };
 
 export type QuestTextNode = {
   type: "text";
@@ -24,8 +58,6 @@ export type QuestTextNode = {
 };
 
 export type QuestContentBlock = QuestTextNode | QuestWidget;
-
-
 
 // --- NEW ENUMS & TYPES ---
 export type QuestCategory = "Adventure" | "Skill" | "Culture" | "Food & Drink" | "Wellness" | "Social";
@@ -36,8 +68,6 @@ export type QuestSeason = "Spring" | "Summer" | "Autumn" | "Winter" | "All year"
 export type QuestAccessibility = "Walking" | "Public Transport" | "Driving" | "Wheelchair Accessible";
 export type QuestLocationType = "City" | "Town" | "Countryside" | "Abroad" | "Anywhere";
 export type QuestMood = "quiet" | "social" | "curious" | "wild" | "creative";
-
-
 
 export type Quest = {
   id: string;
@@ -52,7 +82,7 @@ export type Quest = {
   accent: Accent;
   imageUrl: string;
   imagePosition?: "top" | "center" | "bottom";
-  steps: string[]; // Legacy fallback
+  steps: string[]; 
   contentBlocks?: QuestContentBlock[];
    
   journalPrompt: string;
@@ -60,7 +90,7 @@ export type Quest = {
 
   // --- VISIBLE TAGS ---
   categories: QuestCategory[];
-  category?: QuestCategory; // (Keep as optional for legacy data fallback)
+  category?: QuestCategory; 
   cost: QuestCost;
   length: QuestLength;
   difficulty: QuestDifficulty;
@@ -74,8 +104,6 @@ export type Quest = {
   accessibility: QuestAccessibility[];
   locationTypes: QuestLocationType[];
 };
-
-
 
 export type LorePhoto = {
   id: string;

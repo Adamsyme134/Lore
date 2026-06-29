@@ -6,6 +6,16 @@ import { AppText } from "../../../shared/components/AppText";
 import { Chip } from "../../../shared/components/Chip";
 import { accentClass } from "../../../shared/design/tokens";
 
+// Utility to parse URL-like parameters embedded in the widget tag
+const parseConfig = (str: string) => {
+  const obj: Record<string, string> = {};
+  str.split('&').forEach(pair => {
+    const [k, v] = pair.split('=');
+    if (k) obj[k] = decodeURIComponent(v || '');
+  });
+  return obj;
+};
+
 // 🎲 ACTIVE TRUE INLINE RANDOMISER WIDGET FOR END USERS
 export function WorkingInlineRandomiser({ dataString, accent }: { dataString: string, accent: any }) {
   const options = dataString.replace('[RANDOMISER:', '').replace(']', '').split(',').map(s => s.trim()).filter(Boolean);
@@ -36,9 +46,7 @@ export function WorkingInlineRandomiser({ dataString, accent }: { dataString: st
         className={`rounded-lg justify-center items-center px-4 shadow-sm ${accent.bg}`}
         style={{ height: 36 }}
       >
-        {/* INVISIBLE GHOST TEXT: This dictates the exact width of the button natively */}
         <AppText className="font-sansSemi text-[14px] opacity-0 h-0">{longestOption}</AppText>
-        {/* VISIBLE TEXT: Absolutely positioned over the ghost text */}
         <View className="absolute inset-0 justify-center items-center">
           <AppText className="text-white font-sansSemi text-[14px]">
             {selected || "🎲 Spin"}
@@ -48,6 +56,30 @@ export function WorkingInlineRandomiser({ dataString, accent }: { dataString: st
     </View>
   );
 }
+
+// 📍 ACTIVE TRUE INLINE LOCATION WIDGET FOR END USERS
+export function WorkingInlineLocation({ dataString, accent }: { dataString: string, accent: any }) {
+  const raw = dataString.replace('[LOCATION:', '').replace(']', '');
+  const config = parseConfig(raw);
+  const label = config.q || 'Location Drop';
+  
+  return (
+    <View style={{ transform: [{ translateY: 3 }], marginHorizontal: 3 }}>
+      <Pressable
+        className={`rounded-lg justify-center items-center px-4 shadow-sm ${accent.bg}`}
+        style={{ height: 36 }}
+      >
+        <AppText className="font-sansSemi text-[14px] opacity-0 h-0">📍 {label}</AppText>
+        <View className="absolute inset-0 justify-center items-center">
+          <AppText className="text-white font-sansSemi text-[14px]">
+            📍 {label}
+          </AppText>
+        </View>
+      </Pressable>
+    </View>
+  );
+}
+
 
 type QuestDetailBlockProps = {
   quest: Quest;
@@ -82,35 +114,38 @@ export function QuestDetailBlock({ quest, checkedSteps = [], onToggleStep, isAct
       <View className="my-6 h-px bg-line" />
       
       <AppText variant="subtitle">A clean way to do it</AppText>
-<View className="mt-4 gap-4">
-  {quest.steps.map((step, index) => {
-    const isChecked = checkedSteps.includes(index);
-    const parsed = step.split(/(\[RANDOMISER:.*?\])/g);
+      <View className="mt-4 gap-4">
+        {quest.steps.map((step, index) => {
+          const isChecked = checkedSteps.includes(index);
+          // Universal regex split prevents the Location tag from breaking formatting
+          const parsed = step.split(/(\[[A-Z_]+:.*?\])/g);
 
-    return (
-      <Pressable 
-        key={index} 
-        className="flex-row gap-4 items-start"
-        onPress={() => { if (isActive && onToggleStep) onToggleStep(index); }}
-        disabled={!isActive}
-      >
-        <View className={`h-7 w-7 mt-1 items-center justify-center rounded-md border-2 ${isChecked ? accent.bg + ' border-transparent' : 'border-line ' + accent.subtle}`}>
-          {isChecked ? <AppText className="text-white text-xs font-bold">✓</AppText> : <AppText variant="caption" className={accent.text}>{index + 1}</AppText>}
-        </View>
-        
-        {/* ✨ By wrapping in a native <Text> node, the nested <View> flows perfectly inline with word-wrap! */}
-        <Text className={`flex-1 leading-8 text-base font-sans ${isChecked ? 'text-ink/40 line-through' : 'text-ink/70'}`}>
-          {parsed.map((part, i) => {
-            if (part.startsWith('[RANDOMISER:')) {
-              return <WorkingInlineRandomiser key={i} dataString={part} accent={accent} />;
-            }
-            return <Text key={i}>{part}</Text>;
-          })}
-        </Text>
-      </Pressable>
-    );
-  })}
-</View>
+          return (
+            <Pressable 
+              key={index} 
+              className="flex-row gap-4 items-start"
+              onPress={() => { if (isActive && onToggleStep) onToggleStep(index); }}
+              disabled={!isActive}
+            >
+              <View className={`h-7 w-7 mt-1 items-center justify-center rounded-md border-2 ${isChecked ? accent.bg + ' border-transparent' : 'border-line ' + accent.subtle}`}>
+                {isChecked ? <AppText className="text-white text-xs font-bold">✓</AppText> : <AppText variant="caption" className={accent.text}>{index + 1}</AppText>}
+              </View>
+              
+              <Text className={`flex-1 leading-8 text-base font-sans ${isChecked ? 'text-ink/40 line-through' : 'text-ink/70'}`}>
+                {parsed.map((part, i) => {
+                  if (part.startsWith('[RANDOMISER:')) {
+                    return <WorkingInlineRandomiser key={i} dataString={part} accent={accent} />;
+                  }
+                  if (part.startsWith('[LOCATION:')) {
+                    return <WorkingInlineLocation key={i} dataString={part} accent={accent} />;
+                  }
+                  return <Text key={i}>{part}</Text>;
+                })}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
     </View>
   );
 }
