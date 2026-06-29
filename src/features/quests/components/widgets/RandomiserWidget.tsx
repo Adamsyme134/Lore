@@ -5,10 +5,18 @@ import { AppText } from "../../../../shared/components/AppText";
 import { Accent, accentClass } from "../../../../shared/design/tokens";
 import { RandomiserConfig } from "../../../../shared/types/domain";
 import { useQuestExecution } from "../../context/QuestExecutionContext";
-
+import { View } from "react-native";
 type Props = {
   config: RandomiserConfig;
   accent: Accent;
+};
+const parseQueryConfig = (str: string) => {
+  const obj: Record<string, string> = {};
+  str.split('&').forEach(pair => {
+    const [k, v] = pair.split('=');
+    if (k) obj[k] = decodeURIComponent(v || '');
+  });
+  return obj;
 };
 
 export function RandomiserWidget({ config, accent }: Props) {
@@ -19,33 +27,66 @@ export function RandomiserWidget({ config, accent }: Props) {
   const [currentOptions, setCurrentOptions] = useState<string[]>([]);
 
   const theme = accentClass[accent] || accentClass["orange"];
+// Self-heal the config if the frontend parser passed the raw URL string by accident
+  // Self-heal the config if the frontend parser passed the raw URL string by accident
+  const normalizedConfig = React.useMemo(() => {
+    let rawString = "";
+    
+    // Aggressively hunt for the string no matter how the frontend parser shaped the object
+    const possibleFields = [
+      config,
+      (config as any)?.options,
+      (config as any)?.options?.[0],
+      (config as any)?.source?.options,
+      (config as any)?.source?.options?.[0],
+      (config as any)?.config
+    ];
+
+    for (const field of possibleFields) {
+      if (typeof field === 'string' && field.includes('=')) {
+        rawString = field;
+        break;
+      }
+    }
+    
+    if (rawString) {
+      const parsed = parseQueryConfig(rawString);
+      return {
+        options: parsed.options ? parsed.options.split(',').map(s => s.trim()) : [],
+        output: {
+          isExposed: parsed.isExposed === 'true',
+          variableName: parsed.variableName || ''
+        },
+        source: {
+          type: (parsed.type as 'static' | 'variable') || 'static',
+          options: parsed.options ? parsed.options.split(',').map(s => s.trim()) : [],
+          ref: parsed.ref
+        }
+      } as RandomiserConfig;
+    }
+    return config;
+  }, [config]);
 
   // Fetch the data just-in-time when they click spin
   const getOptions = (): string[] => {
-    if (!config?.source) return [];
+    if (!normalizedConfig) return [];
 
-    if (config.source.type === 'static') {
-      return config.source.options || [];
-    }
-
-    if (config.source.type === 'variable') {
-      // 1. Add this safety check so TypeScript knows it's a string
-      if (!config.source.ref) {
+    // Prioritize the new Source structure
+    if (normalizedConfig.source) {
+      if (normalizedConfig.source.type === 'static') {
+        return normalizedConfig.source.options || [];
+      }
+      if (normalizedConfig.source.type === 'variable') {
+        if (!normalizedConfig.source.ref) return ["⚠️ Data not found"];
+        const variableData = getVariable(normalizedConfig.source.ref);
+        if (Array.isArray(variableData)) return variableData.map(String);
+        if (typeof variableData === 'string') return [variableData]; 
         return ["⚠️ Data not found"];
       }
-
-      // 2. Now TypeScript is happy because ref is definitely a string here
-      const variableData = getVariable(config.source.ref);
-      // Ensure the variable we pulled is actually an array
-      if (Array.isArray(variableData)) {
-        return variableData.map(String);
-      }
-      if (typeof variableData === 'string') {
-          return [variableData]; // Fallback if it's a single string
-      }
-      return ["⚠️ Data not found"];
     }
 
+    // Fallback for legacy basic configs
+    if (normalizedConfig.options) return normalizedConfig.options;
     return [];
   };
 
@@ -83,18 +124,31 @@ export function RandomiserWidget({ config, accent }: Props) {
   };
 
   const displayText = displayIndex === null 
-    ? "🎲" 
-    : (currentOptions[displayIndex] || "🎲");
+    ? "🎲 Spin" 
+    : (currentOptions[displayIndex] || "🎲 Spin");
+
+  // Calculate the longest option dynamically so the width stays locked while spinning
+  const optionsForWidth = getOptions();
+  const longestOption = optionsForWidth.length > 0 
+    ? optionsForWidth.reduce((a, b) => a.length > b.length ? a : b, "🎲 Spin") 
+    : "🎲 Spin";
 
   return (
-    <Pressable 
-      onPress={startSpin} 
-      className={`h-[28px] justify-center px-3 mx-1 rounded-full border shadow-sm ${displayIndex === null ? 'bg-white border-line' : theme.bg + ' border-transparent'}`}
-      style={{ transform: [{ translateY: -2 }] }}
-    >
-      <AppText className={`${displayIndex === null ? 'text-ink/80' : 'text-white'} font-sansSemi text-[14px]`}>
-        {displayText}
-      </AppText>
-    </Pressable>
+    <View style={{ transform: [{ translateY: 3 }], marginHorizontal: 3 }}>
+      <Pressable
+        onPress={startSpin}
+        className={`rounded-lg justify-center items-center px-4 shadow-sm ${theme.bg}`}
+        style={{ height: 36 }}
+      >
+        {/* Invisible text locks the width perfectly */}
+        <AppText className="font-sansSemi text-[14px] opacity-0 h-0">{longestOption}</AppText>
+        
+        <View className="absolute inset-0 justify-center items-center">
+          <AppText className="text-white font-sansSemi text-[14px]">
+            {displayText}
+          </AppText>
+        </View>
+      </Pressable>
+    </View>
   );
 }

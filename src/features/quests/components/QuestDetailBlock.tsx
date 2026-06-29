@@ -5,6 +5,7 @@ import type { Quest } from "../../../shared/types/domain";
 import { AppText } from "../../../shared/components/AppText";
 import { Chip } from "../../../shared/components/Chip";
 import { accentClass } from "../../../shared/design/tokens";
+import { LocationWidget } from "./widgets/LocationWidget";
 
 // Utility to parse URL-like parameters embedded in the widget tag
 const parseConfig = (str: string) => {
@@ -18,7 +19,23 @@ const parseConfig = (str: string) => {
 
 // 🎲 ACTIVE TRUE INLINE RANDOMISER WIDGET FOR END USERS
 export function WorkingInlineRandomiser({ dataString, accent }: { dataString: string, accent: any }) {
-  const options = dataString.replace('[RANDOMISER:', '').replace(']', '').split(',').map(s => s.trim()).filter(Boolean);
+  const raw = dataString.replace('[RANDOMISER:', '').replace(']', '');
+  
+  // ✨ NEW: Smart parsing to handle both legacy strings and new URL configs
+  let options: string[] = [];
+  if (raw.includes('=')) {
+    const config = parseConfig(raw);
+    if (config.type === 'variable') {
+      options = [config.ref || 'Variable Source'];
+    } else {
+      options = config.options ? config.options.split(',').map(s => s.trim()).filter(Boolean) : [];
+    }
+  } else {
+    options = raw.split(',').map(s => s.trim()).filter(Boolean);
+  }
+
+  if (options.length === 0) options = ["🎲 Spin"];
+
   const [selected, setSelected] = useState<string | null>(null);
   const [isSpinning, setIsSpinning] = useState(false);
 
@@ -58,27 +75,6 @@ export function WorkingInlineRandomiser({ dataString, accent }: { dataString: st
 }
 
 // 📍 ACTIVE TRUE INLINE LOCATION WIDGET FOR END USERS
-export function WorkingInlineLocation({ dataString, accent }: { dataString: string, accent: any }) {
-  const raw = dataString.replace('[LOCATION:', '').replace(']', '');
-  const config = parseConfig(raw);
-  const label = config.q || 'Location Drop';
-  
-  return (
-    <View style={{ transform: [{ translateY: 3 }], marginHorizontal: 3 }}>
-      <Pressable
-        className={`rounded-lg justify-center items-center px-4 shadow-sm ${accent.bg}`}
-        style={{ height: 36 }}
-      >
-        <AppText className="font-sansSemi text-[14px] opacity-0 h-0">📍 {label}</AppText>
-        <View className="absolute inset-0 justify-center items-center">
-          <AppText className="text-white font-sansSemi text-[14px]">
-            📍 {label}
-          </AppText>
-        </View>
-      </Pressable>
-    </View>
-  );
-}
 
 
 type QuestDetailBlockProps = {
@@ -136,9 +132,19 @@ export function QuestDetailBlock({ quest, checkedSteps = [], onToggleStep, isAct
                   if (part.startsWith('[RANDOMISER:')) {
                     return <WorkingInlineRandomiser key={i} dataString={part} accent={accent} />;
                   }
-                  if (part.startsWith('[LOCATION:')) {
-                    return <WorkingInlineLocation key={i} dataString={part} accent={accent} />;
-                  }
+                  if (part.startsWith("[LOCATION:")) {
+  const raw = part
+    .replace("[LOCATION:", "")
+    .replace("]", "");
+
+  return (
+    <LocationWidget
+      key={i}
+      config={raw as any}
+      accent={accent}
+    />
+  );
+}
                   return <Text key={i}>{part}</Text>;
                 })}
               </Text>

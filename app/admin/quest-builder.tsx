@@ -65,16 +65,23 @@ const serializeConfig = (obj: Record<string, string>) => {
 // Helper to extract exposed variables from steps
 const extractExposedVariables = (steps: string[]): string[] => {
   const vars: string[] = ["$current_city", "$user_home"]; // Built-in defaults
-  let randomiserCount = 1;
+  
   steps.forEach(step => {
-    const matches = step.match(/\[RANDOMISER:.*?\]/g);
+    // Check for ANY widget that might output a variable
+    const matches = step.match(/\[(?:RANDOMISER|LOCATION):(.*?)\]/g);
     if (matches) {
-      matches.forEach(() => {
-        vars.push(`$randomChoice_${randomiserCount}`);
-        randomiserCount++;
+      matches.forEach(match => {
+        const inner = match.match(/^\[(?:RANDOMISER|LOCATION):(.*)\]$/);
+        if (inner && inner[1] && inner[1].includes('=')) {
+          const cfg = parseConfig(inner[1]);
+          if (cfg.isExposed === 'true' && cfg.variableName) {
+            vars.push(cfg.variableName);
+          }
+        }
       });
     }
   });
+  
   return vars;
 };
 
@@ -501,7 +508,17 @@ export default function QuestBuilderAdmin() {
                               let displayLabel = widgetConfig || 'Empty';
                               if (widgetType === 'LOCATION') {
                                 const cfg = parseConfig(widgetConfig);
-                                displayLabel = cfg.q || 'Unconfigured';
+                                displayLabel = cfg.qType === 'variable' 
+                                  ? (cfg.q || 'Variable') 
+                                  : (cfg.q || 'Unconfigured');
+                              } else if (widgetType === 'RANDOMISER') {
+                                const isLegacy = widgetConfig && !widgetConfig.includes('=');
+                                if (isLegacy) {
+                                  displayLabel = widgetConfig || 'Empty';
+                                } else {
+                                  const cfg = parseConfig(widgetConfig);
+                                  displayLabel = cfg.type === 'variable' ? (cfg.ref || 'Variable') : (cfg.options || 'Empty');
+                                }
                               }
 
                               return (
@@ -546,15 +563,25 @@ export default function QuestBuilderAdmin() {
                                       }
                                   }}
                                   onKeyPress={(e) => {
-                                    if (e.nativeEvent.key === "Enter" && slashMenu.visible && matchingWidgets.length > 0) {
-                                        const widget = matchingWidgets[0];
-                                        const updated = part.replace(/\/[a-z]*$/i, `[${widget.type}:]`); 
-                                        const newParts = [...parsed];
-                                        newParts[chunkIndex] = updated;
-                                        const newSteps = [...quest.steps];
-                                        newSteps[index] = newParts.join('');
+                                    if (e.nativeEvent.key === "Enter") {
+                                        if (e.preventDefault) e.preventDefault(); // Stop newline
                                         
-                                        updateField("steps", newSteps);
+                                        if (slashMenu.visible && matchingWidgets.length > 0) {
+                                            // Handle Widget Insertion
+                                            const widget = matchingWidgets[0];
+                                            const updated = part.replace(/\/[a-z]*$/i, `[${widget.type}:]`); 
+                                            const newParts = [...parsed];
+                                            newParts[chunkIndex] = updated;
+                                            const newSteps = [...quest.steps];
+                                            newSteps[index] = newParts.join('');
+                                            
+                                            updateField("steps", newSteps);
+                                        } else {
+                                            // Normal Enter - Add a new block!
+                                            const newSteps = [...quest.steps];
+                                            newSteps.splice(index + 1, 0, "");
+                                            updateField('steps', newSteps);
+                                        }
                                         setSlashMenu({ visible: false, query: "", stepIndex: -1, chunkIndex: -1 });
                                         return;
                                     }
@@ -617,22 +644,74 @@ export default function QuestBuilderAdmin() {
                           </View>
                           
                           {/* RANDOMISER UI */}
-                          {activeWidgetConfig.type === 'RANDOMISER' && (
-                            <TextInput
-                              className="bg-white p-3 rounded-lg border border-line font-sans text-sm outline-none"
-                              placeholder={WIDGET_REGISTRY[activeWidgetConfig.type].placeholder}
-                              value={activeWidgetConfig.config}
-                              autoFocus
-                              onChangeText={(txt) => {
-                                setActiveWidgetConfig(prev => prev ? {...prev, config: txt} : null);
+                          {activeWidgetConfig.type === 'RANDOMISER' && (() => {
+                            // Support legacy simple string (e.g. "Pizza, Burgers") so old quests don't break
+                            const isLegacy = activeWidgetConfig.config && !activeWidgetConfig.config.includes('=');
+                            const currentCfg = isLegacy 
+                                ? { type: 'static', options: activeWidgetConfig.config } 
+                                : parseConfig(activeWidgetConfig.config);
+                            
+                            const sourceType = currentCfg.type || 'static';
+                            const options = currentCfg.options || '';
+                            const ref = currentCfg.ref || '';
+                            const isExposed = currentCfg.isExposed === 'true';
+                            const variableName = currentCfg.variableName || '';
+
+                            const modifyRandConfig = (key: string, val: string) => {
+                                const nextCfg = { ...currentCfg, [key]: val };
+                                const newConfigStr = serializeConfig(nextCfg);
+                                setActiveWidgetConfig(prev => prev ? {...prev, config: newConfigStr} : null);
+                                
                                 const newParts = step.split(WIDGET_REGEX);
-                                newParts[activeWidgetConfig!.chunkIndex] = `[${activeWidgetConfig!.type}:${txt}]`;
+                                newParts[activeWidgetConfig!.chunkIndex] = `[RANDOMISER:${newConfigStr}]`;
                                 const newSteps = [...quest.steps];
                                 newSteps[index] = newParts.join('');
                                 updateField('steps', newSteps);
-                              }}
-                            />
-                          )}
+                            };
+
+                            return (
+                              <View className="flex-col gap-2">
+                                <ToggleGroup 
+                                  label="Source Type" 
+                                  options={["Static", "Variable"]} 
+                                  selected={sourceType === 'variable' ? 'Variable' : 'Static'} 
+                                  onSelect={(v) => modifyRandConfig('type', v.toLowerCase())} 
+                                />
+                                
+                                {sourceType === 'variable' ? (
+                                  <Dropdown 
+                                    label="Select Variable to Read" 
+                                    value={ref || exposedVariables[0]} 
+                                    options={exposedVariables} 
+                                    onSelect={(v) => modifyRandConfig('ref', v)} 
+                                  />
+                                ) : (
+                                  <TextInput
+                                    className="bg-white p-3 mb-4 rounded-lg border border-line font-sans text-sm outline-none"
+                                    placeholder="E.g. Pizza, Burgers, Sushi"
+                                    value={options}
+                                    onChangeText={(txt) => modifyRandConfig('options', txt)}
+                                  />
+                                )}
+
+                                <ToggleGroup 
+                                  label="Expose Output to Variable?" 
+                                  options={["No", "Yes"]} 
+                                  selected={isExposed ? 'Yes' : 'No'} 
+                                  onSelect={(v) => modifyRandConfig('isExposed', v === 'Yes' ? 'true' : 'false')} 
+                                />
+                                
+                                {isExposed && (
+                                  <TextInput
+                                    className="bg-white p-3 rounded-lg border border-line font-sans text-sm outline-none"
+                                    placeholder="Variable Name (e.g. $randomChoice_1)"
+                                    value={variableName}
+                                    onChangeText={(txt) => modifyRandConfig('variableName', txt)}
+                                  />
+                                )}
+                              </View>
+                            );
+                          })()}
 
                           {/* LOCATION CONFIG UI */}
                           {activeWidgetConfig.type === 'LOCATION' && (() => {
@@ -643,6 +722,10 @@ export default function QuestBuilderAdmin() {
                             const lat = currentCfg.lat || '';
                             const lng = currentCfg.lng || '';
                             const rad = currentCfg.rad || '1000';
+                            
+                            // Extract our new variable exposure configs
+                            const isExposed = currentCfg.isExposed === 'true';
+                            const variableName = currentCfg.variableName || '';
 
                             const modifyLocConfig = (key: string, val: string) => {
                                 const nextCfg = { ...currentCfg, [key]: val };
@@ -693,6 +776,18 @@ export default function QuestBuilderAdmin() {
                                   keyboardType="number-pad"
                                   onChangeText={(txt) => modifyLocConfig('rad', txt)}
                                 />
+
+                                {/* NEW: EXPOSE OUTPUT TOGGLES */}
+                                <ToggleGroup label="Expose Output to Variable?" options={["No", "Yes"]} selected={isExposed ? 'Yes' : 'No'} onSelect={(v) => modifyLocConfig('isExposed', v === 'Yes' ? 'true' : 'false')} />
+                                
+                                {isExposed && (
+                                  <TextInput
+                                    className="bg-white p-3 rounded-lg border border-line font-sans text-sm outline-none"
+                                    placeholder="Variable Name (e.g. $found_locations)"
+                                    value={variableName}
+                                    onChangeText={(txt) => modifyLocConfig('variableName', txt)}
+                                  />
+                                )}
                               </View>
                             );
                           })()}
