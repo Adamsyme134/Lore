@@ -41,9 +41,12 @@ type QuestRow = {
   seasons?: string[];
   accessibility?: string[];
   location_types?: string[];
+  image_position?: string; 
+  categories?: string[];
 };
 
 function mapQuest(row: QuestRow): Quest {
+  
   return {
     id: row.id,
     slug: row.slug,
@@ -60,7 +63,10 @@ function mapQuest(row: QuestRow): Quest {
     journalPrompt: row.journal_prompt || "",
     pointsValue: row.points_value || 10,
     
+    imagePosition: (row.image_position as "top" | "center" | "bottom") || "center",
+
     // ✨ Typecast the new fields
+    categories: (row.categories as QuestCategory[]) || (row.category ? [row.category as QuestCategory] : ["Adventure"]),
     category: (row.category as QuestCategory) || "Adventure",
     cost: (row.cost as QuestCost) || "Free",
     length: (row.length as QuestLength) || "Half day",
@@ -69,7 +75,8 @@ function mapQuest(row: QuestRow): Quest {
     maxParticipants: row.max_participants || 1,
     seasons: (row.seasons as QuestSeason[]) || ["All year"],
     accessibility: (row.accessibility as QuestAccessibility[]) || [],
-    locationTypes: (row.location_types as QuestLocationType[]) || ["Anywhere"]
+    locationTypes: (row.location_types as QuestLocationType[]) || ["Anywhere"],
+    
   };
 }
 

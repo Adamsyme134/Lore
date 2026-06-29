@@ -26,8 +26,11 @@ export function QuestDetailBlock({ quest, checkedSteps = [], onToggleStep, isAct
       {/* ✨ NEW: Replaced old chips with the new rigorous Tag System */}
 
       <View className="mb-5 flex-row flex-wrap gap-2">
-        {quest.category ? <Chip label={quest.category} /> : null}
-        {quest.length ? <Chip label={quest.length} /> : null}
+        {quest.categories?.map(cat => (
+    <Chip key={cat} label={cat} />
+  ))}
+  {quest.category && !quest.categories && <Chip label={quest.category} />} {/* Legacy Fallback */}
+  {quest.length ? <Chip label={quest.length} /> : null}
         {quest.difficulty ? <Chip label={quest.difficulty} /> : null}
         {quest.cost ? <Chip label={quest.cost} /> : null}
         {groupLabel ? <Chip label={groupLabel} /> : null}

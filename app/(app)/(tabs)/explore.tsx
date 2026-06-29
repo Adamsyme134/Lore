@@ -4,6 +4,7 @@ import { View, ScrollView, TextInput, Pressable, ActivityIndicator } from "react
 import { Screen } from "../../../src/shared/components/Screen";
 import { AppText } from "../../../src/shared/components/AppText";
 import { QuestCard } from "../../../src/features/quests/components/QuestCard";
+import { Ionicons } from '@expo/vector-icons'; // ✨ Needed for filter icon
 import type { 
   Quest, 
   QuestCategory, 
@@ -14,18 +15,23 @@ import type {
   QuestAccessibility, 
   QuestLocationType 
 } from "../../../src/shared/types/domain";
+import Animated, { FadeInDown } from 'react-native-reanimated';
 import { requireSupabase } from "../../../src/lib/supabase";
 import { useExperienceStore } from "../../../src/features/app/store/useExperienceStore";
 
-const CATEGORIES: (QuestCategory | "All" | "Saved")[] = [
-  "All", "Saved", "Adventure", "Skill", "Culture", "Food & Drink", "Wellness", "Social"
-];
+const CATEGORIES: (QuestCategory | "All" | "Saved")[] = ["All", "Saved", "Adventure", "Skill", "Culture", "Food & Drink", "Wellness", "Social"];
+const COSTS: (QuestCost | "All")[] = ["All", "Free", "£", "££", "£££"]; // ✨ FIX 2
+const LENGTHS: (QuestLength | "All")[] = ["All", "A few hours", "Full day", "Multi-day", "Long-term"]; // ✨ FIX 2
 
 export default function Explore() {
   const [searchQuery, setSearchQuery] = useState("");
   const [activeCategory, setActiveCategory] = useState<QuestCategory | "All" | "Saved">("All");
   
   // State for real Supabase data
+  const [showFilters, setShowFilters] = useState(false);
+  const [activeCost, setActiveCost] = useState<QuestCost | "All">("All");
+  const [activeLength, setActiveLength] = useState<QuestLength | "All">("All");
+
   const [quests, setQuests] = useState<Quest[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -51,13 +57,15 @@ export default function Explore() {
             duration: q.duration_label || q.length || "Half day", // ✨ Missing duration fixed
             mood: q.mood || "wild",
             accent: q.accent || "orange",
-            imageUrl: q.image_url,
+      
             steps: q.steps || [],
             journalPrompt: q.journal_prompt || "",
             pointsValue: q.points_value || 10,
             
-            // ✨ Strict Type Casting to fix the string errors
-            category: (q.category as QuestCategory) || "Adventure",
+            //  Strict Type Casting to fix the string errors
+            imageUrl: q.image_url,
+            imagePosition: q.image_position || "center", // ✨ NEW
+            categories: (q.categories as QuestCategory[]) || (q.category ? [q.category]: ["Adventure"]),
             cost: (q.cost as QuestCost) || "Free",
             length: (q.length as QuestLength) || "Half day",
             difficulty: (q.difficulty as QuestDifficulty) || "Medium",
@@ -84,56 +92,82 @@ export default function Explore() {
       const matchesSearch = q.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
                             q.description.toLowerCase().includes(searchQuery.toLowerCase());
       
-      // IF Saved is selected, ensure it's in the Zustand array
       if (activeCategory === "Saved") {
         return matchesSearch && savedQuestIds.includes(q.id);
       }
       
-      const safeCategory = q.category || "Adventure";
-      const matchesCategory = activeCategory === "All" || safeCategory === activeCategory;
+      const safeCategories = q.categories || (q.category ? [q.category] : ["Adventure"]);
+      const matchesCategory = activeCategory === "All" || safeCategories.includes(activeCategory as any);
       
-      return matchesSearch && matchesCategory;
+      const matchesCost = activeCost === "All" || q.cost === activeCost;
+      const matchesLength = activeLength === "All" || q.length === activeLength;
+      
+      return matchesSearch && matchesCategory && matchesCost && matchesLength;
     });
-  }, [searchQuery, activeCategory, quests, savedQuestIds]);
-
+  }, [searchQuery, activeCategory, activeCost, activeLength, quests, savedQuestIds]);
   return (
     <Screen>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }}>
         
         <View className="px-6 pt-6 mb-6">
           <AppText variant="display" className="mb-6">Explore</AppText>
-          <View className="flex-row items-center bg-white border border-line rounded-full px-5 py-3 shadow-sm">
-            <AppText className="text-ink/40 mr-3">🔍</AppText>
-            <TextInput
-              className="flex-1 font-sans text-ink"
-              placeholder="Search quests..."
-              placeholderTextColor="#9ca3af" 
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-            />
+          <View className="flex-row gap-3">
+            <View className="flex-1 flex-row items-center bg-white border border-line rounded-full px-5 py-3 shadow-sm">
+              <AppText className="text-ink/40 mr-3">🔍</AppText>
+              <TextInput
+                className="flex-1 font-sans text-ink"
+                placeholder="Search quests..."
+                placeholderTextColor="#9ca3af" 
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+              />
+            </View>
+            {/* ✨ FIX 2: Filter Toggle Button */}
+            <Pressable 
+              onPress={() => setShowFilters(!showFilters)}
+              className={`h-12 w-12 items-center justify-center rounded-full border shadow-sm ${showFilters ? 'bg-ink border-ink' : 'bg-white border-line'}`}
+            >
+              <Ionicons name="options" size={20} color={showFilters ? '#F6F5F2' : '#1C1A17'} />
+            </Pressable>
           </View>
         </View>
 
-        <ScrollView 
-          horizontal 
-          showsHorizontalScrollIndicator={false} 
-          className="mb-8 pl-6" 
-          contentContainerStyle={{ paddingRight: 40, gap: 8 }}
-        >
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mb-4 pl-6" contentContainerStyle={{ paddingRight: 40, gap: 8 }}>
           {CATEGORIES.map(cat => {
             const isActive = activeCategory === cat;
             return (
-              <Pressable
-                key={cat}
-                onPress={() => setActiveCategory(cat)}
-                className={`px-5 py-2.5 rounded-full border ${isActive ? 'bg-ink border-ink' : 'bg-transparent border-line'}`}
-              >
+              <Pressable key={cat} onPress={() => setActiveCategory(cat)} className={`px-5 py-2.5 rounded-full border ${isActive ? 'bg-ink border-ink' : 'bg-transparent border-line'}`}>
                 <AppText className={isActive ? 'text-ivory font-sansSemi' : 'text-ink'}>{cat}</AppText>
               </Pressable>
             );
           })}
         </ScrollView>
 
+        {/* ✨ FIX 2: Expanding Filters */}
+        {showFilters && (
+          <Animated.View entering={FadeInDown.duration(200)} className="mb-6">
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mb-3 pl-6" contentContainerStyle={{ paddingRight: 40, gap: 8 }}>
+              {COSTS.map(cost => {
+                const isActive = activeCost === cost;
+                return (
+                  <Pressable key={cost} onPress={() => setActiveCost(cost)} className={`px-4 py-1.5 rounded-full border ${isActive ? 'bg-stone border-ink' : 'bg-transparent border-line/40'}`}>
+                    <AppText variant="caption" className={isActive ? 'text-ink font-sansSemi' : 'text-ink/60'}>{cost}</AppText>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} className="pl-6" contentContainerStyle={{ paddingRight: 40, gap: 8 }}>
+              {LENGTHS.map(len => {
+                const isActive = activeLength === len;
+                return (
+                  <Pressable key={len} onPress={() => setActiveLength(len)} className={`px-4 py-1.5 rounded-full border ${isActive ? 'bg-stone border-ink' : 'bg-transparent border-line/40'}`}>
+                    <AppText variant="caption" className={isActive ? 'text-ink font-sansSemi' : 'text-ink/60'}>{len}</AppText>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+          </Animated.View>
+        )}
         <View className="px-6">
           <AppText variant="subtitle" className="mb-4 text-ink/70">
             {searchQuery ? "Search Results" : activeCategory !== "All" ? `${activeCategory} Quests` : "All Quests"}

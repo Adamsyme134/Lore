@@ -112,9 +112,11 @@ const createBlankQuest = (): Quest => ({
   steps: ["Step 1...", "Step 2..."],
   journalPrompt: "What did you learn?",
   pointsValue: 15,
+  imagePosition: "center",
+
   
   // ✨ Fix: Tell TS exactly what types these defaults are
-  category: "Adventure" as QuestCategory,
+  categories: ["Adventure"],
   cost: "Free" as QuestCost,
   length: "Half day" as QuestLength,
   difficulty: "Medium" as QuestDifficulty,
@@ -164,8 +166,8 @@ export default function QuestBuilderAdmin() {
             journalPrompt: q.journal_prompt || "",
             pointsValue: q.points_value || 10,
             
-            // ✨ Fix: Strict type casting for the DB response
-            category: (q.category as QuestCategory) || "Adventure",
+            imagePosition: q.image_position || "center",
+            categories: (q.categories as QuestCategory[]) || (q.category ? [q.category] : ["Adventure"]),
             cost: (q.cost as QuestCost) || "Free",
             length: (q.length as QuestLength) || "Half day",
             difficulty: (q.difficulty as QuestDifficulty) || "Medium",
@@ -207,7 +209,8 @@ export default function QuestBuilderAdmin() {
         steps: quest.steps,
         journal_prompt: quest.journalPrompt,
         points_value: quest.pointsValue,
-        category: quest.category,
+        image_position: quest.imagePosition,
+        categories: quest.categories,
         cost: quest.cost,
         length: quest.length,
         difficulty: quest.difficulty,
@@ -377,6 +380,16 @@ export default function QuestBuilderAdmin() {
 
               <AppText variant="subtitle" className="mb-2">Image URL</AppText>
               <TextInput className="bg-white border border-line rounded-lg p-4 mb-6 font-sans text-ink" value={quest.imageUrl} onChangeText={(txt) => updateField("imageUrl", txt)} />
+
+              <AppText variant="subtitle" className="mb-2">Image Focus (Cropping)</AppText>
+                <ToggleGroup 
+                  label=""
+                  options={["top", "center", "bottom"]}
+                  selected={quest.imagePosition || "center"}
+                  onSelect={(val) => updateField("imagePosition", val)}
+                />
+            
+            
             </View>
           )}
 
@@ -406,7 +419,15 @@ export default function QuestBuilderAdmin() {
               )}
 
               <View className="flex-row gap-4 z-40">
-                <Dropdown label="Category" value={quest.category} options={["Adventure", "Skill", "Culture", "Food & Drink", "Wellness", "Social"]} onSelect={(val) => updateField("category", val)} />
+                <MultiToggleGroup 
+                  label="Categories (Select multiple)"
+                  options={["Adventure", "Skill", "Culture", "Food & Drink", "Wellness", "Social"]}
+                  selected={quest.categories}
+                  onSelect={(val) => updateField("categories", val)}
+                />
+                
+              </View>
+              <View className="mb-6 z-40">
                 <Dropdown label="Cost" value={quest.cost} options={["Free", "£", "££", "£££"]} onSelect={(val) => updateField("cost", val)} />
               </View>
 

@@ -21,22 +21,23 @@ export type Quest = {
   description: string;
   whyItMatters: string;
   locationHint: string; 
-  duration: string; // ✨ Add this back!
+  duration: string; 
   mood: QuestMood;
   accent: Accent;
   imageUrl: string;
+  imagePosition?: "top" | "center" | "bottom"; // ✨ NEW: Fix 4
   steps: string[];
   journalPrompt: string;
   pointsValue: number;
 
-
   // --- VISIBLE TAGS ---
-  category: QuestCategory;
+  categories: QuestCategory[]; // ✨ CHANGED: Fix 5 (Multiple categories)
+  category?: QuestCategory; // (Keep as optional for legacy data fallback)
   cost: QuestCost;
   length: QuestLength;
   difficulty: QuestDifficulty;
   
-  // Group System Foundation (e.g., min: 1, max: 1 is Solo. min: 2 is Group forced)
+  // Group System Foundation
   minParticipants: number;
   maxParticipants: number;
 

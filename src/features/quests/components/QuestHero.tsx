@@ -36,6 +36,7 @@ export function QuestHero({ quest, className, onPressOverride }: QuestHeroProps)
           source={{ uri: quest.imageUrl }}
           transition={400}
           contentFit="cover"
+          contentPosition={quest.imagePosition || 'center'} // ✨ FIX 4
           style={{ height: "100%", width: "100%", opacity: 0.9 }}
         />
         
@@ -49,7 +50,9 @@ export function QuestHero({ quest, className, onPressOverride }: QuestHeroProps)
           <Animated.View entering={FadeInDown.duration(500).springify()}>
             
             <View className="mb-5 flex-row flex-wrap gap-2">
-            {quest.category ? <Chip label={quest.category} tone="light" /> : null}
+            {quest.categories?.map(cat => (
+              <Chip key={cat} label={cat} tone="light" />
+            ))}
             {quest.length ? <Chip label={quest.length} tone="light" /> : null}
             {quest.difficulty ? <Chip label={quest.difficulty} tone="light" /> : null}
             {quest.cost ? <Chip label={quest.cost} tone="light" /> : null}

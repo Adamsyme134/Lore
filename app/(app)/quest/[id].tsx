@@ -54,7 +54,7 @@ export default function QuestDetailScreen() {
           <AppText className="mt-3 text-ink/70">{quest.journalPrompt}</AppText>
           <View className="mt-5 rounded-3xl bg-ivory px-4 py-3">
             <AppText variant="caption" className="font-sansSemi text-ink">
-              Completion: {quest.pointsValue} Lore Points, plus up to 6 for photographs.
+              Completion: {quest.pointsValue} Lore Points
             </AppText>
           </View>
         </View>

@@ -12,7 +12,6 @@ type QuestCardProps = {
 };
 
 export function QuestCard({ quest, compact = false }: QuestCardProps) {
-  // ✨ NEW: Group Quest styling logic
   const isGroup = quest.maxParticipants > 1;
   const borderClass = isGroup ? 'border-[3px] border-[#2D6A4F]' : 'border border-line/20';
 
@@ -20,16 +19,16 @@ export function QuestCard({ quest, compact = false }: QuestCardProps) {
     <Pressable
       onPress={() => router.push({ pathname: "/quest/[id]", params: { id: quest.id } })}
       className={`overflow-hidden rounded-[24px] bg-stone relative ${borderClass}`}
-      style={{ height: compact ? 160 : 280 }}
+      style={{ height: compact ? 160 : 280, width: compact ? 260 : 'auto' }} // ✨ FIX 1: Width explicitly set for horizontal lists
     >
       <Image
         source={{ uri: quest.imageUrl }}
         style={{ height: "100%", width: "100%" }}
         contentFit="cover"
+        contentPosition={quest.imagePosition || 'center'} // ✨ FIX 4: Admin-controlled cropping
         transition={300}
       />
 
-      {/* ✨ NEW: Charcoal gradient overlay to make text highly readable */}
       <LinearGradient
         colors={['transparent', 'rgba(28, 26, 23, 0.95)']}
         locations={[0.2, 1]}
@@ -47,7 +46,6 @@ export function QuestCard({ quest, compact = false }: QuestCardProps) {
         )}
       </View>
 
-      {/* ✨ NEW: Top right floating badge for group quests */}
       {isGroup && (
         <View className="absolute top-4 right-4 bg-[#2D6A4F] px-3 py-1.5 rounded-full shadow-md border border-white/20">
           <AppText className="text-white text-xs font-sansSemi">Group Quest</AppText>
