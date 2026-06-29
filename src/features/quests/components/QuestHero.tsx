@@ -12,12 +12,11 @@ import { Chip } from "../../../shared/components/Chip";
 type QuestHeroProps = {
   quest: Quest;
   className?: string;
-  onPressOverride?: () => void; // ✨ NEW: Allows the admin tool to intercept clicks
+  onPressOverride?: () => void;
 };
 
 export function QuestHero({ quest, className, onPressOverride }: QuestHeroProps) {
   
-  // ✨ NEW: Use the override if it exists, otherwise do standard mobile navigation
   const handlePress = () => {
     if (onPressOverride) {
       onPressOverride();
@@ -36,7 +35,7 @@ export function QuestHero({ quest, className, onPressOverride }: QuestHeroProps)
           source={{ uri: quest.imageUrl }}
           transition={400}
           contentFit="cover"
-          contentPosition={quest.imagePosition || 'center'} // ✨ FIX 4
+          contentPosition={quest.imagePosition || 'center'}
           style={{ height: "100%", width: "100%", opacity: 0.9 }}
         />
         
@@ -50,17 +49,16 @@ export function QuestHero({ quest, className, onPressOverride }: QuestHeroProps)
           <Animated.View entering={FadeInDown.duration(500).springify()}>
             
             <View className="mb-5 flex-row flex-wrap gap-2">
-              {(quest.categories || [])?.map(cat => (
-              <Chip key={cat} label={cat} tone="light" />
-            ))}
-            {quest.category && !quest.categories && <Chip label={quest.category} tone="light" />} {/* Legacy Fallback */}
-            {quest.length ? <Chip label={quest.length} tone="light" /> : null}
-                      
-            {quest.difficulty ? <Chip label={quest.difficulty} tone="light" /> : null}
-            {quest.cost ? <Chip label={quest.cost} tone="light" /> : null}
-            {groupLabel ? <Chip label={groupLabel} tone="light" /> : null}
-            {quest.pointsValue ? <Chip label={`${quest.pointsValue} LP`} tone="light" /> : null}
-          </View>
+              {/* STRCIT BOOLEAN EVALUATORS PREVENT TEXT NODE ERRORS */}
+              {Array.isArray(quest.categories) ? quest.categories.map(cat => (
+                <Chip key={cat} label={cat} tone="light" />
+              )) : null}
+              {quest.length ? <Chip label={quest.length} tone="light" /> : null}
+              {quest.difficulty ? <Chip label={quest.difficulty} tone="light" /> : null}
+              {quest.cost ? <Chip label={quest.cost} tone="light" /> : null}
+              {groupLabel ? <Chip label={groupLabel} tone="light" /> : null}
+              {quest.pointsValue > 0 ? <Chip label={`${quest.pointsValue} LP`} tone="light" /> : null}
+            </View>
 
             <AppText variant="eyebrow" className="mb-3 text-ivory/80">
               {quest.kicker}
