@@ -29,8 +29,13 @@ export function RandomiserWidget({ config, accent }: Props) {
     }
 
     if (config.source.type === 'variable') {
+      // 1. Add this safety check so TypeScript knows it's a string
+      if (!config.source.ref) {
+        return ["⚠️ Data not found"];
+      }
+
+      // 2. Now TypeScript is happy because ref is definitely a string here
       const variableData = getVariable(config.source.ref);
-      
       // Ensure the variable we pulled is actually an array
       if (Array.isArray(variableData)) {
         return variableData.map(String);

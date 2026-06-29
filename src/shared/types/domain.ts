@@ -6,9 +6,9 @@ import type { Accent } from "../design/tokens";
 export type WidgetType = "randomiser" | "location" | "variableDisplay";
 
 export type RandomiserConfig = {
-  options: string[];
-  output?: string;
-  source?: string;
+  options?: string[];
+  output?: { isExposed: boolean; variableName: string };
+  source?: { type: 'static' | 'variable'; options?: string[]; ref?: string };
 };
 
 export type LocationWidgetConfig = {
@@ -19,13 +19,14 @@ export type LocationWidgetConfig = {
   lat?: number | string;
   lng?: number | string;
   source?: string; 
-  output?: string; // Resolved: Property 'output' missing error
+  output?: { isExposed: boolean; variableName: string }; 
 };
 
 // Resolved: Missing export member error
+// Resolved: Missing export member error
 export type VariableDisplayConfig = {
-  sourceVariable: string;
-  fallback?: string;
+  variableName: string;
+  fallbackText?: string;
 };
 
 export type QuestWidget = 
