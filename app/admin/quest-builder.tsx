@@ -16,9 +16,37 @@ import type {
 } from "../../src/shared/types/domain";
 import { requireSupabase } from "../../src/lib/supabase";
 
-// --- CUSTOM UI COMPONENTS FOR ADMIN ---
-const CATEGORIES: (QuestCategory | "All")[] = ["All", "Adventure", "Skill", "Culture", "Food & Drink", "Wellness", "Social"];
 
+const CATEGORIES: (QuestCategory | "All")[] = ["All", "Adventure", "Skill", "Culture", "Food & Drink", "Wellness", "Social"];
+// -- WIDGETS SETUP -- //
+type WidgetType = 'RANDOMISER' | 'LOCATION';
+export const WIDGET_REGISTRY: Record<WidgetType, {
+  id: string;
+  icon: string;
+  label: string;
+  placeholder: string;
+  theme: { bg: string, border: string, text: string, containerBg: string,containerBorder: string, activeBg: string };
+}> = {
+  RANDOMISER: {
+    id: "randomiser",
+    icon: "🎲",
+    label: "Randomiser",
+    placeholder: "E.g. Pizza, Burgers, Sushi (comma separated)",
+    theme: { bg: "bg-orange/10", border: "border-orange/40",containerBorder: "border-orange/30", text: "text-orange", containerBg: "bg-orange/5", activeBg: "active:bg-orange/20" }
+  },
+  LOCATION: {
+    id: "location", // Just an example to show how easy it is to add a new one!
+    icon: "📍",
+    label: "Location Drop",
+    placeholder: "Search for a place...",
+    theme: { bg: "bg-blue/10", border: "border-blue/40", text: "text-blue", containerBg: "bg-blue/5", containerBorder: "border-blue/30", activeBg: "active:bg-blue/20" }
+  }
+};
+
+const SLASH_WIDGETS = Object.entries(WIDGET_REGISTRY).map(([type, data]) => ({ type, ...data }));
+const WIDGET_REGEX = /(\[[A-Z_]+:.*?\])/g; // Universal regex catches ANY widget pattern
+
+//Code start
 function Dropdown({ label, value, options, onSelect }: { label: string, value: string, options: string[], onSelect: (val: any) => void }) {
   const [isOpen, setIsOpen] = useState(false);
   return (
@@ -123,7 +151,24 @@ export default function QuestBuilderAdmin() {
   // 🗑️ REMOVED 'inside' TAB ENTIRELY
   const [activeTab, setActiveTab] = useState<'basic' | 'tags' | 'metadata'>('basic');
   const [previewMode, setPreviewMode] = useState<'hero' | 'details'>('hero');
-  const [activeWidgetConfig, setActiveWidgetConfig] = useState<{stepIndex: number, chunkIndex: number, options: string} | null>(null);
+  const [activeWidgetConfig, setActiveWidgetConfig] = useState<{
+  stepIndex: number; 
+  chunkIndex: number; 
+  type: WidgetType; 
+  config: string;
+} | null>(null);
+  const [slashMenu, setSlashMenu] = useState<{
+    visible: boolean;
+    query: string;
+    stepIndex: number;
+    chunkIndex: number;
+}>({
+    visible: false,
+    query: "",
+    stepIndex: -1,
+    chunkIndex: -1,
+});
+  
   const [savedQuests, setSavedQuests] = useState<Quest[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeCategory, setActiveCategory] = useState<QuestCategory | "All">("All");
@@ -392,127 +437,178 @@ export default function QuestBuilderAdmin() {
               />
 
               {/* Replace the current 'A clean way to do it' block with this refined inline version */}
-<View className="my-6 h-px bg-line" />
-<AppText variant="subtitle" className="mb-4">A clean way to do it</AppText>
+              <View className="my-6 h-px bg-line" />
+              <AppText variant="subtitle" className="mb-4">A clean way to do it</AppText>
 
-<View className="gap-2">
-  {(quest.steps?.length ? quest.steps : [""]).map((step, index) => {
-    
-    // Split the text perfectly around the widget tags
-    const parsed = step.split(/(\[RANDOMISER:.*?\])/g);
-
-    return (
-      <View key={`step-${index}`} className="group mb-4">
-        <View className="flex-row items-start min-h-[50px]">
-          
-          {/* Reordering Controls */}
-          <View className="w-10 pt-3 flex-col items-center gap-2 opacity-30 hover:opacity-100">
-             <Pressable onPress={() => { if (index > 0) { const n = [...quest.steps]; [n[index-1], n[index]] = [n[index], n[index-1]]; updateField('steps', n); } }}><AppText className="text-[10px]">▲</AppText></Pressable>
-             <AppText className="text-xs">⋮⋮</AppText>
-             <Pressable onPress={() => { if (index < quest.steps.length - 1) { const n = [...quest.steps]; [n[index+1], n[index]] = [n[index], n[index+1]]; updateField('steps', n); } }}><AppText className="text-[10px]">▼</AppText></Pressable>
-          </View>
-
-          {/* ✨ FLAWLESS INLINE EDITOR */}
-          <View className="flex-1 ml-2 flex-row flex-wrap items-center bg-white/40 border border-transparent focus:bg-white focus:border-line focus:shadow-sm rounded-xl px-4 py-2 min-h-[50px]">
-            {parsed.map((part, chunkIndex) => {
-              
-              // 1. THE INLINE WIDGET PILL
-              if (part.startsWith('[RANDOMISER:')) {
-                 const optionsStr = part.replace('[RANDOMISER:', '').replace(']', '');
-                 return (
-                   <Pressable
-                     key={chunkIndex}
-                     onPress={() => setActiveWidgetConfig({ stepIndex: index, chunkIndex, options: optionsStr })}
-                     className="flex-row items-center bg-orange/10 border border-orange/40 rounded-md px-2 mx-1 shadow-sm active:bg-orange/20"
-                     style={{ height: 26, transform: [{ translateY: 1 }] }} // Visually aligns without breaking line box
-                   >
-                     <AppText className="text-orange font-sansSemi text-[13px]">🎲 {optionsStr || 'Empty'}</AppText>
-                     <AppText className="text-orange ml-1 text-[10px] opacity-60">✏️</AppText>
-                   </Pressable>
-                 );
-              }
-
-              // 2. THE GHOST-TEXT AUTO-WIDTH INPUT
-              return (
-                <View key={chunkIndex} className="relative justify-center">
+              <View className="gap-2">
+                {(quest.steps?.length ? quest.steps : [""]).map((step, index) => {
                   
-                  {/* INVISIBLE GHOST TEXT: This dictates the exact width/height needed by hugging the text naturally */}
-                  <AppText className="opacity-0 font-sans text-base py-1" style={{ minWidth: 15, pointerEvents: 'none' }}>
-                    {part + ' '} {/* The trailing space gives the cursor room to breathe */}
-                  </AppText>
-                  
-                  {/* VISIBLE TEXT INPUT: Stretches perfectly over the ghost text, meaning NO WEIRD GAPS! */}
-                  <TextInput
-                    className="absolute inset-0 font-sans text-ink text-base py-1 outline-none"
-                    multiline
-                    value={part}
-                    placeholder={chunkIndex === 0 && parsed.length === 1 ? "Type or '/randomiser'..." : ""}
-                    onChangeText={(txt) => {
-                      const newParts = [...parsed];
-                      if (txt.includes('/randomiser')) {
-                         newParts[chunkIndex] = txt.replace('/randomiser', '[RANDOMISER:]');
-                      } else {
-                         newParts[chunkIndex] = txt;
-                      }
-                      const newSteps = [...quest.steps];
-                      newSteps[index] = newParts.join('');
-                      updateField('steps', newSteps);
-                    }}
-                    onKeyPress={(e) => {
-                      if (e.nativeEvent.key === 'Enter') {
-                        const newSteps = [...quest.steps];
-                        newSteps.splice(index + 1, 0, "");
-                        updateField('steps', newSteps);
-                      }
-                      if (e.nativeEvent.key === 'Backspace' && part === '') {
-                        if (chunkIndex > 0) {
-                          const newParts = [...parsed];
-                          newParts.splice(chunkIndex - 1, 2); 
-                          const newSteps = [...quest.steps];
-                          newSteps[index] = newParts.join('');
-                          updateField('steps', newSteps);
-                        } else if (quest.steps.length > 1 && parsed.length === 1) {
-                          const newSteps = [...quest.steps];
-                          newSteps.splice(index, 1);
-                          updateField('steps', newSteps);
-                        }
-                      }
-                    }}
-                  />
-                </View>
-              );
-            })}
-          </View>
-        </View>
+                  // 1. Splitting universally using our new regex
+                  const parsed = step.split(WIDGET_REGEX);
+                  const matchingWidgets = SLASH_WIDGETS.filter(widget => widget.id.startsWith(slashMenu.query));
 
-        {/* ... KEEP YOUR EXISTING INLINE CONFIG POPUP HERE ... */}
-        {activeWidgetConfig?.stepIndex === index && (
-          <View className="ml-12 mt-2 bg-orange/5 border border-orange/30 p-4 rounded-xl shadow-sm mb-2 max-w-[400px]">
-             <AppText className="text-orange font-sansSemi text-sm mb-2">🎲 Edit Randomiser Options</AppText>
-             <TextInput
-               className="bg-white p-3 rounded-lg border border-line font-sans text-sm outline-none"
-               placeholder="E.g. Pizza, Burgers, Sushi (comma separated)"
-               value={activeWidgetConfig.options}
-               autoFocus
-               onChangeText={(txt) => {
-                 setActiveWidgetConfig(prev => prev ? {...prev, options: txt} : null);
-                 const newParts = step.split(/(\[RANDOMISER:.*?\])/g);
-                 newParts[activeWidgetConfig!.chunkIndex] = `[RANDOMISER:${txt}]`;
-                 const newSteps = [...quest.steps];
-                 newSteps[index] = newParts.join('');
-                 updateField('steps', newSteps);
-               }}
-             />
-             <Pressable onPress={() => setActiveWidgetConfig(null)} className="mt-3 self-end bg-orange px-5 py-2 rounded-full shadow-sm active:opacity-80">
-                <AppText className="text-white text-xs font-sansSemi">Done</AppText>
-             </Pressable>
-          </View>
-        )}
+                  return (
+                    <View key={`step-${index}`} className="group mb-4">
+                      <View className="flex-row items-start min-h-[50px]">
+                        
+                        {/* Reordering Controls (Unchanged) */}
+                        <View className="w-10 pt-3 flex-col items-center gap-2 opacity-30 hover:opacity-100">
+                          <Pressable onPress={() => { if (index > 0) { const n = [...quest.steps]; [n[index-1], n[index]] = [n[index], n[index-1]]; updateField('steps', n); } }}><AppText className="text-[10px]">▲</AppText></Pressable>
+                          <AppText className="text-xs">⋮⋮</AppText>
+                          <Pressable onPress={() => { if (index < quest.steps.length - 1) { const n = [...quest.steps]; [n[index+1], n[index]] = [n[index], n[index+1]]; updateField('steps', n); } }}><AppText className="text-[10px]">▼</AppText></Pressable>
+                        </View>
 
-      </View>
-    );
-  })}
-</View>
+                        {/* ✨ FLAWLESS INLINE EDITOR */}
+                        <View className="flex-1 ml-2 flex-row flex-wrap items-center bg-white/40 border border-transparent focus:bg-white focus:border-line focus:shadow-sm rounded-xl px-4 py-2 min-h-[50px]">
+                          {parsed.map((part, chunkIndex) => {
+                            
+                            // 2. IS IT A WIDGET?
+                            const widgetMatch = part.match(/^\[([A-Z_]+):(.*)\]$/);
+                            
+                            if (widgetMatch) {
+                              const widgetType = widgetMatch[1] as WidgetType;
+                              const widgetConfig = widgetMatch[2];
+                              const widgetDef = WIDGET_REGISTRY[widgetType];
+
+                              if (!widgetDef) return <AppText key={chunkIndex}>{part}</AppText>; // Fallback if invalid widget
+
+                              return (
+                                <Pressable
+                                  key={chunkIndex}
+                                  onPress={() => setActiveWidgetConfig({ stepIndex: index, chunkIndex, type: widgetType, config: widgetConfig })}
+                                  className={`flex-row items-center rounded-md px-2 mx-1 shadow-sm ${widgetDef.theme.bg} ${widgetDef.theme.border} border ${widgetDef.theme.activeBg}`}
+                                  style={{ height: 26, transform: [{ translateY: 1 }] }}
+                                >
+                                  <AppText className={`${widgetDef.theme.text} font-sansSemi text-[13px]`}>
+                                    {widgetDef.icon} {widgetConfig || 'Empty'}
+                                  </AppText>
+                                  <AppText className={`${widgetDef.theme.text} ml-1 text-[10px] opacity-60`}>✏️</AppText>
+                                </Pressable>
+                              );
+                            }
+
+                            // 3. THE GHOST-TEXT AUTO-WIDTH INPUT
+                            return (
+                              // FIX: Removed `style={{ minWidth: 180 }}` to eliminate the gap! Let it naturally hug.
+                              <View key={chunkIndex} className="relative justify-center" style={{ minWidth: 20 }}>
+                                <AppText className="opacity-0 font-sans text-base py-1" style={{ minWidth: 15, pointerEvents: 'none' }}>
+                                  {part + ' '} 
+                                </AppText>
+                                
+                                <TextInput
+                                  className="absolute inset-0 font-sans text-ink text-base py-1 outline-none"
+                                  multiline
+                                  value={part}
+                                  placeholder={chunkIndex === 0 && parsed.length === 1 ? "Enter a step..." : ""}
+                                  onChangeText={(txt) => {
+                                      const newParts = [...parsed];
+                                      newParts[chunkIndex] = txt;
+                                      const newSteps = [...quest.steps];
+                                      newSteps[index] = newParts.join('');
+                                      updateField('steps', newSteps);
+
+                                      const match = txt.match(/\/([a-z]*)$/i);
+                                      if (match) {
+                                          setSlashMenu({ visible: true, query: match[1].toLowerCase(), stepIndex: index, chunkIndex });
+                                      } else {
+                                          setSlashMenu(prev => ({ ...prev, visible: false }));
+                                      }
+                                  }}
+                                  onKeyPress={(e) => {
+                                    if (e.nativeEvent.key === "Enter" && slashMenu.visible && matchingWidgets.length > 0) {
+                                        const widget = matchingWidgets[0];
+                                        const updated = part.replace(/\/[a-z]*$/i, `[${widget.type}:]`); // Dynamic insertion!
+                                        const newParts = [...parsed];
+                                        newParts[chunkIndex] = updated;
+                                        const newSteps = [...quest.steps];
+                                        newSteps[index] = newParts.join('');
+                                        
+                                        updateField("steps", newSteps);
+                                        setSlashMenu({ visible: false, query: "", stepIndex: -1, chunkIndex: -1 });
+                                        return;
+                                    }
+                                    if (e.nativeEvent.key === 'Backspace' && part === '') {
+                                      if (chunkIndex > 0) {
+                                        const newParts = [...parsed];
+                                        newParts.splice(chunkIndex - 1, 2); 
+                                        const newSteps = [...quest.steps];
+                                        newSteps[index] = newParts.join('');
+                                        updateField('steps', newSteps);
+                                      } else if (quest.steps.length > 1 && parsed.length === 1) {
+                                        const newSteps = [...quest.steps];
+                                        newSteps.splice(index, 1);
+                                        updateField('steps', newSteps);
+                                      }
+                                    }
+                                  }}
+                                />
+
+                                {/* SLASH MENU DROPDOWN */}
+                                {slashMenu.visible && slashMenu.stepIndex === index && slashMenu.chunkIndex === chunkIndex && (
+                                  <View className="absolute left-0 top-full mt-2 bg-white rounded-xl border border-line shadow-lg w-72 z-50 overflow-hidden">
+                                    {matchingWidgets.map(widget => (
+                                      <Pressable
+                                        key={widget.id}
+                                        className="px-4 py-3 hover:bg-stone flex-row items-center gap-3"
+                                        onPress={() => {
+                                          const updated = part.replace(/\/[a-z]*$/i, `[${widget.type}:]`);
+                                          const newParts = [...parsed];
+                                          newParts[chunkIndex] = updated;
+                                          const newSteps = [...quest.steps];
+                                          newSteps[index] = newParts.join("");
+                                          updateField("steps", newSteps);
+                                          setSlashMenu({ visible: false, query: "", stepIndex: -1, chunkIndex: -1 });
+                                        }}
+                                      >
+                                        <AppText>{widget.icon}</AppText>
+                                        <AppText>
+                                          <AppText className="font-sansSemi">{widget.label.slice(0, slashMenu.query.length)}</AppText>
+                                          {widget.label.slice(slashMenu.query.length)}
+                                        </AppText>
+                                      </Pressable>
+                                    ))}
+                                  </View>
+                                )}
+                              </View>
+                            );
+                          })}
+                        </View>
+                      </View>
+
+                      {/* 4. DYNAMIC INLINE CONFIG POPUP */}
+                      {activeWidgetConfig?.stepIndex === index && (
+                        <View className={`ml-12 mt-2 border p-4 rounded-xl shadow-sm mb-2 max-w-[400px] ${WIDGET_REGISTRY[activeWidgetConfig.type].theme.containerBg} ${WIDGET_REGISTRY[activeWidgetConfig.type].theme.containerBorder}`}>
+                          <AppText className={`${WIDGET_REGISTRY[activeWidgetConfig.type].theme.text} font-sansSemi text-sm mb-2`}>
+                            {WIDGET_REGISTRY[activeWidgetConfig.type].icon} Edit {WIDGET_REGISTRY[activeWidgetConfig.type].label}
+                          </AppText>
+                          
+                          <TextInput
+                            className="bg-white p-3 rounded-lg border border-line font-sans text-sm outline-none"
+                            placeholder={WIDGET_REGISTRY[activeWidgetConfig.type].placeholder}
+                            value={activeWidgetConfig.config}
+                            autoFocus
+                            onChangeText={(txt) => {
+                              setActiveWidgetConfig(prev => prev ? {...prev, config: txt} : null);
+                              
+                              // Re-split universally to update the exact string position
+                              const newParts = step.split(WIDGET_REGEX);
+                              newParts[activeWidgetConfig!.chunkIndex] = `[${activeWidgetConfig!.type}:${txt}]`;
+                              
+                              const newSteps = [...quest.steps];
+                              newSteps[index] = newParts.join('');
+                              updateField('steps', newSteps);
+                            }}
+                          />
+                          <Pressable onPress={() => setActiveWidgetConfig(null)} className="mt-3 self-end bg-ink px-5 py-2 rounded-full shadow-sm active:opacity-80">
+                              <AppText className="text-white text-xs font-sansSemi">Done</AppText>
+                          </Pressable>
+                        </View>
+                      )}
+
+                    </View>
+                  );
+                })}
+              </View>
 
               <View className="my-8 h-px bg-line" />
               <AppText variant="subtitle" className="mb-2 text-ink/60">Journal Prompt</AppText>
