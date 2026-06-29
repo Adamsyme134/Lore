@@ -30,8 +30,10 @@ export default function QuestDetailScreen() {
   const isSaved = savedQuestIds.includes(quest.id);
   const isActive = activeQuests[quest.id] !== undefined;
   const checkedSteps = activeQuests[quest.id] || [];
-  const isCompleteReady = quest.steps && quest.steps.length > 0 && checkedSteps.length === quest.steps.length;
-
+  const hasContentBlocks = quest.contentBlocks && quest.contentBlocks.length > 0;
+  const isCompleteReady = hasContentBlocks 
+    ? true // Widget quests are an experience, they can be completed anytime once started -- fix later?
+    : (quest.steps && quest.steps.length > 0 && checkedSteps.length === quest.steps.length);
   return (
     <Screen contentClassName="px-0 pb-36">
       <TopBar showBack title="Side Quest" />

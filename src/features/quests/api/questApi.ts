@@ -28,6 +28,7 @@ type QuestRow = {
   accent: Accent;
   image_url: string;
   steps: string[] | null;
+  content_blocks?: any;
   journal_prompt: string;
   points_value: number;
   
@@ -60,6 +61,7 @@ function mapQuest(row: QuestRow): Quest {
     accent: row.accent || "orange",
     imageUrl: row.image_url,
     steps: row.steps ?? [],
+    contentBlocks: row.content_blocks || null,
     journalPrompt: row.journal_prompt || "",
     pointsValue: row.points_value || 10,
     

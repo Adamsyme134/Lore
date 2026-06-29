@@ -15,6 +15,7 @@ import type {
   QuestAccessibility, 
   QuestLocationType 
 } from "../../src/shared/types/domain";
+import { RandomiserWidget } from "src/features/quests/components/widgets/RandomiserWidget";
 import { requireSupabase } from "../../src/lib/supabase";
 
 // --- CUSTOM UI COMPONENTS FOR ADMIN ---
@@ -109,7 +110,10 @@ const createBlankQuest = (): Quest => ({
   mood: "wild",
   accent: "orange",
   imageUrl: "https://images.unsplash.com/photo-1501555088652-021faa106b9b",
-  steps: ["Step 1...", "Step 2..."],
+  steps: ["Step 1..."],
+  contentBlocks: [
+    { type: "text", id: `block-${Date.now()}-1`, content: "Welcome to this new quest. What will you discover?" }
+  ] as any, // Cast to any to satisfy strict compiler locally
   journalPrompt: "What did you learn?",
   pointsValue: 15,
   imagePosition: "center",
@@ -130,9 +134,9 @@ const createBlankQuest = (): Quest => ({
 export default function QuestBuilderAdmin() {
   const [view, setView] = useState<'grid' | 'editor'>('grid');
   // ✨ NEW: Added 'metadata' to the tabs
-  const [activeTab, setActiveTab] = useState<'basic' | 'tags' | 'metadata' | 'inside'>('basic');
+  const [activeTab, setActiveTab] = useState<'basic' | 'tags' | 'metadata' | 'library'>('basic');
   const [previewMode, setPreviewMode] = useState<'hero' | 'details'>('hero');
-  
+  const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
   const [savedQuests, setSavedQuests] = useState<Quest[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeCategory, setActiveCategory] = useState<QuestCategory | "All">("All");
@@ -207,6 +211,7 @@ export default function QuestBuilderAdmin() {
         accent: quest.accent,
         image_url: quest.imageUrl,
         steps: quest.steps,
+        content_blocks: quest.contentBlocks,
         journal_prompt: quest.journalPrompt,
         points_value: quest.pointsValue,
         image_position: quest.imagePosition,
@@ -356,10 +361,10 @@ export default function QuestBuilderAdmin() {
         </View>
 
         <View className="flex-row border-b border-line bg-stone">
-          {(['basic', 'tags', 'metadata', 'inside'] as const).map(tab => (
+          {(['basic', 'tags', 'metadata', 'library'] as const).map(tab => (
             <Pressable key={tab} onPress={() => setActiveTab(tab)} className={`flex-1 p-4 items-center ${activeTab === tab ? 'bg-white border-b-2 border-orange' : ''}`}>
               <AppText className={activeTab === tab ? 'text-ink font-sansSemi' : 'text-ink/50 capitalize'}>
-                {tab === 'inside' ? 'Inside Content' : `${tab} Info`}
+                {tab === 'library' ? 'Widget Library' : `${tab} Info`}
               </AppText>
             </Pressable>
           ))}
@@ -474,24 +479,76 @@ export default function QuestBuilderAdmin() {
             </View>
           )}
 
-          {activeTab === 'inside' && (
+          {activeTab === 'library' && (
             <View>
-              <AppText variant="subtitle" className="mb-2">Why it matters</AppText>
-              <TextInput className="bg-white border border-line rounded-lg p-4 mb-6 font-sans text-ink" multiline numberOfLines={4} value={quest.whyItMatters} onChangeText={(txt) => updateField("whyItMatters", txt)} />
+              <AppText variant="subtitle" className="mb-2">Widget Library</AppText>
+              <AppText className="text-xs text-ink/50 mb-4">Click below to append a widget, or simply type '/' directly in the right-hand visual editor.</AppText>
+              
+              <Pressable 
+                onPress={() => {
+                  const newBlocks = [...(quest.contentBlocks || [])];
+                  if (newBlocks.length === 0) newBlocks.push({ type: 'text', id: `t-${Date.now()}`, content: '' });
+                  
+                  const newWidgetId = `w-${Date.now()}`;
+                  newBlocks.push({ type: 'widget', id: newWidgetId, widgetType: 'randomiser', version: 1, config: { options: ['Option 1', 'Option 2'] } });
+                  newBlocks.push({ type: 'text', id: `t-${Date.now()+1}`, content: ' ' }); // Trailing space for continued typing
+                  
+                  updateField('contentBlocks', newBlocks);
+                  setSelectedBlockId(newWidgetId);
+                }}
+                className="bg-white border border-line p-4 rounded-lg flex-row justify-between items-center shadow-sm"
+              >
+                <View>
+                  <AppText className="font-sansSemi text-ink">Randomiser</AppText>
+                  <AppText className="text-ink/50 text-xs">An inline rolling slot machine</AppText>
+                </View>
+                <AppText className="text-orange text-xl">+</AppText>
+              </Pressable>
 
-              <AppText variant="subtitle" className="mb-1">Checklist Steps</AppText>
-              <AppText className="text-xs text-ink/50 mb-2">Put each step on a new line.</AppText>
-              <TextInput 
-                className="bg-white border border-line rounded-lg p-4 mb-6 font-sans text-ink leading-6" 
-                multiline 
-                style={{ height: 160, textAlignVertical: 'top' }}
-                value={quest.steps.join('\n')} 
-                onChangeText={(txt) => {
-                  const lines = txt.split('\n');
-                  updateField("steps", lines);
-                }} 
-              />
+              {/* ✨ WIDGET SETTINGS PANE */}
+              {selectedBlockId && (
+                <View className="mt-8 p-4 bg-stone rounded-lg border border-line">
+                  <View className="flex-row justify-between mb-4 items-center">
+                    <AppText variant="subtitle">Widget Settings</AppText>
+                    <Pressable onPress={() => {
+                      const newBlocks = (quest.contentBlocks || []).filter(b => b.id !== selectedBlockId);
+                      updateField('contentBlocks', newBlocks);
+                      setSelectedBlockId(null);
+                    }}>
+                      <AppText className="text-[#E63946] text-xs font-sansSemi">Remove Widget</AppText>
+                    </Pressable>
+                  </View>
 
+                  {(() => {
+  const block = quest.contentBlocks?.find(b => b.id === selectedBlockId);
+  
+  // ✨ FIX: Check type narrowing first
+  if (block && block.type === 'widget' && block.widgetType === 'randomiser') {
+    return (
+      <View>
+        <AppText className="text-xs text-ink/50 mb-1">Options (comma separated)</AppText>
+        <TextInput 
+          className="bg-white border border-line rounded p-3 font-sans text-ink"
+          value={block.config.options.join(', ')}
+          onChangeText={(txt) => {
+            const newBlocks = (quest.contentBlocks || []).map(b => 
+              // Now TypeScript knows 'b' is a QuestWidget here
+              b.id === selectedBlockId && b.type === 'widget' 
+                ? { ...b, config: { options: txt.split(',').map(s => s.trim()) } } 
+                : b
+            );
+            updateField('contentBlocks', newBlocks);
+          }}
+        />
+      </View>
+    );
+  }
+  return null;
+})()}
+                </View>
+              )}
+              
+              <View className="my-6 h-px bg-line" />
               <AppText variant="subtitle" className="mb-2">Journal Prompt</AppText>
               <TextInput className="bg-white border border-line rounded-lg p-4 mb-6 font-sans text-ink" value={quest.journalPrompt} onChangeText={(txt) => updateField("journalPrompt", txt)} />
             </View>
@@ -512,11 +569,79 @@ export default function QuestBuilderAdmin() {
 
         <View className="w-[400px] h-[750px] bg-cream rounded-[45px] border-[8px] border-white shadow-xl overflow-hidden justify-center px-4">
           {previewMode === 'hero' ? (
-            <QuestHero quest={quest} onPressOverride={() => { setPreviewMode('details'); setActiveTab('inside'); }} />
+            <QuestHero quest={quest} onPressOverride={() => { setPreviewMode('details'); setActiveTab('library'); }} />
           ) : (
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingVertical: 40 }}>
               <AppText variant="display" className="mb-6">{quest.title}</AppText>
-              <QuestDetailBlock quest={quest} isActive={true} />
+              
+              <View className="rounded-card border border-line bg-cream p-6">
+                
+                <AppText variant="subtitle" className="mb-2">Why it matters</AppText>
+                <TextInput className="bg-white/50 border border-line/30 rounded p-2 mb-6 font-sans text-ink text-sm" multiline value={quest.whyItMatters} onChangeText={(txt) => updateField("whyItMatters", txt)} />
+                
+                <AppText variant="subtitle" className="text-orange mb-1">The Experience (WYSIWYG)</AppText>
+                <AppText className="text-[10px] text-ink/40 mb-4 uppercase tracking-widest">Type '/' in text to insert a widget.</AppText>
+                
+                <View className="bg-white p-4 rounded-xl border border-line shadow-sm flex-row flex-wrap items-center">
+                  {(quest.contentBlocks || []).map((block, index) => {
+                    if (block.type === 'text') {
+                      return (
+                        <TextInput
+                          key={block.id}
+                          className="font-sans text-ink/80 text-base leading-relaxed m-0 p-0 min-w-[30px]"
+                          style={{ outlineStyle: 'none' } as any}
+                          value={block.content}
+                          multiline
+                          placeholder="..."
+                          onChangeText={(txt) => {
+                            // ✨ The Magic / Slash Command 
+                            if (txt.endsWith('/')) {
+                              const newText = txt.slice(0, -1);
+                              const newBlocks = [...(quest.contentBlocks || [])];
+                              newBlocks[index] = { ...block, content: newText };
+                              const newWidgetId = `w-${Date.now()}`;
+                              // Inject the widget and a new text block after it
+                              newBlocks.splice(index + 1, 0, 
+                                { type: 'widget', id: newWidgetId, widgetType: 'randomiser', version: 1, config: { options: ['Opt 1', 'Opt 2'] } },
+                                { type: 'text', id: `t-${Date.now()+1}`, content: ' ' }
+                              );
+                              updateField('contentBlocks', newBlocks);
+                              setSelectedBlockId(newWidgetId);
+                              setActiveTab('library');
+                            } else {
+                              const newBlocks = [...(quest.contentBlocks || [])];
+                              newBlocks[index] = { ...block, content: txt };
+                              updateField('contentBlocks', newBlocks);
+                            }
+                          }}
+                        />
+                      );
+                    } else if (block.type === 'widget') {
+                      return (
+                        <Pressable 
+                          key={block.id}
+                          onPress={() => {
+                            setSelectedBlockId(block.id);
+                            setActiveTab('library');
+                          }}
+                          className={`rounded-full ${selectedBlockId === block.id ? 'ring-2 ring-orange ring-offset-2' : ''}`}
+                        >
+                          <View pointerEvents="none">
+                            <RandomiserWidget options={block.config.options} accent={quest.accent} />
+                          </View>
+                        </Pressable>
+                      );
+                    }
+                  })}
+                  {/* Fallback to start typing if empty */}
+                  {(!quest.contentBlocks || quest.contentBlocks.length === 0) && (
+                     <Pressable onPress={() => updateField('contentBlocks', [{ type: 'text', id: `t-new`, content: '' }])}>
+                       <AppText className="text-ink/30 italic">Click here to start writing...</AppText>
+                     </Pressable>
+                  )}
+                </View>
+
+              </View>
             </ScrollView>
           )}
         </View>

@@ -2,6 +2,31 @@
 
 import type { Accent } from "../design/tokens";
 
+// WIDGETS //
+export type WidgetType = "randomiser";
+
+export type RandomiserConfig = {
+  options: string[];
+};
+
+export type QuestWidget = {
+  type: "widget";
+  id: string;
+  widgetType: WidgetType;
+  version: number;
+  config: RandomiserConfig;
+};
+
+export type QuestTextNode = {
+  type: "text";
+  id: string;
+  content: string;
+};
+
+export type QuestContentBlock = QuestTextNode | QuestWidget;
+
+
+
 // --- NEW ENUMS & TYPES ---
 export type QuestCategory = "Adventure" | "Skill" | "Culture" | "Food & Drink" | "Wellness" | "Social";
 export type QuestCost = "Free" | "£" | "££" | "£££";
@@ -10,8 +35,9 @@ export type QuestDifficulty = "Easy" | "Medium" | "Challenging";
 export type QuestSeason = "Spring" | "Summer" | "Autumn" | "Winter" | "All year";
 export type QuestAccessibility = "Walking" | "Public Transport" | "Driving" | "Wheelchair Accessible";
 export type QuestLocationType = "City" | "Town" | "Countryside" | "Abroad" | "Anywhere";
-
 export type QuestMood = "quiet" | "social" | "curious" | "wild" | "creative";
+
+
 
 export type Quest = {
   id: string;
@@ -25,13 +51,15 @@ export type Quest = {
   mood: QuestMood;
   accent: Accent;
   imageUrl: string;
-  imagePosition?: "top" | "center" | "bottom"; // ✨ NEW: Fix 4
-  steps: string[];
+  imagePosition?: "top" | "center" | "bottom";
+  steps: string[]; // Legacy fallback
+  contentBlocks?: QuestContentBlock[];
+   
   journalPrompt: string;
   pointsValue: number;
 
   // --- VISIBLE TAGS ---
-  categories: QuestCategory[]; // ✨ CHANGED: Fix 5 (Multiple categories)
+  categories: QuestCategory[];
   category?: QuestCategory; // (Keep as optional for legacy data fallback)
   cost: QuestCost;
   length: QuestLength;
