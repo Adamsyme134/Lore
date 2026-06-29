@@ -140,8 +140,11 @@ export default function QuestBuilderAdmin() {
       try {
         const client = requireSupabase();
         // Fetch all quests, newest first
-        const { data, error } = await client.from('quests').select('*').order('created_at', { ascending: false });
-        
+        const { data, error } = await client
+        .from('quests')
+        .select('*')
+        .eq('is_active', true) 
+        .order('created_at', { ascending: false });
         if (error) throw error;
 
         if (data) {
@@ -408,7 +411,7 @@ export default function QuestBuilderAdmin() {
               </View>
 
               <View className="flex-row gap-4 z-30">
-                <Dropdown label="Length" value={quest.length} options={["Half day", "Full day", "Multi-day", "Long-term"]} onSelect={(val) => updateField("length", val)} />
+                <Dropdown label="Length" value={quest.length} options={["A few hours", "Full day", "Multi-day", "Long-term"]} onSelect={(val) => updateField("length", val)} />
                 <Dropdown label="Difficulty" value={quest.difficulty} options={["Easy", "Medium", "Challenging"]} onSelect={(val) => updateField("difficulty", val)} />
               </View>
 

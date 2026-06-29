@@ -5,7 +5,7 @@ import type { Accent } from "../design/tokens";
 // --- NEW ENUMS & TYPES ---
 export type QuestCategory = "Adventure" | "Skill" | "Culture" | "Food & Drink" | "Wellness" | "Social";
 export type QuestCost = "Free" | "£" | "££" | "£££";
-export type QuestLength = "Half day" | "Full day" | "Multi-day" | "Long-term";
+export type QuestLength = "A few hours" | "Full day" | "Multi-day" | "Long-term";
 export type QuestDifficulty = "Easy" | "Medium" | "Challenging";
 export type QuestSeason = "Spring" | "Summer" | "Autumn" | "Winter" | "All year";
 export type QuestAccessibility = "Walking" | "Public Transport" | "Driving" | "Wheelchair Accessible";
