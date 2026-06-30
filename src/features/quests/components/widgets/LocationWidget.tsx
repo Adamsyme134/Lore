@@ -21,7 +21,7 @@ const parseQueryConfig = (str: string) => {
 };
 
 export function LocationWidget({ config, accent }: Props) {
-  const { setVariable, getVariable } = useQuestExecution();
+  const { variables, setVariable, getVariable } = useQuestExecution();
   
   const [isLoading, setIsLoading] = useState(false);
   const [isFound, setIsFound] = useState(false);
@@ -55,7 +55,19 @@ export function LocationWidget({ config, accent }: Props) {
     }
     return config;
   }, [config]);
-
+  const isWaiting = React.useMemo(() => {
+    const rawQuery = normalizedConfig.query || "";
+    const isVar = normalizedConfig.queryType === 'variable' || rawQuery.startsWith('$');
+    
+    if (isVar && rawQuery) {
+      const varName = rawQuery.replace(/^\$/, '');
+      // Look directly in the variables object for reactive updates
+      const data = variables[varName] || variables[rawQuery];
+      // If it doesn't exist or is an empty array, we are waiting
+      return data === undefined || data === null || (Array.isArray(data) && data.length === 0);
+    }
+    return false; // Static queries are never waiting
+  }, [normalizedConfig, variables]);
   const fetchLocations = async () => {
     if (isLoading) return;
     setIsLoading(true);
@@ -87,13 +99,16 @@ export function LocationWidget({ config, accent }: Props) {
 
       // 📝 2. Resolve the Search String
       let actualQuery = normalizedConfig.query || "cafe";
-      if (normalizedConfig.queryType === 'variable' && actualQuery) {
-        const varData = getVariable(actualQuery);
+      
+      // Auto-detect if it's a variable by checking for the '$' prefix
+      const isVariable = normalizedConfig.queryType === 'variable' || actualQuery.startsWith('$');
+      if (isVariable && actualQuery) {
+        const varName = actualQuery.replace(/^\$/, ''); // Strip the $ for lookup
+        const varData = getVariable(varName) || getVariable(actualQuery); // Try both safely
         actualQuery = Array.isArray(varData) ? (varData[0] || actualQuery) : (varData || actualQuery);
       }
       
       actualQuery = actualQuery.trim();
-
       // ✨ SMART REGEX: If user types "burgers", this makes it search for "burgers?" 
       // which safely matches BOTH "burger" and "burgers"!
       const safeQuery = actualQuery.replace(/"/g, '\\"');
@@ -101,22 +116,113 @@ export function LocationWidget({ config, accent }: Props) {
 
       // 🔍 3. Lightning Fast Overpass API Call 
       // Added 'cuisine' to the keys, and removed the API limit which causes syntax crashes.
-      const overpassQuery = `
-        [out:json][timeout:10];
-        (
-          node[~"^(name|amenity|shop|leisure|tourism|cuisine)$"~"${fuzzyQuery}",i](around:${radius},${lat},${lon});
-          way[~"^(name|amenity|shop|leisure|tourism|cuisine)$"~"${fuzzyQuery}",i](around:${radius},${lat},${lon});
-        );
-        out center;
-      `;
-      
-      const requestUrl = `https://overpass-api.de/api/interpreter?data=${encodeURIComponent(overpassQuery)}`;
-      
-      // 🐛 DEBUG LOGGING: Click this URL in your terminal to see exactly what Overpass sees!
-      console.log("📍 OVERPASS URL:", requestUrl);
-      console.log("📍 OVERPASS QUERY:\\n", overpassQuery);
+      // Escape user input for regex safety
+const escapeRegex = (str: string) =>
+  str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
-      const response = await fetch(requestUrl);
+// Map common searches onto indexed OSM tags
+const CATEGORY_MAP: Record<string, { key: string; value: string }> = {
+  cafe: { key: "amenity", value: "cafe" },
+  cafés: { key: "amenity", value: "cafe" },
+  café: { key: "amenity", value: "cafe" },
+  coffee: { key: "amenity", value: "cafe" },
+
+  restaurant: { key: "amenity", value: "restaurant" },
+  restaurants: { key: "amenity", value: "restaurant" },
+
+  pub: { key: "amenity", value: "pub" },
+  pubs: { key: "amenity", value: "pub" },
+
+  bar: { key: "amenity", value: "bar" },
+  bars: { key: "amenity", value: "bar" },
+
+  museum: { key: "tourism", value: "museum" },
+  museums: { key: "tourism", value: "museum" },
+
+  hotel: { key: "tourism", value: "hotel" },
+  hotels: { key: "tourism", value: "hotel" },
+
+  pharmacy: { key: "amenity", value: "pharmacy" },
+  pharmacies: { key: "amenity", value: "pharmacy" },
+
+  supermarket: { key: "shop", value: "supermarket" },
+  supermarkets: { key: "shop", value: "supermarket" },
+
+  grocery: { key: "shop", value: "supermarket" },
+
+  fuel: { key: "amenity", value: "fuel" },
+  petrol: { key: "amenity", value: "fuel" },
+  "petrol station": { key: "amenity", value: "fuel" },
+  "gas station": { key: "amenity", value: "fuel" },
+  "service station": { key: "amenity", value: "fuel" },
+"train station": { key: "railway", value: "station" },
+"train stations": { key: "railway", value: "station" },
+station: { key: "railway", value: "station" },
+railway: { key: "railway", value: "station" },
+  bank: { key: "amenity", value: "bank" },
+  banks: { key: "amenity", value: "bank" },
+
+  atm: { key: "amenity", value: "atm" },
+
+  park: { key: "leisure", value: "park" },
+  parks: { key: "leisure", value: "park" },
+
+  playground: { key: "leisure", value: "playground" },
+
+  library: { key: "amenity", value: "library" },
+
+  cinema: { key: "amenity", value: "cinema" },
+
+  gym: { key: "leisure", value: "fitness_centre" },
+
+  bakery: { key: "shop", value: "bakery" },
+
+  bookstore: { key: "shop", value: "books" },
+  bookshop: { key: "shop", value: "books" },
+};
+
+const normalizedQuery = actualQuery.trim().toLowerCase();
+
+const category = CATEGORY_MAP[normalizedQuery];
+
+let overpassQuery: string;
+
+if (category) {
+  // Fast indexed lookup
+  overpassQuery = `
+[out:json][timeout:3];
+(
+  node["${category.key}"="${category.value}"](around:${radius},${lat},${lon});
+  way["${category.key}"="${category.value}"](around:${radius},${lat},${lon});
+);
+out center;
+`;
+} else {
+  // Fallback: search only by name
+  const escaped = escapeRegex(actualQuery);
+
+  overpassQuery = `
+[out:json][timeout:3];
+(
+  node["name"~"${escaped}",i](around:${radius},${lat},${lon});
+  way["name"~"${escaped}",i](around:${radius},${lat},${lon});
+);
+out center;
+`;
+}
+      
+      console.log("📍 OVERPASS QUERY:\n", overpassQuery);
+
+const response = await fetch(
+  "https://overpass-api.de/api/interpreter",
+  {
+    method: "POST",
+    headers: {
+      "Content-Type": "text/plain",
+    },
+    body: overpassQuery,
+  }
+);
       
       if (!response.ok) throw new Error(`HTTP Error ${response.status}`);
       const data = await response.json();
@@ -141,7 +247,8 @@ export function LocationWidget({ config, accent }: Props) {
 
       // 🔄 5. Expose Array to Context
       if (normalizedConfig.output?.isExposed && normalizedConfig.output.variableName) {
-        setVariable(normalizedConfig.output.variableName, finalOptions);
+        const cleanVarName = normalizedConfig.output.variableName.replace(/^\$/, '');
+        setVariable(cleanVarName, finalOptions);
       }
       
       setCount(uniqueOptions.length);
@@ -163,7 +270,12 @@ export function LocationWidget({ config, accent }: Props) {
     <View style={{ transform: [{ translateY: 3 }], marginHorizontal: 3 }}>
       <Pressable 
         onPress={fetchLocations} 
-        className={`rounded-lg justify-center items-center px-4 shadow-sm ${isFound ? 'bg-stone border border-line' : (accent?.bg || 'bg-blue')}`}
+        disabled={isWaiting || isLoading} // ✨ 3. Disable the click
+        className={`rounded-lg justify-center items-center px-4 shadow-sm ${
+          isWaiting ? 'bg-stone opacity-50' : // ✨ 4. Greyed out state
+          isFound ? 'bg-stone border border-line' : 
+          (accent?.bg || 'bg-blue')
+        }`}
         style={{ height: 36 }}
       >
         {/* Invisible text locks the width based on the label */}
@@ -173,8 +285,8 @@ export function LocationWidget({ config, accent }: Props) {
           {isLoading ? (
             <ActivityIndicator size="small" color="#fff" />
           ) : (
-            <AppText className={`font-sansSemi text-[14px] ${isFound ? 'text-ink' : 'text-white'}`}>
-              {isFound ? `📍 Found ${count}` : `📍 Find ${label}`}
+            <AppText className={`font-sansSemi text-[14px] ${isFound || isWaiting ? 'text-ink/60' : 'text-white'}`}>
+              {isWaiting ? `🔒 Locked` : isFound ? `📍 Found ${count}` : `📍 Find ${label}`}
             </AppText>
           )}
         </View>

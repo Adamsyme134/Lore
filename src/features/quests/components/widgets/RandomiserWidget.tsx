@@ -20,7 +20,7 @@ const parseQueryConfig = (str: string) => {
 };
 
 export function RandomiserWidget({ config, accent }: Props) {
-  const { setVariable, getVariable } = useQuestExecution();
+  const {variables, setVariable, getVariable } = useQuestExecution();
   
   const [isSpinning, setIsSpinning] = useState(false);
   const [displayIndex, setDisplayIndex] = useState<number | null>(null);
@@ -66,28 +66,61 @@ export function RandomiserWidget({ config, accent }: Props) {
     }
     return config;
   }, [config]);
+const isWaiting = React.useMemo(() => {
+    if (!normalizedConfig) return false;
+    let varRef = "";
+    
+    if (normalizedConfig.source?.type === 'variable') {
+      varRef = normalizedConfig.source.ref || "";
+    } else if (normalizedConfig.source?.options?.[0]?.startsWith('$')) {
+      varRef = normalizedConfig.source.options[0];
+    } else if (normalizedConfig.options?.length === 1 && normalizedConfig.options[0].startsWith('$')) {
+      varRef = normalizedConfig.options[0];
+    }
 
+    if (varRef) {
+      const cleanRef = varRef.replace(/^\$/, '');
+      const data = variables[cleanRef] || variables[varRef];
+      return data === undefined || data === null || (Array.isArray(data) && data.length === 0);
+    }
+    
+    return false;
+  }, [normalizedConfig, variables]);
+  // Fetch the data just-in-time when they click spin
   // Fetch the data just-in-time when they click spin
   const getOptions = (): string[] => {
     if (!normalizedConfig) return [];
 
+    // Helper to strip '$' and safely resolve variable
+    const resolveVariable = (ref: string) => {
+      const varName = ref.replace(/^\$/, '');
+      const variableData = getVariable(varName) || getVariable(ref);
+      if (Array.isArray(variableData)) return variableData.map(String);
+      if (typeof variableData === 'string') return [variableData]; 
+      return null;
+    };
+
     // Prioritize the new Source structure
     if (normalizedConfig.source) {
+      // If it's technically marked static but the string starts with $, intercept it
+      if (normalizedConfig.source.type === 'variable' || normalizedConfig.source.options?.[0]?.startsWith('$')) {
+        const ref = normalizedConfig.source.ref || normalizedConfig.source.options?.[0] || '';
+        if (!ref) return ["⚠️ Data not found"];
+        return resolveVariable(ref) || ["⚠️ Data not found"];
+      }
+      
       if (normalizedConfig.source.type === 'static') {
         return normalizedConfig.source.options || [];
-      }
-      if (normalizedConfig.source.type === 'variable') {
-        if (!normalizedConfig.source.ref) return ["⚠️ Data not found"];
-        const variableData = getVariable(normalizedConfig.source.ref);
-        if (Array.isArray(variableData)) return variableData.map(String);
-        if (typeof variableData === 'string') return [variableData]; 
-        return ["⚠️ Data not found"];
       }
     }
 
     // Fallback for legacy basic configs
-    if (normalizedConfig.options) return normalizedConfig.options;
-    return [];
+    const opts = normalizedConfig.options || [];
+    if (opts.length === 1 && opts[0].startsWith('$')) {
+      return resolveVariable(opts[0]) || opts;
+    }
+    
+    return opts;
   };
 
   const startSpin = () => {
@@ -113,9 +146,11 @@ export function RandomiserWidget({ config, accent }: Props) {
         setTimeout(tick, speed);
       } else {
         setIsSpinning(false);
+
         // ✨ EXPOSE THE OUTPUT TO GLOBAL CONTEXT ✨
-        if (config.output?.isExposed && config.output.variableName) {
-          setVariable(config.output.variableName, optionsToSpin[selectedIdx]);
+        if (normalizedConfig.output?.isExposed && normalizedConfig.output.variableName) {
+          const cleanVarName = normalizedConfig.output.variableName.replace(/^\$/, '');
+          setVariable(cleanVarName, optionsToSpin[selectedIdx]);
         }
       }
     };
@@ -137,15 +172,18 @@ export function RandomiserWidget({ config, accent }: Props) {
     <View style={{ transform: [{ translateY: 3 }], marginHorizontal: 3 }}>
       <Pressable
         onPress={startSpin}
-        className={`rounded-lg justify-center items-center px-4 shadow-sm ${theme.bg}`}
+        disabled={isWaiting || isSpinning} // ✨ 3. Disable the click
+        className={`rounded-lg justify-center items-center px-4 shadow-sm ${
+          isWaiting ? 'bg-stone opacity-50' : theme.bg // ✨ 4. Greyed out state
+        }`}
         style={{ height: 36 }}
       >
         {/* Invisible text locks the width perfectly */}
         <AppText className="font-sansSemi text-[14px] opacity-0 h-0">{longestOption}</AppText>
         
         <View className="absolute inset-0 justify-center items-center">
-          <AppText className="text-white font-sansSemi text-[14px]">
-            {displayText}
+          <AppText className={`font-sansSemi text-[14px] ${isWaiting ? 'text-ink/60' : 'text-white'}`}>
+            {isWaiting ? "🔒 Locked" : displayText}
           </AppText>
         </View>
       </Pressable>

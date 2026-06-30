@@ -6,7 +6,7 @@ import { AppText } from "../../../shared/components/AppText";
 import { Chip } from "../../../shared/components/Chip";
 import { accentClass } from "../../../shared/design/tokens";
 import { LocationWidget } from "./widgets/LocationWidget";
-
+import { RandomiserWidget } from './widgets/RandomiserWidget';
 // Utility to parse URL-like parameters embedded in the widget tag
 const parseConfig = (str: string) => {
   const obj: Record<string, string> = {};
@@ -16,65 +16,6 @@ const parseConfig = (str: string) => {
   });
   return obj;
 };
-
-// 🎲 ACTIVE TRUE INLINE RANDOMISER WIDGET FOR END USERS
-export function WorkingInlineRandomiser({ dataString, accent }: { dataString: string, accent: any }) {
-  const raw = dataString.replace('[RANDOMISER:', '').replace(']', '');
-  
-  // ✨ NEW: Smart parsing to handle both legacy strings and new URL configs
-  let options: string[] = [];
-  if (raw.includes('=')) {
-    const config = parseConfig(raw);
-    if (config.type === 'variable') {
-      options = [config.ref || 'Variable Source'];
-    } else {
-      options = config.options ? config.options.split(',').map(s => s.trim()).filter(Boolean) : [];
-    }
-  } else {
-    options = raw.split(',').map(s => s.trim()).filter(Boolean);
-  }
-
-  if (options.length === 0) options = ["🎲 Spin"];
-
-  const [selected, setSelected] = useState<string | null>(null);
-  const [isSpinning, setIsSpinning] = useState(false);
-
-  // ✨ Find the longest option to lock the width perfectly
-  const longestOption = options.reduce((a, b) => a.length > b.length ? a : b, "🎲 Spin");
-
-  const handleSpin = () => {
-    if (options.length === 0 || isSpinning) return;
-    setIsSpinning(true);
-    let spins = 0;
-    const interval = setInterval(() => {
-      setSelected(options[Math.floor(Math.random() * options.length)]);
-      spins++;
-      if (spins > 10) {
-        clearInterval(interval);
-        setIsSpinning(false);
-      }
-    }, 100);
-  };
-
-  return (
-    <View style={{ transform: [{ translateY: 3 }], marginHorizontal: 3 }}>
-      <Pressable
-        onPress={handleSpin}
-        className={`rounded-lg justify-center items-center px-4 shadow-sm ${accent.bg}`}
-        style={{ height: 36 }}
-      >
-        <AppText className="font-sansSemi text-[14px] opacity-0 h-0">{longestOption}</AppText>
-        <View className="absolute inset-0 justify-center items-center">
-          <AppText className="text-white font-sansSemi text-[14px]">
-            {selected || "🎲 Spin"}
-          </AppText>
-        </View>
-      </Pressable>
-    </View>
-  );
-}
-
-// 📍 ACTIVE TRUE INLINE LOCATION WIDGET FOR END USERS
 
 
 type QuestDetailBlockProps = {
@@ -130,7 +71,8 @@ export function QuestDetailBlock({ quest, checkedSteps = [], onToggleStep, isAct
               <Text className={`flex-1 leading-8 text-base font-sans ${isChecked ? 'text-ink/40 line-through' : 'text-ink/70'}`}>
                 {parsed.map((part, i) => {
                   if (part.startsWith('[RANDOMISER:')) {
-                    return <WorkingInlineRandomiser key={i} dataString={part} accent={accent} />;
+                    const raw = part.replace('[RANDOMISER:', '').replace(']', '');
+                    return <RandomiserWidget key={i} config={raw as any} accent={quest.accent} />;
                   }
                   if (part.startsWith("[LOCATION:")) {
   const raw = part
