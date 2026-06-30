@@ -5,7 +5,7 @@ import { Chip } from "../../../shared/components/Chip";
 import { accentClass } from "../../../shared/design/tokens";
 import { LocationWidget } from "./widgets/LocationWidget";
 import { RandomiserWidget } from './widgets/RandomiserWidget';
-import { YouTubeWidget } from './widgets/YouTubeWidget'; 
+import { YouTubeWidget } from './widgets/YouTubeWidget';
 import { LinkWidget } from './widgets/LinkWidget'; 
 import { QuestStepCard } from "./QuestStepCard"; 
 
