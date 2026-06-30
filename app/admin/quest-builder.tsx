@@ -18,7 +18,7 @@ import { requireSupabase } from "../../src/lib/supabase";
 
 const CATEGORIES: (QuestCategory | "All")[] = ["All", "Adventure", "Skill", "Culture", "Food & Drink", "Wellness", "Social"];
 // -- WIDGETS SETUP -- //
-type WidgetType = 'RANDOMISER' | 'LOCATION';
+type WidgetType = 'RANDOMISER' | 'LOCATION' | 'YOUTUBE' | 'LINK';
 export const WIDGET_REGISTRY: Record<WidgetType, {
   id: string;
   icon: string;
@@ -39,6 +39,20 @@ export const WIDGET_REGISTRY: Record<WidgetType, {
     label: "Location Drop",
     placeholder: "Configure Location...",
     theme: { bg: "bg-blue/10", border: "border-blue/40", text: "text-blue", containerBg: "bg-blue/5", containerBorder: "border-blue/30", activeBg: "active:bg-blue/20" }
+  },
+  YOUTUBE: {
+    id: "youtube",
+    icon: "📺",
+    label: "YouTube Video",
+    placeholder: "Paste URL...",
+    theme: { bg: "bg-red-100", border: "border-red-300", text: "text-red-600", containerBg: "bg-red-50", containerBorder: "border-red-200", activeBg: "active:bg-red-200" }
+  },
+  LINK: {
+    id: "link",
+    icon: "🔗",
+    label: "Beautiful Link",
+    placeholder: "Configure Link...",
+    theme: { bg: "bg-stone-200", border: "border-line", text: "text-ink", containerBg: "bg-stone", containerBorder: "border-line", activeBg: "active:bg-stone-300" }
   }
 };
 
@@ -788,6 +802,93 @@ export default function QuestBuilderAdmin() {
                                     onChangeText={(txt) => modifyLocConfig('variableName', txt)}
                                   />
                                 )}
+                              </View>
+                            );
+                          })()}
+
+                          {/* YOUTUBE CONFIG UI */}
+                          {activeWidgetConfig.type === 'YOUTUBE' && (() => {
+                            // Use safe parsing locally so the builder doesn't crash on HTML strings
+                            const parseLocalConfig = (str: string) => {
+                              const obj: Record<string, string> = {};
+                              str.split('&').forEach(pair => {
+                                const equalIdx = pair.indexOf('=');
+                                if (equalIdx > -1) {
+                                  const k = pair.slice(0, equalIdx);
+                                  const v = pair.slice(equalIdx + 1);
+                                  try { if (k) obj[k] = decodeURIComponent(v || ''); } catch(e) {}
+                                }
+                              });
+                              return obj;
+                            };
+
+                            const currentCfg = parseLocalConfig(activeWidgetConfig.config);
+                            
+                            const modifyConfig = (val: string) => {
+                                const newConfigStr = `rawEmbed=${encodeURIComponent(val)}`;
+                                setActiveWidgetConfig(prev => prev ? {...prev, config: newConfigStr} : null);
+                                
+                                const newParts = step.split(WIDGET_REGEX);
+                                newParts[activeWidgetConfig!.chunkIndex] = `[YOUTUBE:${newConfigStr}]`;
+                                const newSteps = [...quest.steps];
+                                newSteps[index] = newParts.join('');
+                                updateField('steps', newSteps);
+                            };
+
+                            return (
+                              <View className="flex-col gap-2">
+                                <AppText className="text-xs mb-1">Paste Raw YouTube Embed Code</AppText>
+                                <TextInput
+                                  className="bg-white p-3 mb-2 rounded-lg border border-line font-sans text-sm outline-none"
+                                  placeholder='<iframe width="560" height="315" src="..." ...></iframe>'
+                                  value={currentCfg.rawEmbed || ''}
+                                  onChangeText={modifyConfig}
+                                  multiline
+                                  style={{ minHeight: 120, textAlignVertical: 'top' }}
+                                />
+                              </View>
+                            );
+                          })()}
+
+                          {/* LINK CONFIG UI */}
+                          {activeWidgetConfig.type === 'LINK' && (() => {
+                            const currentCfg = parseConfig(activeWidgetConfig.config);
+                            
+                            const modifyConfig = (key: string, val: string) => {
+                                const nextCfg = { ...currentCfg, [key]: val };
+                                const newConfigStr = serializeConfig(nextCfg);
+                                setActiveWidgetConfig(prev => prev ? {...prev, config: newConfigStr} : null);
+                                
+                                const newParts = step.split(WIDGET_REGEX);
+                                newParts[activeWidgetConfig!.chunkIndex] = `[LINK:${newConfigStr}]`;
+                                const newSteps = [...quest.steps];
+                                newSteps[index] = newParts.join('');
+                                updateField('steps', newSteps);
+                            };
+
+                            return (
+                              <View className="flex-col gap-2">
+                                <AppText className="text-xs mb-1">Destination URL</AppText>
+                                <TextInput
+                                  className="bg-white p-3 mb-2 rounded-lg border border-line font-sans text-sm outline-none"
+                                  placeholder="https://..."
+                                  value={currentCfg.url || ''}
+                                  onChangeText={(txt) => modifyConfig('url', txt)}
+                                />
+                                <AppText className="text-xs mb-1">Display Title</AppText>
+                                <TextInput
+                                  className="bg-white p-3 mb-2 rounded-lg border border-line font-sans text-sm outline-none"
+                                  placeholder="e.g. Read the Menu"
+                                  value={currentCfg.title || ''}
+                                  onChangeText={(txt) => modifyConfig('title', txt)}
+                                />
+                                <AppText className="text-xs mb-1">Description (Optional)</AppText>
+                                <TextInput
+                                  className="bg-white p-3 mb-2 rounded-lg border border-line font-sans text-sm outline-none"
+                                  placeholder="e.g. Vegan options available"
+                                  value={currentCfg.desc || ''}
+                                  onChangeText={(txt) => modifyConfig('desc', txt)}
+                                />
                               </View>
                             );
                           })()}
