@@ -14,7 +14,8 @@ type QuestCardProps = {
 export function QuestCard({ quest, compact = false }: QuestCardProps) {
   const isGroup = quest.maxParticipants > 1;
   const borderClass = isGroup ? 'border-[3px] border-[#2D6A4F]' : 'border border-line/20';
-
+  const posMatch = quest.imagePosition?.match(/(\d+(?:\.\d+)?)%\s+(\d+(?:\.\d+)?)%/);
+  const contentPos = posMatch ? { left: `${posMatch[1]}%`, top: `${posMatch[2]}%` } : (quest.imagePosition || 'center');
   return (
     <Pressable
       onPress={() => router.push({ pathname: "/quest/[id]", params: { id: quest.id } })}
@@ -25,7 +26,7 @@ export function QuestCard({ quest, compact = false }: QuestCardProps) {
         source={{ uri: quest.imageUrl }}
         style={{ height: "100%", width: "100%" }}
         contentFit="cover"
-        contentPosition={quest.imagePosition || 'center'} // ✨ FIX 4: Admin-controlled cropping
+        contentPosition={contentPos as any}
         transition={300}
       />
 

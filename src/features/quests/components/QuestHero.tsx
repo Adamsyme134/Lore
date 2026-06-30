@@ -16,7 +16,8 @@ type QuestHeroProps = {
 };
 
 export function QuestHero({ quest, className, onPressOverride }: QuestHeroProps) {
-  
+  const posMatch = quest.imagePosition?.match(/(\d+(?:\.\d+)?)%\s+(\d+(?:\.\d+)?)%/);
+  const contentPos = posMatch ? { left: `${posMatch[1]}%`, top: `${posMatch[2]}%` } : (quest.imagePosition || 'center');
   const handlePress = () => {
     if (onPressOverride) {
       onPressOverride();
@@ -35,7 +36,7 @@ export function QuestHero({ quest, className, onPressOverride }: QuestHeroProps)
           source={{ uri: quest.imageUrl }}
           transition={400}
           contentFit="cover"
-          contentPosition={quest.imagePosition || 'center'}
+          contentPosition={contentPos as any}
           style={{ height: "100%", width: "100%", opacity: 0.9 }}
         />
         

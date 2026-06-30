@@ -1,10 +1,10 @@
+// src/features/social/api/socialApi.ts
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { requireSupabase, supabase } from "../../../lib/supabase";
 import { useAuth } from "../../auth/AuthProvider";
 import { previewFriendMoments } from "../../../shared/data/previewData";
 import type { FriendMoment, Profile } from "../../../shared/types/domain";
 import type { Accent } from "../../../shared/design/tokens";
-
 
 type FriendMomentRow = {
   id: string;
@@ -30,6 +30,16 @@ type ProfileRow = {
   points_total: number;
 };
 
+export interface PendingRequest {
+  id: string;
+  requester: {
+    id: string;
+    handle: string;
+    full_name: string;
+    avatar_url: string | null;
+  };
+}
+
 function mapProfile(row: ProfileRow): Profile {
   return {
     id: row.id,
@@ -41,14 +51,12 @@ function mapProfile(row: ProfileRow): Profile {
   };
 }
 
-// ✨ Notice the newly added userId parameter
 async function fetchFriendMomentsFromSupabase(userId?: string) {
   const client = requireSupabase();
   let query = client
     .from("lore_entries")
     .select("id, title, location_name, cover_photo_url, profiles(id, handle, full_name), quests(accent)");
 
-  // Filter out the current user's entries so it's strictly "Friends"
   if (userId) {
     query = query.neq("user_id", userId);
   }
@@ -57,9 +65,7 @@ async function fetchFriendMomentsFromSupabase(userId?: string) {
     .order("occurred_at", { ascending: false })
     .limit(12);
 
-  if (error) {
-    throw error;
-  }
+  if (error) throw error;
 
   return (data ?? []).map((row) => {
     const item = row as unknown as FriendMomentRow;
@@ -78,7 +84,7 @@ async function fetchFriendMomentsFromSupabase(userId?: string) {
 }
 
 export function useFriendMoments() {
-  const { isBackendReady, user } = useAuth(); // ✨ Grab the user
+  const { isBackendReady, user } = useAuth();
 
   return useQuery({
     queryKey: ["friend-moments", isBackendReady ? "remote" : "preview", user?.id],
@@ -87,57 +93,126 @@ export function useFriendMoments() {
   });
 }
 
+// ----------------------------------------------------
+// NEW & UPDATED SEARCH / REQUEST APIS
+// ----------------------------------------------------
+
+export function useSearchUsers(searchQuery: string) {
+  const { isBackendReady, user } = useAuth();
+  
+  return useQuery({
+    queryKey: ["search-users", searchQuery],
+    queryFn: async () => {
+      if (!isBackendReady || !supabase || searchQuery.trim().length < 2) return [];
+      const term = `%${searchQuery.trim()}%`;
+      
+      const client = requireSupabase();
+      const { data, error } = await client
+        .from("profiles")
+        .select("id, handle, full_name, avatar_url, home_city, points_total")
+        .or(`handle.ilike.${term},full_name.ilike.${term}`)
+        .neq("id", user?.id)
+        .limit(10);
+        
+      if (error) throw error;
+      return (data as ProfileRow[]).map(mapProfile);
+    },
+    enabled: searchQuery.trim().length >= 2,
+  });
+}
 
 export function useSendFriendRequest() {
   const { isBackendReady, user } = useAuth();
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (handle: string) => {
-      const cleanedHandle = handle.trim().toLowerCase().replace(/^@/, "");
-
-      if (!cleanedHandle) {
-        throw new Error("Enter a handle.");
-      }
-
-      if (!isBackendReady || !user || !supabase) {
-        return { preview: true };
-      }
+    mutationFn: async (targetId: string) => {
+      if (!isBackendReady || !user || !supabase) return;
+      if (targetId === user.id) throw new Error("You cannot add yourself.");
 
       const client = requireSupabase();
-      const { data: profile, error: profileError } = await client
-        .from("profiles")
-        .select("id, handle, full_name, avatar_url, home_city, points_total")
-        .eq("handle", cleanedHandle)
-        .single();
-
-      if (profileError || !profile) {
-        throw new Error("No profile found with that handle.");
-      }
-
-      const target = mapProfile(profile as ProfileRow);
-
-      if (target.id === user.id) {
-        throw new Error("You cannot add yourself.");
-      }
-
       const { error } = await client.from("friend_requests").insert({
         requester_id: user.id,
-        addressee_id: target.id,
+        addressee_id: targetId,
         status: "pending"
       });
 
-      if (error) {
+      if (error && error.code !== '23505') {
+        // 23505 is unique violation, ignore if already requested
         throw error;
       }
-
-      return target;
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["friend-requests"] });
     }
   });
 }
+
+export function usePendingRequests() {
+  const { user } = useAuth();
+  
+  return useQuery({
+    queryKey: ["pending-requests", user?.id],
+    queryFn: async () => {
+      if (!supabase || !user) return [];
+      const { data, error } = await supabase
+        .from("friend_requests")
+        .select(`
+          id,
+          requester:profiles!friend_requests_requester_id_fkey(id, handle, full_name, avatar_url)
+        `)
+        .eq("addressee_id", user.id)
+        .eq("status", "pending");
+        
+      if (error) throw error;
+      
+      return data.map((req: any) => ({
+        id: req.id,
+        requester: Array.isArray(req.requester) ? req.requester[0] : req.requester
+      })) as PendingRequest[];
+    },
+    enabled: !!user && !!supabase,
+  });
+}
+
+export function useAcceptFriendRequest() {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: async (requestId: string) => {
+      if (!supabase) throw new Error("Not ready");
+      const { error } = await supabase.rpc('accept_friend_request', { request_id: requestId });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["pending-requests"] });
+      void queryClient.invalidateQueries({ queryKey: ["friendsList"] });
+    }
+  });
+}
+
+export function useDeclineFriendRequest() {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: async (requestId: string) => {
+      if (!supabase) throw new Error("Not ready");
+      const { error } = await supabase
+        .from("friend_requests")
+        .update({ status: 'declined', responded_at: new Date().toISOString() })
+        .eq("id", requestId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["pending-requests"] });
+    }
+  });
+}
+
+// ----------------------------------------------------
+// FRIENDS LIST
+// ----------------------------------------------------
+
 export function useFriendsList() {
   const { user } = useAuth();
 
@@ -147,7 +222,6 @@ export function useFriendsList() {
       if (!supabase) throw new Error("Supabase is not initialized");
       if (!user) return [];
 
-      // 1. Get the raw friendship records where the user is either A or B
       const { data: friendships, error: friendError } = await supabase
         .from("friendships")
         .select("user_a, user_b")
@@ -156,24 +230,16 @@ export function useFriendsList() {
       if (friendError) throw friendError;
       if (!friendships || friendships.length === 0) return [];
 
-      // 2. Extract the IDs of the *other* people in those friendships
       const friendIds = friendships.map(f => f.user_a === user.id ? f.user_b : f.user_a);
 
-      // 3. Fetch their profiles
       const { data: profiles, error: profileError } = await supabase
         .from("profiles")
-        .select("id, full_name, handle, avatar_url, points_total")
+        .select("id, full_name, handle, avatar_url, home_city, points_total")
         .in("id", friendIds);
 
       if (profileError) throw profileError;
 
-      return (profiles || []).map((p) => ({
-        id: p.id,
-        fullName: p.full_name,
-        handle: p.handle,
-        avatarUrl: p.avatar_url,
-        pointsTotal: p.points_total,
-      })) as Profile[];
+      return (profiles || []).map(mapProfile);
     },
     enabled: !!user && !!supabase,
   });

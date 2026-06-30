@@ -37,6 +37,9 @@ export default function QuestDetailScreen() {
   const isCompleteReady = hasContentBlocks 
     ? true // Widget quests are an experience, they can be completed anytime once started -- fix later?
     : (quest.steps && quest.steps.length > 0 && checkedSteps.length === quest.steps.length);
+
+  const posMatch = quest.imagePosition?.match(/(\d+(?:\.\d+)?)%\s+(\d+(?:\.\d+)?)%/);
+  const contentPos = posMatch ? { left: `${posMatch[1]}%`, top: `${posMatch[2]}%` } : (quest.imagePosition || 'center');
     
   return (
     <Screen contentClassName="px-0 pb-36">
@@ -48,7 +51,7 @@ export default function QuestDetailScreen() {
         <View className="px-5">
           <View className="overflow-hidden rounded-[40px] bg-charcoal">
             <View className="h-[430px]">
-              <Image source={{ uri: quest.imageUrl }} contentFit="cover" transition={360} style={{ height: "100%", width: "100%", opacity: 0.88 }} />
+              <Image source={{ uri: quest.imageUrl }} contentFit="cover" contentPosition={contentPos as any} transition={360} style={{ height: "100%", width: "100%", opacity: 0.88 }} />
               <View className="absolute inset-0 bg-charcoal/25" />
               <View className="absolute bottom-0 left-0 right-0 p-6">
                 <Animated.View entering={FadeInDown.duration(460)}>

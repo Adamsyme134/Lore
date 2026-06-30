@@ -82,7 +82,7 @@ export type Quest = {
   mood: QuestMood;
   accent: Accent;
   imageUrl: string;
-  imagePosition?: "top" | "center" | "bottom";
+  imagePosition?: string;
   steps: string[]; 
   contentBlocks?: QuestContentBlock[];
    

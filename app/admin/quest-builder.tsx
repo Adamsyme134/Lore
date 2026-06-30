@@ -1,6 +1,7 @@
 // app/admin/quest-builder.tsx
 import { useState, useEffect, useRef } from "react";
-import { View, ScrollView, TextInput, Pressable } from "react-native";
+import { View, ScrollView, TextInput, Pressable, PanResponder } from "react-native";
+import { Image } from "expo-image";
 import { AppText } from "../../src/shared/components/AppText";
 import { QuestHero } from "../../src/features/quests/components/QuestHero";
 import { QuestCard } from "../../src/features/quests/components/QuestCard";
@@ -64,8 +65,12 @@ const WIDGET_REGEX = /(\[[A-Z_]+:.*?\])/g;
 const parseConfig = (str: string) => {
   const obj: Record<string, string> = {};
   str.split('&').forEach(pair => {
-    const [k, v] = pair.split('=');
-    if (k) obj[k] = decodeURIComponent(v || '');
+    const idx = pair.indexOf('=');
+    if (idx > -1) {
+      const k = pair.substring(0, idx);
+      const v = pair.substring(idx + 1);
+      if (k) obj[k] = decodeURIComponent(v || '');
+    }
   });
   return obj;
 };
@@ -199,7 +204,7 @@ const createBlankQuest = (): Quest => ({
   steps: [""], 
   journalPrompt: "What did you learn?",
   pointsValue: 15,
-  imagePosition: "center",
+  imagePosition: "50% 50%",
   categories: ["Adventure"],
   cost: "Free" as QuestCost,
   length: "Half day" as QuestLength,
@@ -210,6 +215,65 @@ const createBlankQuest = (): Quest => ({
   accessibility: [] as QuestAccessibility[],
   locationTypes: ["Anywhere"] as QuestLocationType[]
 });
+function DraggableImageCrop({ imageUrl, value, onChange }: { imageUrl: string, value: string, onChange: (val: string) => void }) {
+  const panRef = useRef({ x: 50, y: 50 });
+  const [pos, setPos] = useState({ x: 50, y: 50 });
+
+  useEffect(() => {
+    if (value && value.includes('%')) {
+      const match = value.match(/(\d+(?:\.\d+)?)%\s+(\d+(?:\.\d+)?)%/);
+      if (match) {
+        const x = parseFloat(match[1]);
+        const y = parseFloat(match[2]);
+        if (!isNaN(x) && !isNaN(y)) {
+          panRef.current = { x, y };
+          setPos({ x, y });
+        }
+      }
+    }
+  }, [value]);
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onPanResponderMove: (_, gestureState) => {
+        const dx = (gestureState.dx / 200) * 100;
+        const dy = (gestureState.dy / 200) * 100;
+        let newX = Math.min(100, Math.max(0, panRef.current.x - dx));
+        let newY = Math.min(100, Math.max(0, panRef.current.y - dy));
+        setPos({ x: newX, y: newY });
+      },
+      onPanResponderRelease: (_, gestureState) => {
+        const dx = (gestureState.dx / 200) * 100;
+        const dy = (gestureState.dy / 200) * 100;
+        let newX = Math.min(100, Math.max(0, panRef.current.x - dx));
+        let newY = Math.min(100, Math.max(0, panRef.current.y - dy));
+        panRef.current = { x: newX, y: newY };
+        onChange(`${newX.toFixed(1)}% ${newY.toFixed(1)}%`);
+      }
+    })
+  ).current;
+
+  return (
+    <View className="mb-6">
+      <AppText variant="subtitle" className="mb-2">Image Focus (Drag to pan)</AppText>
+      <View className="rounded-lg overflow-hidden border border-line bg-stone" style={{ width: '100%', height: 200 }} {...panResponder.panHandlers}>
+        <Image
+          source={{ uri: imageUrl || 'https://via.placeholder.com/400' }}
+          style={{ width: '100%', height: '100%' }}
+          contentFit="cover"
+          contentPosition={{ left: `${pos.x}%`, top: `${pos.y}%` } as any}
+          pointerEvents="none"
+        />
+        <View className="absolute inset-0 items-center justify-center pointer-events-none">
+          <View className="w-8 h-8 rounded-full border-2 border-white bg-black/20 shadow-md flex items-center justify-center">
+            <AppText className="text-white text-[10px]">┼</AppText>
+          </View>
+        </View>
+      </View>
+    </View>
+  );
+}
 
 export default function QuestBuilderAdmin() {
   const [view, setView] = useState<'grid' | 'editor'>('grid');
@@ -441,7 +505,7 @@ export default function QuestBuilderAdmin() {
               <AppText variant="subtitle" className="mb-2">Kicker (Eyebrow)</AppText><TextInput className="bg-white border border-line rounded-lg p-4 mb-6 font-sans text-ink" value={quest.kicker} onChangeText={(txt) => updateField("kicker", txt)} />
               <AppText variant="subtitle" className="mb-2">Description</AppText><TextInput className="bg-white border border-line rounded-lg p-4 mb-6 font-sans text-ink" multiline numberOfLines={3} value={quest.description} onChangeText={(txt) => updateField("description", txt)} />
               <AppText variant="subtitle" className="mb-2">Image URL</AppText><TextInput className="bg-white border border-line rounded-lg p-4 mb-6 font-sans text-ink" value={quest.imageUrl} onChangeText={(txt) => updateField("imageUrl", txt)} />
-              <AppText variant="subtitle" className="mb-2">Image Focus</AppText><ToggleGroup label="" options={["top", "center", "bottom"]} selected={quest.imagePosition || "center"} onSelect={(val) => updateField("imagePosition", val)} />
+              <DraggableImageCrop imageUrl={quest.imageUrl} value={quest.imagePosition || "50% 50%"} onChange={(val) => updateField("imagePosition", val)} />
             </View>
           )}
 
@@ -557,7 +621,7 @@ export default function QuestBuilderAdmin() {
 
                               if (!widgetDef) return <AppText key={chunkIndex}>{part}</AppText>;
 
-                              // --- ✨ NEW: VISUAL PREVIEW FOR YOUTUBE ---
+                              // --- VISUAL PREVIEW FOR YOUTUBE ---
                               if (widgetType === 'YOUTUBE') {
                                 return (
                                   <Pressable 
@@ -575,22 +639,43 @@ export default function QuestBuilderAdmin() {
                                 );
                               }
 
-                              // --- ✨ NEW: VISUAL PREVIEW FOR LINKS ---
+                              // --- VISUAL PREVIEW FOR LINKS ---
+
                               if (widgetType === 'LINK') {
                                 const c = parseConfig(widgetConfig);
+                                const isInline = c.displayType === 'inline';
+
+                                if (isInline) {
+                                  return (
+                                    <Pressable 
+                                      key={chunkIndex} 
+                                      onPress={() => setActiveWidgetConfig({ stepIndex: index, chunkIndex, type: widgetType, config: widgetConfig })}
+                                      className="flex-row items-center px-2 py-0.5 rounded-md border border-line bg-white active:bg-stone shadow-sm mx-1 inline-flex"
+                                      style={{ alignSelf: 'flex-start', transform: [{ translateY: 2 }] }}
+                                    >
+                                      <AppText className="font-sansSemi text-ink text-sm">{c.title || 'Link'}</AppText>
+                                      <AppText className="text-blue ml-1 text-[10px]">✏️</AppText>
+                                    </Pressable>
+                                  );
+                                }
+
                                 return (
                                   <Pressable 
                                     key={chunkIndex} 
                                     onPress={() => setActiveWidgetConfig({ stepIndex: index, chunkIndex, type: widgetType, config: widgetConfig })}
-                                    className="w-full my-3 bg-white border border-line rounded-xl p-4 flex-row justify-between items-center group shadow-sm"
+                                    className="w-full my-3 rounded-xl p-4 flex-row justify-between items-center group shadow-sm border border-line overflow-hidden relative"
+                                    style={{ backgroundColor: c.bgImage ? '#000' : '#fff' }}
                                   >
-                                    <View className="flex-1 mr-4">
-                                        <AppText className="font-sansSemi text-ink text-base">{c.title || 'Beautiful Link Title'}</AppText>
-                                        {c.desc ? <AppText className="text-ink/60 text-sm mt-0.5">{c.desc}</AppText> : null}
-                                        <AppText className="text-blue text-xs mt-1">{c.url || 'https://...'}</AppText>
+                                    {!!c.bgImage && (
+                                      <Image source={{ uri: c.bgImage }} style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, opacity: 0.5 }} contentFit="cover" />
+                                    )}
+                                    <View className="flex-1 mr-4 z-10">
+                                        <AppText className="font-sansSemi text-base" style={{ color: c.textColor || (c.bgImage ? 'white' : '#1C1A17') }}>{c.title || 'Beautiful Link Title'}</AppText>
+                                        {!!c.desc && <AppText className="text-sm mt-0.5" style={{ color: c.textColor ? `${c.textColor}CC` : (c.bgImage ? 'rgba(255,255,255,0.8)' : 'rgba(28,26,23,0.6)') }}>{c.desc}</AppText>}
+                                        <AppText className="text-xs mt-1" style={{ color: c.bgImage ? 'rgba(255,255,255,0.6)' : '#3b82f6' }}>{c.url || 'https://...'}</AppText>
                                     </View>
-                                    <View className="bg-stone px-3 py-1.5 rounded-full border border-line opacity-50 group-hover:opacity-100">
-                                        <AppText className="text-xs font-sansSemi">✏️ Edit Link</AppText>
+                                    <View className="bg-stone px-3 py-1.5 rounded-full border border-line opacity-50 group-hover:opacity-100 z-10">
+                                        <AppText className="text-xs font-sansSemi">✏️ Edit</AppText>
                                     </View>
                                   </Pressable>
                                 );
@@ -1003,13 +1088,19 @@ updateField('steps', newSteps);
                                 const newParts = rawStepText.split(WIDGET_REGEX);
                                 newParts[activeWidgetConfig!.chunkIndex] = `[LINK:${newConfigStr}]`;
                                 const newRawText = newParts.join('');
-const newSteps = [...quest.steps];
-newSteps[index] = buildStepString(title, newRawText);
-updateField('steps', newSteps);
+                                const newSteps = [...quest.steps];
+                                newSteps[index] = buildStepString(title, newRawText);
+                                updateField('steps', newSteps);
                             };
 
                             return (
                               <View className="flex-col gap-2">
+                                <ToggleGroup
+                                  label="Display Type"
+                                  options={["Inline", "Block"]}
+                                  selected={currentCfg.displayType === 'inline' ? 'Inline' : 'Block'}
+                                  onSelect={(v) => modifyConfig('displayType', v.toLowerCase())}
+                                />
                                 <AppText className="text-xs mb-1">Destination URL</AppText>
                                 <TextInput
                                   className="bg-white p-3 mb-2 rounded-lg border border-line font-sans text-sm outline-none"
@@ -1024,13 +1115,32 @@ updateField('steps', newSteps);
                                   value={currentCfg.title || ''}
                                   onChangeText={(txt) => modifyConfig('title', txt)}
                                 />
-                                <AppText className="text-xs mb-1">Description (Optional)</AppText>
-                                <TextInput
-                                  className="bg-white p-3 mb-2 rounded-lg border border-line font-sans text-sm outline-none"
-                                  placeholder="e.g. Vegan options available"
-                                  value={currentCfg.desc || ''}
-                                  onChangeText={(txt) => modifyConfig('desc', txt)}
-                                />
+                                
+                                {currentCfg.displayType !== 'inline' && (
+                                  <>
+                                    <AppText className="text-xs mb-1">Description (Optional)</AppText>
+                                    <TextInput
+                                      className="bg-white p-3 mb-2 rounded-lg border border-line font-sans text-sm outline-none"
+                                      placeholder="e.g. Vegan options available"
+                                      value={currentCfg.desc || ''}
+                                      onChangeText={(txt) => modifyConfig('desc', txt)}
+                                    />
+                                    <AppText className="text-xs mb-1 mt-2">Background Image URL (Optional)</AppText>
+                                    <TextInput
+                                      className="bg-white p-3 mb-2 rounded-lg border border-line font-sans text-sm outline-none"
+                                      placeholder="https://..."
+                                      value={currentCfg.bgImage || ''}
+                                      onChangeText={(txt) => modifyConfig('bgImage', txt)}
+                                    />
+                                    <AppText className="text-xs mb-1 mt-2">Text Color (Hex/Name, Optional)</AppText>
+                                    <TextInput
+                                      className="bg-white p-3 mb-2 rounded-lg border border-line font-sans text-sm outline-none"
+                                      placeholder="e.g. #FFFFFF"
+                                      value={currentCfg.textColor || ''}
+                                      onChangeText={(txt) => modifyConfig('textColor', txt)}
+                                    />
+                                  </>
+                                )}
                               </View>
                             );
                           })()}
