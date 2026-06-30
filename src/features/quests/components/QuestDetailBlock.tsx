@@ -18,6 +18,15 @@ const parseConfig = (str: string) => {
   return obj;
 };
 
+// --- NEW HELPER ---
+const extractTitleAndText = (stepStr: string) => {
+  const match = stepStr.match(/\[TITLE:(.*?)\]/);
+  if (match) {
+    return { title: match[1], text: stepStr.replace(match[0], '') };
+  }
+  return { title: "", text: stepStr };
+};
+
 type QuestDetailBlockProps = {
   quest: Quest;
   checkedSteps?: number[];
@@ -51,7 +60,11 @@ export function QuestDetailBlock({ quest, checkedSteps = [], onToggleStep, isAct
           const isActiveStep = index === currentActiveStepIndex && isActive;
           const isLocked = index > currentActiveStepIndex || !isActive;
 
-          const parsed = step.split(/(\[[A-Z_]+:.*?\])/g);
+          // --- EXTRACT TITLE & RAW TEXT ---
+          const { title, text: rawStepText } = extractTitleAndText(step);
+          
+          // Split ONLY the text that no longer contains the [TITLE:] tag
+          const parsed = rawStepText.split(/(\[[A-Z_]+:.*?\])/g);
 
           return (
             <QuestStepCard 
@@ -65,6 +78,14 @@ export function QuestDetailBlock({ quest, checkedSteps = [], onToggleStep, isAct
               onComplete={() => { if (onToggleStep) onToggleStep(index); }}
             >
               <View className="flex-col w-full">
+                
+                {/* --- RENDER TITLE IF IT EXISTS --- */}
+                {title ? (
+                  <AppText className={`font-sansSemi text-lg mb-2 ${isCompleted ? 'text-ink/40' : 'text-ink'}`}>
+                    {title}
+                  </AppText>
+                ) : null}
+
                 {(() => {
                   const blocks: React.ReactNode[] = [];
                   let currentInline: React.ReactNode[] = [];
@@ -81,13 +102,9 @@ export function QuestDetailBlock({ quest, checkedSteps = [], onToggleStep, isAct
                   };
 
                   parsed.forEach((part, i) => {
-                    console.log(`[QuestDetailBlock] Step ${index}, Part ${i}:`, part.substring(0, 100)); // <--- DEBUG LOG
-
                     if (part.startsWith('[YOUTUBE:')) {
                       flushInline(); 
-                      // Use slice instead of replace to guarantee we don't break the iframe brackets
                       const raw = part.slice(9, -1); 
-                      console.log(`[QuestDetailBlock] Sending to YouTubeWidget:`, raw.substring(0, 100)); // <--- DEBUG LOG
                       blocks.push(<YouTubeWidget key={`yt-${i}`} config={raw} />);
                     } else if (part.startsWith("[LOCATION:")) {
                       flushInline(); 

@@ -76,7 +76,19 @@ const serializeConfig = (obj: Record<string, string>) => {
     .map(([k, v]) => `${k}=${encodeURIComponent(v)}`)
     .join('&');
 };
+// Helper to extract titles from step strings
+const extractTitleAndText = (stepStr: string) => {
+  const match = stepStr.match(/\[TITLE:(.*?)\]/);
+  if (match) {
+    return { title: match[1], text: stepStr.replace(match[0], '') };
+  }
+  return { title: "", text: stepStr };
+};
 
+const buildStepString = (title: string, text: string) => {
+  if (title.trim()) return `[TITLE:${title.trim()}]${text}`;
+  return text;
+};
 // Helper to extract exposed variables from steps
 const extractExposedVariables = (steps: string[]): string[] => {
   const vars: string[] = ["$current_city", "$user_home"]; // Built-in defaults
@@ -213,7 +225,7 @@ export default function QuestBuilderAdmin() {
   
   // Track cursor position to trigger inline edits mid-sentence
   const chunkTextsRef = useRef<Record<string, string>>({});
-  
+  const selectionRef = useRef<Record<string, {start: number, end: number}>>({});
   const [slashMenu, setSlashMenu] = useState<{
     visible: boolean;
     query: string;
@@ -491,12 +503,12 @@ export default function QuestBuilderAdmin() {
               />
 
               <View className="my-6 h-px bg-line" />
-              <AppText variant="subtitle" className="mb-4">A clean way to do it</AppText>
+              <AppText variant="subtitle" className="mb-4">Steps</AppText>
 
               <View className="gap-2 z-50">
                 {(quest.steps?.length ? quest.steps : [""]).map((step, index) => {
-                  
-                  const parsed = step.split(WIDGET_REGEX);
+                  const { title, text: rawStepText } = extractTitleAndText(step);
+                  const parsed = rawStepText.split(WIDGET_REGEX);
                   const matchingWidgets = SLASH_WIDGETS.filter(widget => widget.id.startsWith(slashMenu.query));
 
                   return (
@@ -519,9 +531,21 @@ export default function QuestBuilderAdmin() {
                           </Pressable>
                           <Pressable onPress={() => { if (index < quest.steps.length - 1) { const n = [...quest.steps]; [n[index+1], n[index]] = [n[index], n[index+1]]; updateField('steps', n); } }}><AppText className="text-[10px]">▼</AppText></Pressable>
                         </View>
-
+                        {/* ✨ NEW: OPTIONAL TITLE FIELD ✨ */}
+                        <View className="flex-1 ml-2 bg-white/40 border border-transparent focus:bg-white focus:border-line focus:shadow-sm rounded-xl px-4 py-3 z-50">
+                        <TextInput
+                          className="font-sansSemi text-ink text-sm mb-1 outline-none"
+                          style={{ opacity: title ? 1 : 0.4 }}
+                          placeholder="Optional Title (e.g., Safety, Vibe)..."
+                          value={title}
+                          onChangeText={(newTitle) => {
+                            const newSteps = [...quest.steps];
+                            newSteps[index] = buildStepString(newTitle, rawStepText);
+                            updateField('steps', newSteps);
+                          }}
+                        />
                         {/* Inline Text & Widget Rendering */}
-                        <View className="flex-1 ml-2 flex-row flex-wrap items-start bg-white/40 border border-transparent focus:bg-white focus:border-line focus:shadow-sm rounded-xl px-4 py-2 z-50">
+                        <View className="flex-row flex-wrap items-end">
                           {parsed.map((part, chunkIndex) => {
                             
                             const widgetMatch = part.match(/^\[([A-Z_]+):(.*)\]$/);
@@ -614,28 +638,26 @@ export default function QuestBuilderAdmin() {
                                 
                                 <TextInput
                                   className="absolute inset-0 font-sans text-ink text-base py-1 outline-none"
-                                  style={{
-                                      textAlign: 'left',
-                                      textAlignVertical: 'top'
-                                  }}
+                                  style={{ textAlign: 'left', textAlignVertical: 'top' }}
                                   multiline
                                   value={part}
                                   placeholder={chunkIndex === 0 && parsed.length === 1 ? "Enter a step..." : ""}
                                   onChangeText={(txt) => {
                                       chunkTextsRef.current[`${index}-${chunkIndex}`] = txt;
-
                                       const newParts = [...parsed];
                                       newParts[chunkIndex] = txt;
+                                      const newRawText = newParts.join('');
                                       const newSteps = [...quest.steps];
-                                      newSteps[index] = newParts.join('');
+                                      newSteps[index] = buildStepString(title, newRawText);
                                       updateField('steps', newSteps);
                                   }}
                                   onSelectionChange={(e) => {
+                                      // 1. Save the current selection highlight
+                                      selectionRef.current[`${index}-${chunkIndex}`] = e.nativeEvent.selection;
+                                      
                                       const cursor = e.nativeEvent.selection.start;
                                       const currentTxt = chunkTextsRef.current[`${index}-${chunkIndex}`] ?? part;
-                                      
                                       const textUpToCursor = currentTxt.substring(0, cursor);
-                                      // Search for slash immediately before the cursor (allows mid-sentence matching)
                                       const match = textUpToCursor.match(/(^|\s|\n)\/([a-z]*)$/i);
                                       
                                       if (match) {
@@ -644,7 +666,43 @@ export default function QuestBuilderAdmin() {
                                           setSlashMenu(prev => prev.visible ? { ...prev, visible: false, query: "", stepIndex: -1, chunkIndex: -1, cursor: -1 } : prev);
                                       }
                                   }}
+                                  // 2. We use a web-specific event handler to catch CMD+B / CMD+U
+                                  {...{
+                                    onKeyDown: (e: any) => {
+                                      if (e.metaKey || e.ctrlKey) {
+                                        let wrapper = "";
+                                        let isColor = false;
+                                        
+                                        if (e.key.toLowerCase() === 'b') wrapper = "**";             // CMD+B = Bold
+                                        if (e.key.toLowerCase() === 'u') wrapper = "__";             // CMD+U = Underline
+                                        if (e.key.toLowerCase() === 'i') wrapper = "_";              // CMD+I = Italic
+                                        if (e.key.toLowerCase() === 'k') { wrapper = "!!"; isColor = true; } // CMD+K = Orange Highlight
+
+                                        if (wrapper) {
+                                          e.preventDefault(); // Stop browser from opening bookmarks/etc
+                                          const currentTxt = chunkTextsRef.current[`${index}-${chunkIndex}`] ?? part;
+                                          const sel = selectionRef.current[`${index}-${chunkIndex}`] || { start: currentTxt.length, end: currentTxt.length };
+                                          
+                                          const before = currentTxt.substring(0, sel.start);
+                                          const selected = sel.start !== sel.end ? currentTxt.substring(sel.start, sel.end) : "text";
+                                          const after = currentTxt.substring(sel.end);
+                                          
+                                          // Wrap the text. e.g., **selected** or !!selected!!
+                                          const newTxt = before + wrapper + selected + wrapper + after;
+                                          
+                                          chunkTextsRef.current[`${index}-${chunkIndex}`] = newTxt;
+                                          const newParts = [...parsed];
+                                          newParts[chunkIndex] = newTxt;
+                                          const newRawText = newParts.join('');
+                                          const newSteps = [...quest.steps];
+                                          newSteps[index] = buildStepString(title, newRawText);
+                                          updateField('steps', newSteps);
+                                        }
+                                      }
+                                    }
+                                  }}
                                   onKeyPress={(e: any) => {
+    
                                     if (e.nativeEvent.key === "Enter") {
                                         if (e.nativeEvent.shiftKey) return; 
                                         
@@ -660,10 +718,10 @@ export default function QuestBuilderAdmin() {
                                             
                                             const newParts = [...parsed];
                                             newParts[chunkIndex] = updatedUpToCursor + textAfterCursor;
-                                            const newSteps = [...quest.steps];
-                                            newSteps[index] = newParts.join('');
-                                            
-                                            updateField("steps", newSteps);
+                                            const newRawText = newParts.join('');
+const newSteps = [...quest.steps];
+newSteps[index] = buildStepString(title, newRawText);
+updateField('steps', newSteps);
                                             setSlashMenu({ visible: false, query: "", stepIndex: -1, chunkIndex: -1, cursor: -1 });
                                         } else {
                                             const newSteps = [...quest.steps];
@@ -676,9 +734,10 @@ export default function QuestBuilderAdmin() {
                                       if (chunkIndex > 0) {
                                         const newParts = [...parsed];
                                         newParts.splice(chunkIndex - 1, 2); 
-                                        const newSteps = [...quest.steps];
-                                        newSteps[index] = newParts.join('');
-                                        updateField('steps', newSteps);
+                                        const newRawText = newParts.join('');
+const newSteps = [...quest.steps];
+newSteps[index] = buildStepString(title, newRawText);
+updateField('steps', newSteps);
                                       } else if (quest.steps.length > 1 && parsed.length === 1) {
                                         const newSteps = [...quest.steps];
                                         newSteps.splice(index, 1);
@@ -704,8 +763,9 @@ export default function QuestBuilderAdmin() {
                                           
                                           const newParts = [...parsed];
                                           newParts[chunkIndex] = updatedUpToCursor + textAfterCursor;
+                                          const newRawText = newParts.join("");
                                           const newSteps = [...quest.steps];
-                                          newSteps[index] = newParts.join("");
+                                          newSteps[index] = buildStepString(title, newRawText);
                                           updateField("steps", newSteps);
                                           setSlashMenu({ visible: false, query: "", stepIndex: -1, chunkIndex: -1, cursor: -1 });
                                         }}
@@ -754,11 +814,12 @@ export default function QuestBuilderAdmin() {
                                 const newConfigStr = serializeConfig(nextCfg);
                                 setActiveWidgetConfig(prev => prev ? {...prev, config: newConfigStr} : null);
                                 
-                                const newParts = step.split(WIDGET_REGEX);
+                                const newParts = rawStepText.split(WIDGET_REGEX);
                                 newParts[activeWidgetConfig!.chunkIndex] = `[RANDOMISER:${newConfigStr}]`;
-                                const newSteps = [...quest.steps];
-                                newSteps[index] = newParts.join('');
-                                updateField('steps', newSteps);
+                                const newRawText = newParts.join('');
+const newSteps = [...quest.steps];
+newSteps[index] = buildStepString(title, newRawText);
+updateField('steps', newSteps);
                             };
 
                             return (
@@ -824,11 +885,12 @@ export default function QuestBuilderAdmin() {
                                 const newConfigStr = serializeConfig(nextCfg);
                                 setActiveWidgetConfig(prev => prev ? {...prev, config: newConfigStr} : null);
                                 
-                                const newParts = step.split(WIDGET_REGEX);
+                                const newParts = rawStepText.split(WIDGET_REGEX);
                                 newParts[activeWidgetConfig!.chunkIndex] = `[LOCATION:${newConfigStr}]`;
-                                const newSteps = [...quest.steps];
-                                newSteps[index] = newParts.join('');
-                                updateField('steps', newSteps);
+                                const newRawText = newParts.join('');
+const newSteps = [...quest.steps];
+newSteps[index] = buildStepString(title, newRawText);
+updateField('steps', newSteps);
                             };
 
                             return (
@@ -906,11 +968,12 @@ export default function QuestBuilderAdmin() {
                                 const newConfigStr = `rawEmbed=${encodeURIComponent(val)}`;
                                 setActiveWidgetConfig(prev => prev ? {...prev, config: newConfigStr} : null);
                                 
-                                const newParts = step.split(WIDGET_REGEX);
+                                const newParts = rawStepText.split(WIDGET_REGEX);
                                 newParts[activeWidgetConfig!.chunkIndex] = `[YOUTUBE:${newConfigStr}]`;
-                                const newSteps = [...quest.steps];
-                                newSteps[index] = newParts.join('');
-                                updateField('steps', newSteps);
+                                const newRawText = newParts.join('');
+const newSteps = [...quest.steps];
+newSteps[index] = buildStepString(title, newRawText);
+updateField('steps', newSteps);
                             };
 
                             return (
@@ -937,11 +1000,12 @@ export default function QuestBuilderAdmin() {
                                 const newConfigStr = serializeConfig(nextCfg);
                                 setActiveWidgetConfig(prev => prev ? {...prev, config: newConfigStr} : null);
                                 
-                                const newParts = step.split(WIDGET_REGEX);
+                                const newParts = rawStepText.split(WIDGET_REGEX);
                                 newParts[activeWidgetConfig!.chunkIndex] = `[LINK:${newConfigStr}]`;
-                                const newSteps = [...quest.steps];
-                                newSteps[index] = newParts.join('');
-                                updateField('steps', newSteps);
+                                const newRawText = newParts.join('');
+const newSteps = [...quest.steps];
+newSteps[index] = buildStepString(title, newRawText);
+updateField('steps', newSteps);
                             };
 
                             return (
@@ -974,6 +1038,7 @@ export default function QuestBuilderAdmin() {
                         </View>
                       )}
 
+                    </View>
                     </View>
                   );
                 })}
