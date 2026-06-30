@@ -8,6 +8,8 @@ import { RandomiserWidget } from './widgets/RandomiserWidget';
 import { YouTubeWidget } from './widgets/YouTubeWidget';
 import { LinkWidget } from './widgets/LinkWidget'; 
 import { QuestStepCard } from "./QuestStepCard"; 
+import { useQuestExecution } from "../context/QuestExecutionContext"; 
+import { ChecklistWidget } from './widgets/ChecklistWidget'; 
 
 const parseConfig = (str: string) => {
   const obj: Record<string, string> = {};
@@ -35,6 +37,7 @@ type QuestDetailBlockProps = {
 };
 
 export function QuestDetailBlock({ quest, checkedSteps = [], onToggleStep, isActive = false }: QuestDetailBlockProps) {
+  const { getVariable } = useQuestExecution();
   const accent = accentClass[quest.accent] || accentClass['orange']; 
   const isGroup = quest.maxParticipants > 1;
   const groupLabel = isGroup ? `Group (${quest.minParticipants}-${quest.maxParticipants})` : "Solo";
@@ -62,7 +65,9 @@ export function QuestDetailBlock({ quest, checkedSteps = [], onToggleStep, isAct
 
           // --- EXTRACT TITLE & RAW TEXT ---
           const { title, text: rawStepText } = extractTitleAndText(step);
-          
+          const hasChecklist = rawStepText.includes('[CHECKLIST:');
+          const isChecklistComplete = getVariable(`step_${index}_checklist_completed`) === true;
+          const isCompleteDisabled = hasChecklist && !isChecklistComplete;
           // Split ONLY the text that no longer contains the [TITLE:] tag
           const parsed = rawStepText.split(/(\[[A-Z_]+:.*?\])/g);
 
@@ -74,6 +79,7 @@ export function QuestDetailBlock({ quest, checkedSteps = [], onToggleStep, isAct
               isActiveStep={isActiveStep}
               isCompleted={isCompleted}
               isLocked={isLocked && !isCompleted}
+              isCompleteDisabled={isCompleteDisabled}
               accent={quest.accent}
               onComplete={() => { if (onToggleStep) onToggleStep(index); }}
             >
@@ -116,6 +122,10 @@ export function QuestDetailBlock({ quest, checkedSteps = [], onToggleStep, isAct
                     } else if (part.startsWith("[LINK:")) {
                       const raw = part.slice(6, -1);
                       currentInline.push(<LinkWidget key={`link-${i}`} config={raw} />);
+                    } else if (part.startsWith('[CHECKLIST:')) { // <-- Add this block
+                      flushInline();
+                      const raw = part.slice(11, -1);
+                      blocks.push(<ChecklistWidget key={`chk-${i}`} config={raw} stepIndex={index} />);
                     } else if (part !== "") {
                       currentInline.push(<Text key={`text-${i}`}>{part}</Text>);
                     }

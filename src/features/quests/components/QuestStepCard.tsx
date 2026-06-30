@@ -5,13 +5,13 @@ import { AppText } from '../../../shared/components/AppText';
 import { accentClass, type Accent } from '../../../shared/design/tokens';
 import { Button } from '../../../shared/components/Button';
 
-
 type QuestStepCardProps = {
   stepIndex: number;
   totalSteps: number;
   isActiveStep: boolean;
   isCompleted: boolean;
   isLocked: boolean;
+  isCompleteDisabled?: boolean;
   accent: Accent;
   onComplete: () => void;
   children: React.ReactNode;
@@ -23,6 +23,7 @@ export function QuestStepCard({
   isActiveStep, 
   isCompleted, 
   isLocked, 
+  isCompleteDisabled,
   accent,
   onComplete, 
   children 
@@ -79,7 +80,7 @@ export function QuestStepCard({
       {/* Action Button */}
       {isActiveStep && (
         <View className="mt-6 pt-4 border-t border-line/50">
-          <Button label="Complete Step" onPress={onComplete} className={`w-full ${theme.bg}`} />
+          <Button label="Complete Step" onPress={onComplete} className={`w-full ${theme.bg}`} disabled={isCompleteDisabled} />
         </View>
       )}
     </View>

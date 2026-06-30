@@ -4,6 +4,7 @@ import { AppText } from "../../src/shared/components/AppText";
 import { TopBar } from "../../src/shared/components/TopBar";
 import { Button } from "../../src/shared/components/Button";
 import { useAuth } from "../../src/features/auth/AuthProvider";
+import { useExperienceStore } from "src/features/app/store/useExperienceStore";
 
 // Simple leveling formula: 1 level per 50 points
 function calculateLevel(points: number) {
@@ -51,6 +52,10 @@ export default function ProfileScreen() {
       <View className="mt-auto px-5 pb-8 pt-10">
         <Button label="Sign Out" variant="secondary" onPress={signOut} />
       </View>
+      <Button 
+  label="Reset All Step Progress" 
+  onPress={() => useExperienceStore.setState({ activeQuests: {} })} 
+/>
     </Screen>
   );
 }

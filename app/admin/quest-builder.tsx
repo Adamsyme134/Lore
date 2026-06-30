@@ -20,7 +20,7 @@ import { requireSupabase } from "../../src/lib/supabase";
 
 const CATEGORIES: (QuestCategory | "All")[] = ["All", "Adventure", "Skill", "Culture", "Food & Drink", "Wellness", "Social"];
 // -- WIDGETS SETUP -- //
-type WidgetType = 'RANDOMISER' | 'LOCATION' | 'YOUTUBE' | 'LINK';
+type WidgetType = 'RANDOMISER' | 'LOCATION' | 'YOUTUBE' | 'LINK' | 'CHECKLIST';
 export const WIDGET_REGISTRY: Record<WidgetType, {
   id: string;
   icon: string;
@@ -38,7 +38,7 @@ export const WIDGET_REGISTRY: Record<WidgetType, {
   LOCATION: {
     id: "location",
     icon: "📍",
-    label: "Location Drop",
+    label: "Location Search",
     placeholder: "Configure Location...",
     theme: { bg: "bg-blue/10", border: "border-blue/40", text: "text-blue", containerBg: "bg-blue/5", containerBorder: "border-blue/30", activeBg: "active:bg-blue/20" }
   },
@@ -55,6 +55,13 @@ export const WIDGET_REGISTRY: Record<WidgetType, {
     label: "Beautiful Link",
     placeholder: "Configure Link...",
     theme: { bg: "bg-stone-200", border: "border-line", text: "text-ink", containerBg: "bg-stone", containerBorder: "border-line", activeBg: "active:bg-stone-300" }
+  },
+  CHECKLIST: {
+    id: "checklist",
+    icon: "☑️",
+    label: "Checklist",
+    placeholder: "Pack water, Check map...",
+    theme: { bg: "bg-green-100", border: "border-green-300", text: "text-green-700", containerBg: "bg-green-50", containerBorder: "border-green-200", activeBg: "active:bg-green-200" }
   }
 };
 
@@ -205,6 +212,7 @@ const createBlankQuest = (): Quest => ({
   journalPrompt: "What did you learn?",
   pointsValue: 15,
   imagePosition: "50% 50%",
+  galleryUrls: [],
   categories: ["Adventure"],
   cost: "Free" as QuestCost,
   length: "Half day" as QuestLength,
@@ -331,6 +339,7 @@ export default function QuestBuilderAdmin() {
             journalPrompt: q.journal_prompt || "",
             pointsValue: q.points_value || 10,
             imagePosition: q.image_position || "center",
+            galleryUrls: q.gallery_urls || [],
             categories: (q.categories as QuestCategory[]) || (q.category ? [q.category] : ["Adventure"]),
             cost: (q.cost as QuestCost) || "Free",
             length: (q.length as QuestLength) || "Half day",
@@ -372,6 +381,7 @@ export default function QuestBuilderAdmin() {
         journal_prompt: quest.journalPrompt,
         points_value: quest.pointsValue,
         image_position: quest.imagePosition,
+        gallery_urls: quest.galleryUrls,
         categories: quest.categories,
         cost: quest.cost,
         length: quest.length,
@@ -506,7 +516,38 @@ export default function QuestBuilderAdmin() {
               <AppText variant="subtitle" className="mb-2">Description</AppText><TextInput className="bg-white border border-line rounded-lg p-4 mb-6 font-sans text-ink" multiline numberOfLines={3} value={quest.description} onChangeText={(txt) => updateField("description", txt)} />
               <AppText variant="subtitle" className="mb-2">Image URL</AppText><TextInput className="bg-white border border-line rounded-lg p-4 mb-6 font-sans text-ink" value={quest.imageUrl} onChangeText={(txt) => updateField("imageUrl", txt)} />
               <DraggableImageCrop imageUrl={quest.imageUrl} value={quest.imagePosition || "50% 50%"} onChange={(val) => updateField("imagePosition", val)} />
-            </View>
+            
+              
+            
+            <AppText variant="subtitle" className="mb-2 mt-6">Optional Gallery (Up to 3 photos)</AppText>
+              <View className="flex-row gap-2 mb-6">
+                {[0, 1, 2].map(i => {
+                  const url = quest.galleryUrls?.[i];
+                  return (
+                    <View key={`gal-${i}`} className="flex-1 flex-col gap-2">
+                      {url ? (
+                        <Image source={{ uri: url }} className="w-full aspect-square rounded-lg bg-stone border border-line" contentFit="cover" />
+                      ) : (
+                        <View className="w-full aspect-square rounded-lg bg-stone/50 border border-line border-dashed items-center justify-center">
+                          <AppText className="text-ink/30 text-[10px]">Empty</AppText>
+                        </View>
+                      )}
+                      <TextInput
+                        className="bg-white border border-line rounded-lg p-2 font-sans text-xs text-ink"
+                        placeholder={`URL ${i + 1}`}
+                        value={url || ''}
+                        onChangeText={(txt) => {
+                          const newGallery = [...(quest.galleryUrls || [])];
+                          newGallery[i] = txt;
+                          updateField("galleryUrls", newGallery);
+                        }}
+                      />
+                    </View>
+                  );
+                })}
+              </View>
+       
+              </View>
           )}
 
           {activeTab === 'tags' && (
@@ -560,7 +601,21 @@ export default function QuestBuilderAdmin() {
 
               <AppText variant="display" className="mb-6">{quest.title}</AppText>
 
-              <AppText variant="subtitle" className="mb-2 text-ink/60">Why this exists</AppText>
+              {/* GALLERY PREVIEW IN THE BUILDER */}
+              {quest.galleryUrls && quest.galleryUrls.filter(Boolean).length > 0 && (
+                <View className="mb-8 flex-row gap-2">
+                  {quest.galleryUrls.filter(Boolean).map((url, i) => (
+                    <Image 
+                      key={i} 
+                      source={{ uri: url }} 
+                      className="flex-1 aspect-square rounded-2xl bg-stone border border-line/10 shadow-sm" 
+                      contentFit="cover" 
+                    />
+                  ))}
+                </View>
+              )}
+
+              <AppText variant="subtitle" className="mb-2 text-ink/60">Why do it?</AppText>
               <TextInput
                 className="bg-white/40 border border-transparent hover:border-line/30 focus:bg-white focus:border-line focus:shadow-sm rounded-xl p-4 mb-6 font-sans text-ink text-base"
                 multiline scrollEnabled={false} value={quest.whyItMatters} onChangeText={(txt) => updateField("whyItMatters", txt)}
@@ -640,7 +695,6 @@ export default function QuestBuilderAdmin() {
                               }
 
                               // --- VISUAL PREVIEW FOR LINKS ---
-
                               if (widgetType === 'LINK') {
                                 const c = parseConfig(widgetConfig);
                                 const isInline = c.displayType === 'inline';
@@ -680,6 +734,7 @@ export default function QuestBuilderAdmin() {
                                   </Pressable>
                                 );
                               }
+                              
 
                               // --- FALLBACK: INLINE PILLS FOR RANDOMISER & LOCATION ---
                               return (
@@ -1141,6 +1196,36 @@ updateField('steps', newSteps);
                                     />
                                   </>
                                 )}
+                              </View>
+                            );
+                          })()}
+
+                          {/* CHECKLIST UI */}
+                          {activeWidgetConfig.type === 'CHECKLIST' && (() => {
+                            const currentCfg = parseConfig(activeWidgetConfig.config);
+                            const items = currentCfg.items || '';
+                            
+                            const modifyConfig = (val: string) => {
+                                const newConfigStr = `items=${encodeURIComponent(val)}`;
+                                setActiveWidgetConfig(prev => prev ? {...prev, config: newConfigStr} : null);
+                                
+                                const newParts = rawStepText.split(WIDGET_REGEX);
+                                newParts[activeWidgetConfig!.chunkIndex] = `[CHECKLIST:${newConfigStr}]`;
+                                const newRawText = newParts.join('');
+                                const newSteps = [...quest.steps];
+                                newSteps[index] = buildStepString(title, newRawText);
+                                updateField('steps', newSteps);
+                            };
+
+                            return (
+                              <View className="flex-col gap-2">
+                                <AppText className="text-xs mb-1">Checklist Items (Comma separated)</AppText>
+                                <TextInput
+                                  className="bg-white p-3 mb-2 rounded-lg border border-line font-sans text-sm outline-none"
+                                  placeholder="E.g. Pack water, Check map"
+                                  value={items}
+                                  onChangeText={modifyConfig}
+                                />
                               </View>
                             );
                           })()}

@@ -61,7 +61,18 @@ export default function QuestDetailScreen() {
               </View>
             </View>
           </View>
-
+          {quest.galleryUrls && quest.galleryUrls.filter(Boolean).length > 0 && (
+            <View className="mt-4 flex-row gap-2">
+              {quest.galleryUrls.filter(Boolean).map((url, i) => (
+                <Image 
+                  key={i} 
+                  source={{ uri: url }} 
+                  className="flex-1 aspect-square rounded-2xl bg-stone border border-line/10" 
+                  contentFit="cover" 
+                />
+              ))}
+            </View>
+          )}
           <View className="mt-6 rounded-card border border-line bg-cream p-6">
             <AppText variant="subtitle">Journal prompt</AppText>
             <AppText className="mt-3 text-ink/70">{quest.journalPrompt}</AppText>
@@ -120,11 +131,19 @@ export default function QuestDetailScreen() {
               />
             ) : (
               <Button
-                label={`${checkedSteps.length}/${quest.steps.length} Steps`}
+                label={`${checkedSteps.filter(index => index < quest.steps.length).length}/${quest.steps.length} Steps`}
                 variant="secondary"
                 className="flex-1"
                 disabled
               />
+            )}
+            {!isActive && quest.maxParticipants <= 1 && (
+              <Pressable
+                onPress={() => router.push({ pathname: "/(app)/group/select", params: { questId: quest.id } })}
+                className="h-[56px] w-[56px] items-center justify-center rounded-[20px] border border-line bg-white"
+              >
+                <Ionicons name="people" size={24} color="#1C1A17" />
+              </Pressable>
             )}
           
           </View>

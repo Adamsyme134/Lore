@@ -44,6 +44,7 @@ type QuestRow = {
   location_types?: string[];
   image_position?: string; 
   categories?: string[];
+  gallery_urls?: string[];
 };
 
 function mapQuest(row: QuestRow): Quest {
@@ -66,7 +67,7 @@ function mapQuest(row: QuestRow): Quest {
     pointsValue: row.points_value || 10,
     
     imagePosition: (row.image_position as "top" | "center" | "bottom") || "center",
-
+    galleryUrls: row.gallery_urls || [],
     // ✨ Typecast the new fields
     categories: (row.categories as QuestCategory[]) || (row.category ? [row.category as QuestCategory] : ["Adventure"]),
     category: (row.category as QuestCategory) || "Adventure",

@@ -88,6 +88,7 @@ export type Quest = {
    
   journalPrompt: string;
   pointsValue: number;
+  galleryUrls?: string[];
 
   // --- VISIBLE TAGS ---
   categories: QuestCategory[];
