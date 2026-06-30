@@ -56,7 +56,7 @@ export function YouTubeWidget({ config }: YouTubeWidgetProps) {
   console.log("[YouTubeWidget Web] Rendering standard div wrapper");
 
   return (
-    <View className="rounded-2xl overflow-hidden h-56 w-full my-3 bg-stone border border-line relative">
+    <View className="rounded-2xl overflow-hidden aspect-video w-full my-3 bg-stone border border-line relative">
       <div 
          style={{ width: '100%', height: '100%', position: 'absolute', top: 0, left: 0 }}
          dangerouslySetInnerHTML={{ __html: responsiveEmbed }} 

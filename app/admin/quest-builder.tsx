@@ -200,6 +200,7 @@ const createBlankQuest = (): Quest => ({
 
 export default function QuestBuilderAdmin() {
   const [view, setView] = useState<'grid' | 'editor'>('grid');
+  const [focusIndex, setFocusIndex] = useState<number | null>(null);
   const [activeTab, setActiveTab] = useState<'basic' | 'tags' | 'metadata'>('basic');
   const [previewMode, setPreviewMode] = useState<'hero' | 'details'>('hero');
   const [activeWidgetConfig, setActiveWidgetConfig] = useState<{
@@ -506,7 +507,7 @@ export default function QuestBuilderAdmin() {
                         </View>
 
                         {/* Inline Text & Widget Rendering */}
-                        <View className="flex-1 ml-2 flex-row flex-wrap items-center bg-white/40 border border-transparent focus:bg-white focus:border-line focus:shadow-sm rounded-xl px-4 py-2 min-h-[50px] z-50">
+                        <View className="flex-1 ml-2 flex-row flex-wrap items-end bg-white/40 border border-transparent focus:bg-white focus:border-line focus:shadow-sm rounded-xl px-4 py-2 min-h-[50px] z-50">
                           {parsed.map((part, chunkIndex) => {
                             
                             const widgetMatch = part.match(/^\[([A-Z_]+):(.*)\]$/);
@@ -518,47 +519,105 @@ export default function QuestBuilderAdmin() {
 
                               if (!widgetDef) return <AppText key={chunkIndex}>{part}</AppText>;
 
-                              // Display configuration snippet on button
-                              let displayLabel = widgetConfig || 'Empty';
-                              if (widgetType === 'LOCATION') {
-                                const cfg = parseConfig(widgetConfig);
-                                displayLabel = cfg.qType === 'variable' 
-                                  ? (cfg.q || 'Variable') 
-                                  : (cfg.q || 'Unconfigured');
-                              } else if (widgetType === 'RANDOMISER') {
-                                const isLegacy = widgetConfig && !widgetConfig.includes('=');
-                                if (isLegacy) {
-                                  displayLabel = widgetConfig || 'Empty';
-                                } else {
-                                  const cfg = parseConfig(widgetConfig);
-                                  displayLabel = cfg.type === 'variable' ? (cfg.ref || 'Variable') : (cfg.options || 'Empty');
-                                }
+                              // --- ✨ NEW: VISUAL PREVIEW FOR YOUTUBE ---
+                              if (widgetType === 'YOUTUBE') {
+                                const parseLocalConfig = (str: string) => {
+                                  const obj: Record<string, string> = {};
+                                  str.split('&').forEach(pair => {
+                                    const equalIdx = pair.indexOf('=');
+                                    if (equalIdx > -1) {
+                                      const k = pair.slice(0, equalIdx);
+                                      const v = pair.slice(equalIdx + 1);
+                                      try { if (k) obj[k] = decodeURIComponent(v || ''); } catch(e) {}
+                                    }
+                                  });
+                                  return obj;
+                                };
+                                const c = parseLocalConfig(widgetConfig);
+                                
+                                return (
+                                  <Pressable 
+                                    key={chunkIndex} 
+                                    onPress={() => setActiveWidgetConfig({ stepIndex: index, chunkIndex, type: widgetType, config: widgetConfig })}
+                                    className="w-full my-3 bg-stone border border-line rounded-xl overflow-hidden group shadow-sm"
+                                  >
+                                    <View className="h-40 bg-black items-center justify-center relative">
+                                        <AppText className="text-white/80 font-sansSemi text-lg">▶ YouTube Video</AppText>
+                                        <AppText className="text-white/40 text-xs mt-2 px-6 text-center" numberOfLines={1}>
+                                            {c.rawEmbed || 'Click to paste embed code'}
+                                        </AppText>
+                                    </View>
+                                    <View className="absolute top-3 right-3 bg-white px-3 py-1.5 rounded-full shadow flex-row items-center border border-line opacity-70 group-hover:opacity-100">
+                                        <AppText className="text-xs font-sansSemi mr-1">✏️ Edit Video</AppText>
+                                    </View>
+                                  </Pressable>
+                                );
                               }
 
+                              // --- ✨ NEW: VISUAL PREVIEW FOR LINKS ---
+                              if (widgetType === 'LINK') {
+                                const c = parseConfig(widgetConfig);
+                                return (
+                                  <Pressable 
+                                    key={chunkIndex} 
+                                    onPress={() => setActiveWidgetConfig({ stepIndex: index, chunkIndex, type: widgetType, config: widgetConfig })}
+                                    className="w-full my-3 bg-white border border-line rounded-xl p-4 flex-row justify-between items-center group shadow-sm"
+                                  >
+                                    <View className="flex-1 mr-4">
+                                        <AppText className="font-sansSemi text-ink text-base">{c.title || 'Beautiful Link Title'}</AppText>
+                                        {c.desc ? <AppText className="text-ink/60 text-sm mt-0.5">{c.desc}</AppText> : null}
+                                        <AppText className="text-blue text-xs mt-1">{c.url || 'https://...'}</AppText>
+                                    </View>
+                                    <View className="bg-stone px-3 py-1.5 rounded-full border border-line opacity-50 group-hover:opacity-100">
+                                        <AppText className="text-xs font-sansSemi">✏️ Edit Link</AppText>
+                                    </View>
+                                  </Pressable>
+                                );
+                              }
+
+                              // --- FALLBACK: INLINE PILLS FOR RANDOMISER & LOCATION ---
                               return (
-                                <Pressable
+                                 <Pressable
                                   key={chunkIndex}
                                   onPress={() => setActiveWidgetConfig({ stepIndex: index, chunkIndex, type: widgetType, config: widgetConfig })}
-                                  className={`flex-row items-center rounded-md px-2 mx-1 shadow-sm ${widgetDef.theme.bg} ${widgetDef.theme.border} border ${widgetDef.theme.activeBg}`}
-                                  style={{ height: 26, transform: [{ translateY: 1 }] }}
+                                  className={`flex-row items-center rounded-md px-2 mx-1 mb-1 shadow-sm ${widgetDef.theme.bg} ${widgetDef.theme.border} border ${widgetDef.theme.activeBg}`}
+                                  style={{ height: 26 }}
                                 >
                                   <AppText className={`${widgetDef.theme.text} font-sansSemi text-[13px]`}>
-                                    {widgetDef.icon} {displayLabel}
+                                    {widgetDef.icon} {widgetDef.label}
                                   </AppText>
                                   <AppText className={`${widgetDef.theme.text} ml-1 text-[10px] opacity-60`}>✏️</AppText>
                                 </Pressable>
                               );
                             }
 
-                            // The Text Input
+                            // --- ✨ FIXED TEXT INPUT ---
+                            
                             return (
-                              <View key={chunkIndex} className="relative justify-center" style={{ minWidth: 20 }}>
-                                <AppText className="opacity-0 font-sans text-base py-1" style={{ minWidth: 15, pointerEvents: 'none' }}>
+                              <View key={chunkIndex} className="relative justify-start" style={{ minWidth: 20, minHeight: 28 }}>
+                                
+                                {/* ✨ FIX: We MUST append a space ' ' to every part. 
+                                  Without it, empty strings collapse to 0 height, making new blocks 
+                                  and the empty space after a widget literally unclickable! 
+                                */}
+                                <AppText 
+                                  className="opacity-0 font-sans text-base py-1" 
+                                  style={{ 
+                                      minWidth: 15, 
+                                      pointerEvents: 'none',
+                                      whiteSpace: 'pre-wrap', 
+                                      textAlign: 'left'
+                                  } as any}
+                                >
                                   {part + ' '} 
                                 </AppText>
                                 
                                 <TextInput
                                   className="absolute inset-0 font-sans text-ink text-base py-1 outline-none"
+                                  style={{
+                                      textAlign: 'left',
+                                      textAlignVertical: 'top'
+                                  }}
                                   multiline
                                   value={part}
                                   placeholder={chunkIndex === 0 && parsed.length === 1 ? "Enter a step..." : ""}
@@ -576,12 +635,13 @@ export default function QuestBuilderAdmin() {
                                           setSlashMenu(prev => ({ ...prev, visible: false }));
                                       }
                                   }}
-                                  onKeyPress={(e) => {
+                                  onKeyPress={(e: any) => {
                                     if (e.nativeEvent.key === "Enter") {
-                                        if (e.preventDefault) e.preventDefault(); // Stop newline
+                                        if (e.nativeEvent.shiftKey) return; 
+                                        
+                                        if (e.preventDefault) e.preventDefault(); 
                                         
                                         if (slashMenu.visible && matchingWidgets.length > 0) {
-                                            // Handle Widget Insertion
                                             const widget = matchingWidgets[0];
                                             const updated = part.replace(/\/[a-z]*$/i, `[${widget.type}:]`); 
                                             const newParts = [...parsed];
@@ -591,7 +651,6 @@ export default function QuestBuilderAdmin() {
                                             
                                             updateField("steps", newSteps);
                                         } else {
-                                            // Normal Enter - Add a new block!
                                             const newSteps = [...quest.steps];
                                             newSteps.splice(index + 1, 0, "");
                                             updateField('steps', newSteps);

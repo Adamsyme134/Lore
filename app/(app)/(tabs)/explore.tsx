@@ -41,7 +41,7 @@ export default function Explore() {
     const fetchQuests = async () => {
       try {
         const client = requireSupabase();
-        const { data, error } = await client.from('quests').select('*').order('created_at', { ascending: false });
+        const { data, error } = await client.from('quests').select('*').eq('is_active', true).order('created_at', { ascending: false });
         
         if (error) throw error;
 
