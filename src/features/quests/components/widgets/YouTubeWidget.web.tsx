@@ -1,4 +1,3 @@
-import WebView from 'react-native-webview';
 import { View, Text } from 'react-native';
 
 type YouTubeWidgetProps = { config: string };
@@ -20,7 +19,6 @@ const parseConfig = (str: string) => {
   return obj;
 };
 
-// Kept for backwards compatibility with legacy quests!
 const extractYouTubeId = (url: string) => {
   const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
   const match = url.match(regExp);
@@ -28,10 +26,11 @@ const extractYouTubeId = (url: string) => {
 };
 
 export function YouTubeWidget({ config }: YouTubeWidgetProps) {
+  console.log("[YouTubeWidget Web] Mounted. Raw Config:", config.substring(0, 100));
+
   const cfg = parseConfig(config);
   let rawEmbed = cfg.rawEmbed || '';
 
-  // BACKWARDS COMPATIBILITY: Auto-generate iframe if old 'url=' data is found
   if (!rawEmbed && cfg.url) {
     const videoId = extractYouTubeId(cfg.url);
     if (videoId) {
@@ -39,8 +38,8 @@ export function YouTubeWidget({ config }: YouTubeWidgetProps) {
     }
   }
   
-  // ERROR STATE: Show a red box instead of vanishing if something goes wrong
   if (!rawEmbed || !rawEmbed.includes('<iframe')) {
+    console.warn("[YouTubeWidget Web] ERROR: Invalid rawEmbed string ->", rawEmbed);
     return (
       <View className="rounded-2xl h-56 w-full my-3 bg-red-100 border border-red-300 items-center justify-center">
         <Text className="text-red-600 font-bold">Invalid YouTube Widget</Text>
@@ -49,29 +48,18 @@ export function YouTubeWidget({ config }: YouTubeWidgetProps) {
     );
   }
 
-  const customHtml = `
-    <!DOCTYPE html>
-    <html>
-      <head>
-        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-        <style>
-          body { margin: 0; padding: 0; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; background: transparent; }
-          iframe { width: 100% !important; height: 100% !important; border: none; }
-        </style>
-      </head>
-      <body>${rawEmbed}</body>
-    </html>
-  `;
+  // Force the iframe to fill the container without relying on injected <style> tags
+  const responsiveEmbed = rawEmbed
+     .replace(/width="[^"]*"/, 'width="100%"')
+     .replace(/height="[^"]*"/, 'height="100%"');
+
+  console.log("[YouTubeWidget Web] Rendering standard div wrapper");
 
   return (
-    <View className="rounded-2xl overflow-hidden h-56 w-full my-3 bg-stone border border-line">
-      <WebView 
-        source={{ html: customHtml, baseUrl: 'https://www.youtube.com' }}
-        allowsInlineMediaPlayback={true}
-        javaScriptEnabled={true}       
-        domStorageEnabled={true}       
-        scrollEnabled={false}
-        style={{ flex: 1, backgroundColor: 'transparent' }}
+    <View className="rounded-2xl overflow-hidden h-56 w-full my-3 bg-stone border border-line relative">
+      <div 
+         style={{ width: '100%', height: '100%', position: 'absolute', top: 0, left: 0 }}
+         dangerouslySetInnerHTML={{ __html: responsiveEmbed }} 
       />
     </View>
   );

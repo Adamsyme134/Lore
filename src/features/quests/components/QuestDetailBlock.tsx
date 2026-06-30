@@ -5,9 +5,9 @@ import { Chip } from "../../../shared/components/Chip";
 import { accentClass } from "../../../shared/design/tokens";
 import { LocationWidget } from "./widgets/LocationWidget";
 import { RandomiserWidget } from './widgets/RandomiserWidget';
-import { YouTubeWidget } from './widgets/YoutubeWidget'; // New
-import { LinkWidget } from './widgets/LinkWidget'; // New
-import { QuestStepCard } from "./QuestStepCard"; // New
+import { YouTubeWidget } from './widgets/YouTubeWidget'; 
+import { LinkWidget } from './widgets/LinkWidget'; 
+import { QuestStepCard } from "./QuestStepCard"; 
 
 const parseConfig = (str: string) => {
   const obj: Record<string, string> = {};
@@ -29,8 +29,6 @@ export function QuestDetailBlock({ quest, checkedSteps = [], onToggleStep, isAct
   const accent = accentClass[quest.accent] || accentClass['orange']; 
   const isGroup = quest.maxParticipants > 1;
   const groupLabel = isGroup ? `Group (${quest.minParticipants}-${quest.maxParticipants})` : "Solo";
-
-  // Assuming sequential steps: the active step is the first one not in checkedSteps
   const currentActiveStepIndex = isActive ? checkedSteps.length : -1;
 
   return (
@@ -66,27 +64,50 @@ export function QuestDetailBlock({ quest, checkedSteps = [], onToggleStep, isAct
               accent={quest.accent}
               onComplete={() => { if (onToggleStep) onToggleStep(index); }}
             >
-              <Text className={`leading-8 text-base font-sans ${isCompleted ? 'text-ink/50' : 'text-ink/80'}`}>
-                {parsed.map((part, i) => {
-                  if (part.startsWith('[RANDOMISER:')) {
-                    const raw = part.replace('[RANDOMISER:', '').replace(']', '');
-                    return <RandomiserWidget key={i} config={raw as any} accent={quest.accent} />;
-                  }
-                  if (part.startsWith("[LOCATION:")) {
-                    const raw = part.replace("[LOCATION:", "").replace("]", "");
-                    return <LocationWidget key={i} config={raw as any} accent={accent} />;
-                  }
-                  if (part.startsWith("[YOUTUBE:")) {
-                    const raw = part.replace("[YOUTUBE:", "").replace("]", "");
-                    return <YouTubeWidget key={i} config={raw} />;
-                  }
-                  if (part.startsWith("[LINK:")) {
-                    const raw = part.replace("[LINK:", "").replace("]", "");
-                    return <LinkWidget key={i} config={raw} />;
-                  }
-                  return <Text key={i}>{part}</Text>;
-                })}
-              </Text>
+              <View className="flex-col w-full">
+                {(() => {
+                  const blocks: React.ReactNode[] = [];
+                  let currentInline: React.ReactNode[] = [];
+
+                  const flushInline = () => {
+                    if (currentInline.length > 0) {
+                      blocks.push(
+                        <Text key={`inline-${blocks.length}`} className={`leading-8 text-base font-sans ${isCompleted ? 'text-ink/50' : 'text-ink/80'}`}>
+                          {currentInline}
+                        </Text>
+                      );
+                      currentInline = [];
+                    }
+                  };
+
+                  parsed.forEach((part, i) => {
+                    console.log(`[QuestDetailBlock] Step ${index}, Part ${i}:`, part.substring(0, 100)); // <--- DEBUG LOG
+
+                    if (part.startsWith('[YOUTUBE:')) {
+                      flushInline(); 
+                      // Use slice instead of replace to guarantee we don't break the iframe brackets
+                      const raw = part.slice(9, -1); 
+                      console.log(`[QuestDetailBlock] Sending to YouTubeWidget:`, raw.substring(0, 100)); // <--- DEBUG LOG
+                      blocks.push(<YouTubeWidget key={`yt-${i}`} config={raw} />);
+                    } else if (part.startsWith("[LOCATION:")) {
+                      flushInline(); 
+                      const raw = part.slice(10, -1);
+                      blocks.push(<LocationWidget key={`loc-${i}`} config={raw as any} accent={accent} />);
+                    } else if (part.startsWith('[RANDOMISER:')) {
+                      const raw = part.slice(12, -1);
+                      currentInline.push(<RandomiserWidget key={`rand-${i}`} config={raw as any} accent={quest.accent} />);
+                    } else if (part.startsWith("[LINK:")) {
+                      const raw = part.slice(6, -1);
+                      currentInline.push(<LinkWidget key={`link-${i}`} config={raw} />);
+                    } else if (part !== "") {
+                      currentInline.push(<Text key={`text-${i}`}>{part}</Text>);
+                    }
+                  });
+
+                  flushInline(); 
+                  return blocks;
+                })()}
+              </View>
             </QuestStepCard>
           );
         })}
