@@ -1,9 +1,10 @@
 // app/admin/quest-builder.tsx
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { View, ScrollView, TextInput, Pressable } from "react-native";
 import { AppText } from "../../src/shared/components/AppText";
 import { QuestHero } from "../../src/features/quests/components/QuestHero";
 import { QuestCard } from "../../src/features/quests/components/QuestCard";
+import { YouTubeWidget } from "../../src/features/quests/components/widgets/YouTubeWidget";
 import type { 
   Quest, 
   QuestCategory, 
@@ -210,12 +211,16 @@ export default function QuestBuilderAdmin() {
     config: string;
   } | null>(null);
   
+  // Track cursor position to trigger inline edits mid-sentence
+  const chunkTextsRef = useRef<Record<string, string>>({});
+  
   const [slashMenu, setSlashMenu] = useState<{
     visible: boolean;
     query: string;
     stepIndex: number;
     chunkIndex: number;
-  }>({ visible: false, query: "", stepIndex: -1, chunkIndex: -1 });
+    cursor: number;
+  }>({ visible: false, query: "", stepIndex: -1, chunkIndex: -1, cursor: -1 });
   
   const [savedQuests, setSavedQuests] = useState<Quest[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -393,7 +398,6 @@ export default function QuestBuilderAdmin() {
     );
   }
 
-  // Generate available variables to feed to location widget
   const exposedVariables = extractExposedVariables(quest.steps);
 
   return (
@@ -502,12 +506,22 @@ export default function QuestBuilderAdmin() {
                         {/* Reordering Controls */}
                         <View className="w-10 pt-3 flex-col items-center gap-2 opacity-30 hover:opacity-100">
                           <Pressable onPress={() => { if (index > 0) { const n = [...quest.steps]; [n[index-1], n[index]] = [n[index], n[index-1]]; updateField('steps', n); } }}><AppText className="text-[10px]">▲</AppText></Pressable>
-                          <AppText className="text-xs">⋮⋮</AppText>
+                          <Pressable onPress={() => {
+                              const newSteps = [...quest.steps];
+                              if (newSteps.length > 1) {
+                                  newSteps.splice(index, 1);
+                              } else {
+                                  newSteps[index] = ""; // Clear it if it's the last remaining step
+                              }
+                              updateField('steps', newSteps);
+                          }}>
+                              <AppText className="text-[11px] text-[#E63946] font-bold">✕</AppText>
+                          </Pressable>
                           <Pressable onPress={() => { if (index < quest.steps.length - 1) { const n = [...quest.steps]; [n[index+1], n[index]] = [n[index], n[index+1]]; updateField('steps', n); } }}><AppText className="text-[10px]">▼</AppText></Pressable>
                         </View>
 
                         {/* Inline Text & Widget Rendering */}
-                        <View className="flex-1 ml-2 flex-row flex-wrap items-end bg-white/40 border border-transparent focus:bg-white focus:border-line focus:shadow-sm rounded-xl px-4 py-2 min-h-[50px] z-50">
+                        <View className="flex-1 ml-2 flex-row flex-wrap items-start bg-white/40 border border-transparent focus:bg-white focus:border-line focus:shadow-sm rounded-xl px-4 py-2 z-50">
                           {parsed.map((part, chunkIndex) => {
                             
                             const widgetMatch = part.match(/^\[([A-Z_]+):(.*)\]$/);
@@ -521,33 +535,16 @@ export default function QuestBuilderAdmin() {
 
                               // --- ✨ NEW: VISUAL PREVIEW FOR YOUTUBE ---
                               if (widgetType === 'YOUTUBE') {
-                                const parseLocalConfig = (str: string) => {
-                                  const obj: Record<string, string> = {};
-                                  str.split('&').forEach(pair => {
-                                    const equalIdx = pair.indexOf('=');
-                                    if (equalIdx > -1) {
-                                      const k = pair.slice(0, equalIdx);
-                                      const v = pair.slice(equalIdx + 1);
-                                      try { if (k) obj[k] = decodeURIComponent(v || ''); } catch(e) {}
-                                    }
-                                  });
-                                  return obj;
-                                };
-                                const c = parseLocalConfig(widgetConfig);
-                                
                                 return (
                                   <Pressable 
                                     key={chunkIndex} 
                                     onPress={() => setActiveWidgetConfig({ stepIndex: index, chunkIndex, type: widgetType, config: widgetConfig })}
-                                    className="w-full my-3 bg-stone border border-line rounded-xl overflow-hidden group shadow-sm"
+                                    className="w-full my-3 bg-stone border border-line rounded-xl overflow-hidden group shadow-sm relative"
                                   >
-                                    <View className="h-40 bg-black items-center justify-center relative">
-                                        <AppText className="text-white/80 font-sansSemi text-lg">▶ YouTube Video</AppText>
-                                        <AppText className="text-white/40 text-xs mt-2 px-6 text-center" numberOfLines={1}>
-                                            {c.rawEmbed || 'Click to paste embed code'}
-                                        </AppText>
+                                    <View pointerEvents="none">
+                                      <YouTubeWidget config={widgetConfig} />
                                     </View>
-                                    <View className="absolute top-3 right-3 bg-white px-3 py-1.5 rounded-full shadow flex-row items-center border border-line opacity-70 group-hover:opacity-100">
+                                    <View className="absolute top-3 right-3 bg-white px-3 py-1.5 rounded-full shadow flex-row items-center border border-line opacity-70 group-hover:opacity-100 z-10">
                                         <AppText className="text-xs font-sansSemi mr-1">✏️ Edit Video</AppText>
                                     </View>
                                   </Pressable>
@@ -592,14 +589,17 @@ export default function QuestBuilderAdmin() {
                             }
 
                             // --- ✨ FIXED TEXT INPUT ---
-                            
                             return (
-                              <View key={chunkIndex} className="relative justify-start" style={{ minWidth: 20, minHeight: 28 }}>
-                                
-                                {/* ✨ FIX: We MUST append a space ' ' to every part. 
-                                  Without it, empty strings collapse to 0 height, making new blocks 
-                                  and the empty space after a widget literally unclickable! 
-                                */}
+                              <View 
+                                key={chunkIndex} 
+                                className="relative justify-start" 
+                                style={{ 
+                                    minWidth: 20, 
+                                    minHeight: 28, 
+                                    flex: (chunkIndex === parsed.length - 1 && !part.includes('\n')) ? 1 : undefined,
+                                    width: part.includes('\n') ? '100%' : undefined
+                                }}
+                              >
                                 <AppText 
                                   className="opacity-0 font-sans text-base py-1" 
                                   style={{ 
@@ -622,17 +622,26 @@ export default function QuestBuilderAdmin() {
                                   value={part}
                                   placeholder={chunkIndex === 0 && parsed.length === 1 ? "Enter a step..." : ""}
                                   onChangeText={(txt) => {
+                                      chunkTextsRef.current[`${index}-${chunkIndex}`] = txt;
+
                                       const newParts = [...parsed];
                                       newParts[chunkIndex] = txt;
                                       const newSteps = [...quest.steps];
                                       newSteps[index] = newParts.join('');
                                       updateField('steps', newSteps);
-
-                                      const match = txt.match(/\/([a-z]*)$/i);
+                                  }}
+                                  onSelectionChange={(e) => {
+                                      const cursor = e.nativeEvent.selection.start;
+                                      const currentTxt = chunkTextsRef.current[`${index}-${chunkIndex}`] ?? part;
+                                      
+                                      const textUpToCursor = currentTxt.substring(0, cursor);
+                                      // Search for slash immediately before the cursor (allows mid-sentence matching)
+                                      const match = textUpToCursor.match(/(^|\s|\n)\/([a-z]*)$/i);
+                                      
                                       if (match) {
-                                          setSlashMenu({ visible: true, query: match[1].toLowerCase(), stepIndex: index, chunkIndex });
+                                          setSlashMenu({ visible: true, query: match[2].toLowerCase(), stepIndex: index, chunkIndex, cursor });
                                       } else {
-                                          setSlashMenu(prev => ({ ...prev, visible: false }));
+                                          setSlashMenu(prev => prev.visible ? { ...prev, visible: false, query: "", stepIndex: -1, chunkIndex: -1, cursor: -1 } : prev);
                                       }
                                   }}
                                   onKeyPress={(e: any) => {
@@ -643,19 +652,24 @@ export default function QuestBuilderAdmin() {
                                         
                                         if (slashMenu.visible && matchingWidgets.length > 0) {
                                             const widget = matchingWidgets[0];
-                                            const updated = part.replace(/\/[a-z]*$/i, `[${widget.type}:]`); 
+                                            const currentTxt = chunkTextsRef.current[`${index}-${chunkIndex}`] ?? part;
+                                            
+                                            const textUpToCursor = currentTxt.substring(0, slashMenu.cursor);
+                                            const textAfterCursor = currentTxt.substring(slashMenu.cursor);
+                                            const updatedUpToCursor = textUpToCursor.replace(/(^|\s|\n)\/[a-z]*$/i, `$1[${widget.type}:]`); 
+                                            
                                             const newParts = [...parsed];
-                                            newParts[chunkIndex] = updated;
+                                            newParts[chunkIndex] = updatedUpToCursor + textAfterCursor;
                                             const newSteps = [...quest.steps];
                                             newSteps[index] = newParts.join('');
                                             
                                             updateField("steps", newSteps);
+                                            setSlashMenu({ visible: false, query: "", stepIndex: -1, chunkIndex: -1, cursor: -1 });
                                         } else {
                                             const newSteps = [...quest.steps];
                                             newSteps.splice(index + 1, 0, "");
                                             updateField('steps', newSteps);
                                         }
-                                        setSlashMenu({ visible: false, query: "", stepIndex: -1, chunkIndex: -1 });
                                         return;
                                     }
                                     if (e.nativeEvent.key === 'Backspace' && part === '') {
@@ -682,13 +696,18 @@ export default function QuestBuilderAdmin() {
                                         key={widget.id}
                                         className="px-4 py-3 hover:bg-stone flex-row items-center gap-3"
                                         onPress={() => {
-                                          const updated = part.replace(/\/[a-z]*$/i, `[${widget.type}:]`);
+                                          const currentTxt = chunkTextsRef.current[`${index}-${chunkIndex}`] ?? part;
+                                            
+                                          const textUpToCursor = currentTxt.substring(0, slashMenu.cursor);
+                                          const textAfterCursor = currentTxt.substring(slashMenu.cursor);
+                                          const updatedUpToCursor = textUpToCursor.replace(/(^|\s|\n)\/[a-z]*$/i, `$1[${widget.type}:]`);
+                                          
                                           const newParts = [...parsed];
-                                          newParts[chunkIndex] = updated;
+                                          newParts[chunkIndex] = updatedUpToCursor + textAfterCursor;
                                           const newSteps = [...quest.steps];
                                           newSteps[index] = newParts.join("");
                                           updateField("steps", newSteps);
-                                          setSlashMenu({ visible: false, query: "", stepIndex: -1, chunkIndex: -1 });
+                                          setSlashMenu({ visible: false, query: "", stepIndex: -1, chunkIndex: -1, cursor: -1 });
                                         }}
                                       >
                                         <AppText>{widget.icon}</AppText>
