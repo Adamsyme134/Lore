@@ -8,7 +8,7 @@ type PointsPillProps = {
 
 export function PointsPill({ points, label = "Lore Points" }: PointsPillProps) {
   return (
-    <View className="rounded-full border border-line bg-cream px-4 py-2">
+    <View className="rounded-full border border-line bg-surface px-4 py-2">
       <AppText variant="caption" className="font-sansSemi text-ink">
         {points} {label}
       </AppText>

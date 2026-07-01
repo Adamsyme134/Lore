@@ -20,7 +20,7 @@ export default function ArchiveScreen() {
         </AppText>
       </View>
 
-      <View className="mb-5 rounded-card border border-line bg-cream p-5">
+      <View className="mb-5 rounded-card border border-line bg-surface p-5">
         <View className="flex-row items-center justify-between gap-4">
           <View className="flex-1">
             <AppText variant="eyebrow">This life, collected</AppText>

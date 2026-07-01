@@ -12,7 +12,7 @@ type ButtonProps = PressableProps & {
 
 const variantClass: Record<ButtonVariant, string> = {
   primary: "bg-ink",
-  secondary: "bg-cream border border-line",
+  secondary: "bg-surface border border-line",
   quiet: "bg-transparent border border-ink/15"
 };
 

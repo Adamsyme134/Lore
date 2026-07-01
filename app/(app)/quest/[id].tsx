@@ -73,10 +73,10 @@ export default function QuestDetailScreen() {
               ))}
             </View>
           )}
-          <View className="mt-6 rounded-card border border-line bg-cream p-6">
+          <View className="mt-6 rounded-card border border-line bg-surface p-6">
             <AppText variant="subtitle">Journal prompt</AppText>
             <AppText className="mt-3 text-ink/70">{quest.journalPrompt}</AppText>
-            <View className="mt-5 rounded-3xl bg-ivory px-4 py-3">
+            <View className="mt-5 rounded-3xl bg-background px-4 py-3">
               <AppText variant="caption" className="font-sansSemi text-ink">
                 Completion: {quest.pointsValue} Lore Points
               </AppText>

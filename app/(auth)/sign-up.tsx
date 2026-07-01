@@ -34,7 +34,7 @@ export default function SignUpScreen() {
   if (isVerificationSent) {
     return (
       <Screen scroll={false} contentClassName="flex-1 px-5 justify-center">
-        <View className="rounded-[36px] border border-line bg-cream p-6 items-center">
+        <View className="rounded-[36px] border border-line bg-surface p-6 items-center">
           <AppText variant="subtitle" className="text-center">Check your email</AppText>
           <AppText className="mt-4 text-center max-w-[280px]">
             We've sent a verification link to <AppText className="font-sansSemi">{email}</AppText>. 
@@ -61,14 +61,14 @@ export default function SignUpScreen() {
           </AppText>
         </View>
 
-        <View className="rounded-[36px] border border-line bg-cream p-5">
+        <View className="rounded-[36px] border border-line bg-surface p-5">
           <AppText variant="subtitle">Create account</AppText>
           <TextInput
             placeholder="Full name"
             placeholderTextColor="#787267"
             value={fullName}
             onChangeText={setFullName}
-            className="mt-5 rounded-3xl border border-line bg-ivory px-5 py-4 font-sans text-[15px] text-ink"
+            className="mt-5 rounded-3xl border border-line bg-background px-5 py-4 font-sans text-[15px] text-ink"
           />
           <TextInput
             autoCapitalize="none"
@@ -76,7 +76,7 @@ export default function SignUpScreen() {
             placeholderTextColor="#787267"
             value={handle}
             onChangeText={setHandle}
-            className="mt-3 rounded-3xl border border-line bg-ivory px-5 py-4 font-sans text-[15px] text-ink"
+            className="mt-3 rounded-3xl border border-line bg-background px-5 py-4 font-sans text-[15px] text-ink"
           />
           <TextInput
             autoCapitalize="none"
@@ -86,7 +86,7 @@ export default function SignUpScreen() {
             placeholderTextColor="#787267"
             value={email}
             onChangeText={setEmail}
-            className="mt-3 rounded-3xl border border-line bg-ivory px-5 py-4 font-sans text-[15px] text-ink"
+            className="mt-3 rounded-3xl border border-line bg-background px-5 py-4 font-sans text-[15px] text-ink"
           />
           <TextInput
             autoCapitalize="none"
@@ -95,7 +95,7 @@ export default function SignUpScreen() {
             placeholderTextColor="#787267"
             value={password}
             onChangeText={setPassword}
-            className="mt-3 rounded-3xl border border-line bg-ivory px-5 py-4 font-sans text-[15px] text-ink"
+            className="mt-3 rounded-3xl border border-line bg-background px-5 py-4 font-sans text-[15px] text-ink"
           />
 
           {error ? <AppText className="mt-4 text-burgundy">{error}</AppText> : null}

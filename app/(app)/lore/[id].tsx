@@ -46,7 +46,7 @@ export default function LoreDetailScreen() {
           {entry.tags.map((tag) => <Chip key={tag} label={tag} />)}
         </View>
 
-        <View className="mt-6 rounded-card border border-line bg-cream p-6">
+        <View className="mt-6 rounded-card border border-line bg-surface p-6">
           <AppText variant="eyebrow" className={accent.text}>{entry.questTitle}</AppText>
           <AppText variant="subtitle" className="mt-4">What happened</AppText>
           <AppText className="mt-3 text-ink/70">{entry.journal}</AppText>
@@ -58,7 +58,7 @@ export default function LoreDetailScreen() {
         </View>
 
         {entry.photos.length > 1 ? (
-          <View className="mt-6 rounded-card border border-line bg-cream p-5">
+          <View className="mt-6 rounded-card border border-line bg-surface p-5">
             <AppText variant="eyebrow">Photographs</AppText>
             <View className="mt-4 flex-row flex-wrap gap-3">
               {entry.photos.map((photo) => (

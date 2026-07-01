@@ -76,7 +76,7 @@ export default function TodayScreen() {
         
         <TouchableOpacity 
           onPress={() => router.push("/profile")}
-          className="h-10 w-10 items-center justify-center rounded-full border border-line bg-cream"
+          className="h-10 w-10 items-center justify-center rounded-full border border-line bg-surface"
         >
           <AppText variant="caption" className="font-sansBold text-ink">
             {profile?.fullName?.[0] ?? "A"}
@@ -92,13 +92,13 @@ export default function TodayScreen() {
           </AppText>
         </View>
         
-        <View className="rounded-[32px] border border-line bg-cream overflow-hidden shadow-sm shadow-charcoal/5">
+        <View className="rounded-[32px] border border-line bg-surface overflow-hidden shadow-sm shadow-charcoal/5">
           <QuestHero quest={todayQuest} className="rounded-none" />
           
           {rerollsLeft > 0 && (
             <TouchableOpacity 
               onPress={handleReroll}
-              className="w-full border-t border-line py-4 items-center bg-cream active:bg-line/30"
+              className="w-full border-t border-line py-4 items-center bg-surface active:bg-line/30"
             >
               <AppText variant="caption" className="font-sansSemi text-ink">
                 Different vibe ({rerollsLeft})

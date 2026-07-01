@@ -12,7 +12,7 @@ type LoreEntryCardProps = {
 
 export function LoreEntryCard({ entry, featured = false }: LoreEntryCardProps) {
   return (
-    <Pressable onPress={() => router.push({ pathname: "/lore/[id]", params: { id: entry.id } })} className="mb-4 overflow-hidden rounded-card border border-line bg-cream">
+    <Pressable onPress={() => router.push({ pathname: "/lore/[id]", params: { id: entry.id } })} className="mb-4 overflow-hidden rounded-card border border-line bg-surface">
       {({ pressed }) => (
         <View className={pressed ? "opacity-90" : undefined}>
           <ImageFrame uri={entry.imageUrl} className={featured ? "h-72 overflow-hidden rounded-t-card bg-stone" : "h-52 overflow-hidden rounded-t-card bg-stone"} />

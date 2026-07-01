@@ -9,18 +9,29 @@ module.exports = {
   theme: {
     extend: {
       colors: {
+        // Semantic background colors
+        background: "var(--color-background)",
+        surface: "var(--color-surface)",
+        stone: "var(--color-surface-alt)", // kept 'stone' for compatibility if you prefer
+        
+        // Semantic text colors
+        ink: "var(--color-text)",
+        muted: "var(--color-text-muted)",
+        
+        // Semantic borders
+        line: "var(--color-border)",
+        
+        // Retained hardcoded references just in case, but map primary usage to semantic
+        charcoal: "#20201E",
         ivory: "#F5F0E7",
         cream: "#EFE6D8",
-        stone: "#D3C7B5",
-        charcoal: "#20201E",
-        ink: "#171612",
-        muted: "#787267",
-        line: "#DDD3C2",
-        forest: "#284D3A",
-        navy: "#1F3446",
-        orange: "#A5542A",
-        burgundy: "#6C2638",
-        gold: "#B88A44"
+
+        // Accents
+        forest: "var(--color-forest)",
+        navy: "var(--color-navy)",
+        orange: "var(--color-orange)",
+        burgundy: "var(--color-burgundy)",
+        gold: "var(--color-gold)"
       },
       fontFamily: {
         serif: ["PlayfairDisplay_700Bold"],

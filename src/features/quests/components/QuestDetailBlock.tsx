@@ -117,15 +117,13 @@ export function QuestDetailBlock({ quest, checkedSteps = [], onToggleStep, isAct
                       const raw = part.slice(10, -1);
                       blocks.push(<LocationWidget key={`loc-${i}`} config={raw as any} accent={accent} />);
                     } else if (part.startsWith('[RANDOMISER:')) {
-                      const raw = part.slice(12, -1);
-                      currentInline.push(<RandomiserWidget key={`rand-${i}`} config={raw as any} accent={quest.accent} />);
-                    } else if (part.startsWith("[LINK:")) {
-                      const raw = part.slice(6, -1);
-                      currentInline.push(<LinkWidget key={`link-${i}`} config={raw} />);
-                    } else if (part.startsWith('[CHECKLIST:')) { // <-- Add this block
                       flushInline();
-                      const raw = part.slice(11, -1);
-                      blocks.push(<ChecklistWidget key={`chk-${i}`} config={raw} stepIndex={index} />);
+                      const raw = part.slice(12, -1);
+                      blocks.push(<RandomiserWidget key={`rand-${i}`} config={raw as any} accent={quest.accent} />);
+                    } else if (part.startsWith("[LINK:")) {
+                      flushInline();
+                      const raw = part.slice(6, -1);
+                      blocks.push(<LinkWidget key={`link-${i}`} config={raw} />);
                     } else if (part.startsWith('[CHECKLIST:')) { 
                       flushInline();
                       const raw = part.slice(11, -1);

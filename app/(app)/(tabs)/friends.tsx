@@ -98,7 +98,7 @@ export default function FriendsScreen() {
       )}
 
       {/* FIND & INVITE CARD */}
-      <View className="mb-8 rounded-card border border-line bg-cream p-5">
+      <View className="mb-8 rounded-card border border-line bg-surface p-5">
         <AppText variant="subtitle">Grow your circle</AppText>
         
         <Button 
@@ -116,7 +116,7 @@ export default function FriendsScreen() {
           placeholderTextColor="#787267"
           value={searchQuery}
           onChangeText={setSearchQuery}
-          className="rounded-3xl border border-line bg-ivory px-5 py-4 font-sans text-[15px] text-ink"
+          className="rounded-3xl border border-line bg-background px-5 py-4 font-sans text-[15px] text-ink"
         />
 
         {searchQuery.length >= 2 && (

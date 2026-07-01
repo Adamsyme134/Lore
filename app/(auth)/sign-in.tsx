@@ -35,7 +35,7 @@ export default function SignInScreen() {
         keyboardVerticalOffset={Platform.OS === "ios" ? 40 : 0} 
         className="flex-1 justify-center" // Center the form when keyboard is closed
       >
-        <View className="rounded-[36px] border border-line bg-cream p-5">
+        <View className="rounded-[36px] border border-line bg-surface p-5">
           <AppText variant="subtitle">Sign in</AppText>
           
           <TextInput
@@ -46,7 +46,7 @@ export default function SignInScreen() {
             placeholderTextColor="#787267"
             value={email}
             onChangeText={setEmail}
-            className="mt-5 rounded-3xl border border-line bg-ivory px-5 py-4 font-sans text-[15px] text-ink"
+            className="mt-5 rounded-3xl border border-line bg-background px-5 py-4 font-sans text-[15px] text-ink"
           />
           
           <TextInput
@@ -56,7 +56,7 @@ export default function SignInScreen() {
             placeholderTextColor="#787267"
             value={password}
             onChangeText={setPassword}
-            className="mt-3 rounded-3xl border border-line bg-ivory px-5 py-4 font-sans text-[15px] text-ink"
+            className="mt-3 rounded-3xl border border-line bg-background px-5 py-4 font-sans text-[15px] text-ink"
           />
 
           <Button label="Sign In" className="mt-5" onPress={handleSignIn} />

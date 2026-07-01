@@ -27,7 +27,7 @@ export function MapPreview({ location, latitude, longitude, entries }: MapPrevie
       : oxford;
 
   return (
-    <View className="overflow-hidden rounded-card border border-line bg-cream">
+    <View className="overflow-hidden rounded-card border border-line bg-surface">
       <View className="h-56 overflow-hidden rounded-t-card bg-stone">
         <MapView
           provider={Platform.OS === "android" ? PROVIDER_GOOGLE : undefined}

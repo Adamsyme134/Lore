@@ -160,7 +160,7 @@ async function handleSubmit() {
       <View className="px-5">
         
         {/* ✨ FIX 4: The top Titlecard now embeds the newly selected photo dynamically! */}
-        <View className="rounded-[40px] border border-line bg-cream overflow-hidden">
+        <View className="rounded-[40px] border border-line bg-surface overflow-hidden">
           {photos.length > 0 && (
              <Image source={{ uri: photos[0].uri }} contentFit="cover" style={{ width: '100%', height: 180 }} />
           )}
@@ -175,7 +175,7 @@ async function handleSubmit() {
           </View>
         </View>
 
-        <View className="mt-5 rounded-card border border-line bg-cream p-5">
+        <View className="mt-5 rounded-card border border-line bg-surface p-5">
           <AppText variant="subtitle">Photographs</AppText>
           <AppText className="mt-2 text-ink/65">Add up to six. The first becomes the cover image.</AppText>
           <View className="mt-5 flex-row gap-3">
@@ -193,14 +193,14 @@ async function handleSubmit() {
           ) : null}
         </View>
 
-        <View className="mt-5 rounded-card border border-line bg-cream p-5">
+        <View className="mt-5 rounded-card border border-line bg-surface p-5">
           <AppText variant="subtitle">Field note</AppText>
           <TextInput
             placeholder="Title"
             placeholderTextColor="#787267"
             value={title}
             onChangeText={setTitle}
-            className="mt-5 rounded-3xl border border-line bg-ivory px-5 py-4 font-sans text-[15px] text-ink"
+            className="mt-5 rounded-3xl border border-line bg-background px-5 py-4 font-sans text-[15px] text-ink"
           />
           <TextInput
             multiline
@@ -209,14 +209,14 @@ async function handleSubmit() {
             placeholderTextColor="#787267"
             value={journal}
             onChangeText={setJournal}
-            className="mt-3 min-h-[150px] rounded-3xl border border-line bg-ivory px-5 py-4 font-sans text-[15px] leading-6 text-ink"
+            className="mt-3 min-h-[150px] rounded-3xl border border-line bg-background px-5 py-4 font-sans text-[15px] leading-6 text-ink"
           />
           <TextInput
             placeholder="Location name"
             placeholderTextColor="#787267"
             value={locationName}
             onChangeText={setLocationName}
-            className="mt-3 rounded-3xl border border-line bg-ivory px-5 py-4 font-sans text-[15px] text-ink"
+            className="mt-3 rounded-3xl border border-line bg-background px-5 py-4 font-sans text-[15px] text-ink"
           />
           <Button label="Use current location" variant="secondary" className="mt-4" onPress={useCurrentLocation} />
           {locationStatus ? <AppText className="mt-3 text-ink/65">{locationStatus}</AppText> : null}
@@ -224,7 +224,7 @@ async function handleSubmit() {
           <View className="mt-5 flex-row flex-wrap gap-2">
             {moodOptions.map((option) => (
               <Pressable key={option} onPress={() => setMood(option)}>
-                <View className={mood === option ? "rounded-full bg-ink px-4 py-2" : "rounded-full border border-line bg-ivory px-4 py-2"}>
+                <View className={mood === option ? "rounded-full bg-ink px-4 py-2" : "rounded-full border border-line bg-background px-4 py-2"}>
                   <AppText variant="caption" className={mood === option ? "font-sansSemi text-ivory" : "font-sansSemi text-ink"}>{option}</AppText>
                 </View>
               </Pressable>

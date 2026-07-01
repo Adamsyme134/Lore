@@ -448,7 +448,7 @@ export default function QuestBuilderAdmin() {
     });
     
     return (
-      <View className="flex-1 bg-cream p-10">
+      <View className="flex-1 bg-surface p-10">
         <View className="flex-row justify-between items-center mb-10">
           <AppText variant="display">Quest Library</AppText>
           <Pressable onPress={() => { setQuest(createBlankQuest()); setView('editor'); setPreviewMode('hero'); setActiveTab('basic'); }} className="bg-ink px-6 py-3 rounded-full">
@@ -494,9 +494,9 @@ export default function QuestBuilderAdmin() {
   const exposedVariables = extractExposedVariables(quest.steps);
 
   return (
-    <View className="flex-1 flex-row bg-cream">
+    <View className="flex-1 flex-row bg-surface">
       {/* --- LEFT PANEL: Base Configuration --- */}
-      <View className="w-1/3 border-r border-line bg-cream flex-1 max-w-[500px]">
+      <View className="w-1/3 border-r border-line bg-surface flex-1 max-w-[500px]">
         <View className="p-6 border-b border-line flex-row justify-between items-center bg-white">
           <Pressable onPress={() => setView('grid')} className="px-4 py-2 bg-stone rounded-md"><AppText className="text-ink">← Back</AppText></Pressable>
           <View className="flex-row gap-3">
@@ -591,7 +591,7 @@ export default function QuestBuilderAdmin() {
           <Pressable onPress={() => setPreviewMode('details')} className={`px-6 py-2 rounded-full ${previewMode === 'details' ? 'bg-ink' : 'bg-transparent'}`}><AppText className={previewMode === 'details' ? 'text-ivory' : 'text-ink/60'}>Details Editor</AppText></Pressable>
         </View>
 
-        <View className={`bg-cream border-[8px] border-white shadow-xl overflow-hidden justify-center transition-all duration-300 ${
+        <View className={`bg-surface border-[8px] border-white shadow-xl overflow-hidden justify-center transition-all duration-300 ${
           previewMode === 'details' ? 'w-[90%] max-w-[900px] h-[90vh] rounded-[24px]' : 'w-[400px] h-[750px] rounded-[45px] px-4'
         }`}>
           {previewMode === 'hero' ? (

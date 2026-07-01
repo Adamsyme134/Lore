@@ -37,7 +37,7 @@ export default function ProfileScreen() {
       </View>
 
       <View className="mt-10 px-5">
-        <View className="rounded-card border border-line bg-cream p-5">
+        <View className="rounded-card border border-line bg-surface p-5">
           <AppText variant="eyebrow" className="mb-2">Lore Mastery</AppText>
           <View className="flex-row items-end justify-between border-b border-line pb-4">
             <AppText variant="title">Level {level}</AppText>

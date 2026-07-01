@@ -4,6 +4,13 @@ import { LinearGradient } from 'expo-linear-gradient'; // Ensure expo-linear-gra
 import { AppText } from '../../../shared/components/AppText';
 import { accentClass, type Accent } from '../../../shared/design/tokens';
 import { Button } from '../../../shared/components/Button';
+if (
+  Platform.OS === 'android' && 
+  UIManager.setLayoutAnimationEnabledExperimental && 
+  !(globalThis as any)._IS_FABRIC_
+) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
 
 type QuestStepCardProps = {
   stepIndex: number;
@@ -60,12 +67,11 @@ export function QuestStepCard({
       </View>
 
       {/* Content Wrapper */}
-      <View 
-        style={{ maxHeight: isExpanded ? undefined : EXPAND_THRESHOLD, overflow: 'hidden' }}
-        onLayout={(e) => setContentHeight(e.nativeEvent.layout.height)}
-      >
-        {children}
-      </View>
+      <View style={{ maxHeight: isExpanded ? undefined : EXPAND_THRESHOLD, overflow: 'hidden' }}>
+  <View onLayout={(e) => setContentHeight(e.nativeEvent.layout.height)}>
+    {children}
+  </View>
+</View>
 
       {/* Show More Overlay */}
       {needsExpansion && (
@@ -76,7 +82,14 @@ export function QuestStepCard({
           </Pressable>
         </View>
       )}
-
+        {/* Collapse Button */}
+      {isExpanded && (
+        <View className="mt-4 items-center">
+          <Pressable onPress={toggleExpand} className="px-5 py-2 bg-stone rounded-full border border-line">
+            <AppText className="font-sansSemi text-xs text-ink/70">Collapse step ↑</AppText>
+          </Pressable>
+        </View>
+      )}
       {/* Action Button */}
       {isActiveStep && !needsExpansion && (
         <View className="mt-6 pt-4 border-t border-line/50">

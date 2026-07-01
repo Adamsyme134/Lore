@@ -12,7 +12,7 @@ export function FriendMomentCard({ moment }: FriendMomentCardProps) {
   const accent = accentClass[moment.accent];
 
   return (
-    <View className="mb-4 overflow-hidden rounded-card border border-line bg-cream">
+    <View className="mb-4 overflow-hidden rounded-card border border-line bg-surface">
       <ImageFrame uri={moment.imageUrl} className="h-56 overflow-hidden rounded-t-card bg-stone" />
       <View className="p-5">
         <View className="mb-2 flex-row items-center justify-between">
@@ -20,7 +20,7 @@ export function FriendMomentCard({ moment }: FriendMomentCardProps) {
           <AppText variant="caption">{moment.location}</AppText>
         </View>
         <AppText variant="subtitle">{moment.title}</AppText>
-        <View className="mt-4 rounded-3xl bg-ivory px-4 py-3">
+        <View className="mt-4 rounded-3xl bg-background px-4 py-3">
           <AppText className="text-ink/70">“{moment.reaction}”</AppText>
         </View>
       </View>

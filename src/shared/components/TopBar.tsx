@@ -17,7 +17,7 @@ export function TopBar({ title = "Lore", showBack = false, rightLabel, showProfi
     <View className="mb-4 flex-row items-center justify-between px-5 pt-2">
       <View className="w-16">
         {showBack ? (
-          <Pressable onPress={() => router.back()} className="h-11 w-11 items-center justify-center rounded-full bg-cream">
+          <Pressable onPress={() => router.back()} className="h-11 w-11 items-center justify-center rounded-full bg-surface">
             <AppText variant="subtitle">‹</AppText>
           </Pressable>
         ) : null}

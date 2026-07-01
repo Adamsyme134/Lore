@@ -1,3 +1,39 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer base {
+  :root {
+    /* LIGHT MODE */
+    --color-background: #F5F0E7; /* ivory */
+    --color-surface: #EFE6D8;    /* cream */
+    --color-surface-alt: #D3C7B5; /* stone */
+    
+    --color-text: #171612;       /* ink */
+    --color-text-muted: #787267; /* muted */
+    
+    --color-border: #DDD3C2;     /* line */
+    
+    /* Accents (Keep these vibrant in both, or slightly tweak for contrast) */
+    --color-forest: #284D3A;
+    --color-navy: #1F3446;
+    --color-orange: #A5542A;
+    --color-burgundy: #6C2638;
+    --color-gold: #B88A44;
+  }
+
+  .dark {
+    /* DARK MODE */
+    --color-background: #171612; /* ink */
+    --color-surface: #20201E;    /* charcoal */
+    --color-surface-alt: #2A2A28; /* slightly lighter charcoal for depth */
+    
+    --color-text: #F5F0E7;       /* ivory */
+    --color-text-muted: #A39E93; /* lighter muted text for dark mode */
+    
+    --color-border: #3A3834;     /* dark line */
+
+    /* Accents can typically remain the same if they pass contrast checks, 
+       but you can lighten them slightly here later if they feel too dark */
+  }
+}
