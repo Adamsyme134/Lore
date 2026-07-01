@@ -15,8 +15,9 @@ import {
   useAcceptFriendRequest,
   useDeclineFriendRequest
 } from "../../../src/features/social/api/socialApi";
-
+import { useRouter } from "expo-router";
 export default function FriendsScreen() {
+  const router = useRouter();
   const { data: friendMoments } = useFriendMoments();
   const { data: friends, isLoading: isLoadingFriends } = useFriendsList();
   
@@ -181,13 +182,15 @@ export default function FriendsScreen() {
 
       {/* FRIEND LORE */}
       {friendMoments && friendMoments.length > 0 && (
-        <>
-          <SectionHeader eyebrow="Friend lore" title="Quiet inspiration" />
-          {friendMoments.map((moment) => (
-            <FriendMomentCard key={moment.id} moment={moment} />
-          ))}
-        </>
-      )}
+  <>
+    <SectionHeader eyebrow="Friend lore" title="Quiet inspiration" />
+    {friendMoments.map((moment) => (
+      <TouchableOpacity key={moment.id} onPress={() => router.push(`/lore/${moment.id}`)} activeOpacity={0.9}>
+        <FriendMomentCard moment={moment} />
+      </TouchableOpacity>
+    ))}
+  </>
+)}
     </Screen>
   );
 }

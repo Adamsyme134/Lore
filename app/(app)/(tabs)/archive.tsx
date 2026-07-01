@@ -5,8 +5,11 @@ import { SectionHeader } from "../../../src/shared/components/SectionHeader";
 import { LoreEntryCard } from "../../../src/features/lore/components/LoreEntryCard";
 import { useLoreEntries } from "../../../src/features/lore/api/loreApi";
 import { PointsPill } from "../../../src/features/points/components/PointsPill";
-
+import { TouchableOpacity } from "react-native";
+import { useRouter } from "expo-router";
+import { LoreCard } from "../../../src/features/lore/components/LoreCard";
 export default function ArchiveScreen() {
+  const router = useRouter();
   const { data: loreEntries } = useLoreEntries();
   const totalPoints = loreEntries.reduce((sum, entry) => sum + entry.pointsAwarded, 0);
 
@@ -32,9 +35,20 @@ export default function ArchiveScreen() {
       </View>
 
       <SectionHeader eyebrow="Recent" title="Memory roll" />
-      {loreEntries.map((entry, index) => (
-        <LoreEntryCard key={entry.id} entry={entry} featured={index === 0} />
-      ))}
+{loreEntries.map((entry, index) => (
+  <TouchableOpacity 
+    key={entry.id} 
+    onPress={() => router.push(`/lore/${entry.id}`)}
+    className="mb-6 rounded-[32px] overflow-hidden"
+  >
+    <LoreCard 
+      heroImageUri={entry.imageUrl}
+      title={entry.questTitle}
+      caption={entry.excerpt}
+      locationName={entry.location}
+    />
+  </TouchableOpacity>
+))}
     </Screen>
   );
 }

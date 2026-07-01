@@ -2,7 +2,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { requireSupabase, supabase } from "../../../lib/supabase";
 import { useAuth } from "../../auth/AuthProvider";
-import { previewFriendMoments } from "../../../shared/data/previewData";
+
 import type { FriendMoment, Profile } from "../../../shared/types/domain";
 import type { Accent } from "../../../shared/design/tokens";
 
@@ -87,9 +87,9 @@ export function useFriendMoments() {
   const { isBackendReady, user } = useAuth();
 
   return useQuery({
-    queryKey: ["friend-moments", isBackendReady ? "remote" : "preview", user?.id],
-    queryFn: () => (isBackendReady ? fetchFriendMomentsFromSupabase(user?.id) : Promise.resolve(previewFriendMoments)),
-    initialData: previewFriendMoments
+    queryKey: ["friend-moments", user?.id],
+    queryFn: () => fetchFriendMomentsFromSupabase(user?.id),
+    enabled: !!user
   });
 }
 

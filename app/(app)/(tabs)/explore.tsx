@@ -5,6 +5,7 @@ import { Screen } from "../../../src/shared/components/Screen";
 import { AppText } from "../../../src/shared/components/AppText";
 import { QuestCard } from "../../../src/features/quests/components/QuestCard";
 import { Ionicons } from '@expo/vector-icons'; // ✨ Needed for filter icon
+import { useAuth } from "../../../src/features/auth/AuthProvider";
 import type { 
   Quest, 
   QuestCategory, 
@@ -24,6 +25,7 @@ const COSTS: (QuestCost | "All")[] = ["All", "Free", "£", "££", "£££"]; //
 const LENGTHS: (QuestLength | "All")[] = ["All", "A few hours", "Full day", "Multi-day", "Long-term"]; // ✨ FIX 2
 
 export default function Explore() {
+  const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
   const [activeCategory, setActiveCategory] = useState<QuestCategory | "All" | "Saved">("All");
   
@@ -41,12 +43,21 @@ export default function Explore() {
     const fetchQuests = async () => {
       try {
         const client = requireSupabase();
+        const { data: completedData } = await client
+        .from('user_quests')
+        .select('quest_id')
+        .eq('user_id', user?.id)
+        .eq('status', 'completed');
+
+        const completedIds = completedData?.map(c => c.quest_id) || [];
         const { data, error } = await client.from('quests').select('*').eq('is_active', true).order('created_at', { ascending: false });
         
         if (error) throw error;
 
         if (data) {
-          const mappedQuests: Quest[] = data.map(q => ({
+          const mappedQuests: Quest[] = data
+          .filter(q => !completedIds.includes(q.id))
+          .map(q => ({
             id: q.id,
             slug: q.slug,
             title: q.title,

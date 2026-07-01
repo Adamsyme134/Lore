@@ -177,12 +177,9 @@ export function useCreateLoreEntry() {
       }
 
       const entryId = entryRow.id as string;
-      const uploadedPhotos = [];
-
-      for (let index = 0; index < input.photoAssets.length; index += 1) {
-        const uploaded = await uploadLorePhoto(user.id, entryId, input.photoAssets[index], index);
-        uploadedPhotos.push(uploaded);
-      }
+      const uploadedPhotos = await Promise.all(
+  input.photoAssets.map((asset, index) => uploadLorePhoto(user.id, entryId, asset, index))
+);
 
       if (uploadedPhotos.length > 0) {
         const { error: photoError } = await client.from("lore_photos").insert(
@@ -231,9 +228,11 @@ export function useCreateLoreEntry() {
     },
     onSuccess: async () => {
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ["lore-entries"] }),
-        queryClient.invalidateQueries({ queryKey: ["points"] })
-      ]);
+    queryClient.invalidateQueries({ queryKey: ["lore-entries"] }),
+    queryClient.invalidateQueries({ queryKey: ["points"] }),
+    queryClient.invalidateQueries({ queryKey: ["active-quests"] }), // Add this line
+    queryClient.invalidateQueries({ queryKey: ["user-quests"] })    // Add this line
+  ]);
       await refreshProfile();
     }
   });

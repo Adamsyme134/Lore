@@ -1,11 +1,12 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { View, ScrollView, TextInput, TouchableOpacity, Image, Platform } from 'react-native';
+import { View, ScrollView, TextInput, TouchableOpacity, Image, Platform, Modal } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import * as Sharing from 'expo-sharing';
 import ViewShot from 'react-native-view-shot';
 import { Camera, MapPin, Users, Plus, X } from 'lucide-react-native';
-
+import { useCreateLoreEntry } from '../../../src/features/lore/api/loreApi';
+import { useQuest } from '../../../src/features/quests/api/questApi';
 import { Screen } from '../../../src/shared/components/Screen';
 import { AppText } from '../../../src/shared/components/AppText';
 import { Button } from '../../../src/shared/components/Button';
@@ -16,7 +17,9 @@ export default function QuestCompletionScreen() {
   const { questId } = useLocalSearchParams();
   const router = useRouter();
   const viewShotRef = useRef<any>(null);
-
+  const { data: quest } = useQuest(questId as string);
+  const createLoreEntry = useCreateLoreEntry();
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
   // Form State
   const [heroImage, setHeroImage] = useState<string | null>(null);
   const [extraImages, setExtraImages] = useState<string[]>([]);
@@ -73,10 +76,40 @@ export default function QuestCompletionScreen() {
     setExtraImages(prev => prev.filter((_, i) => i !== index));
   };
 
+
+  const handleSaveAndComplete = async () => {
+    if (!quest || !heroImage) return;
+
+    try {
+      // Package up the images
+      const photoAssets = [
+        { uri: heroImage, mimeType: 'image/jpeg' },
+        ...extraImages.map(uri => ({ uri, mimeType: 'image/jpeg' }))
+      ];
+
+      // Save to Supabase (this handles the completed status and points)
+      await createLoreEntry.mutateAsync({
+        quest,
+        title: quest.title,
+        journal: caption || "No words needed.",
+        location: location || "Unknown Location",
+        mood: quest.mood,
+        tags: [],
+        photoAssets
+      });
+      setShowSuccessModal(true);
+      
+      // Navigate straight to the user's My Lore tab
+      
+    } catch (err) {
+      console.error("Failed to save lore:", err);
+    }
+  };
   const handleShare = async () => {
     if (viewShotRef.current?.capture) {
       try {
         const uri = await viewShotRef.current.capture();
+        
         if (Platform.OS === 'web') {
           const link = document.createElement('a');
           link.href = uri;
@@ -84,30 +117,26 @@ export default function QuestCompletionScreen() {
           document.body.appendChild(link);
           link.click();
           document.body.removeChild(link);
-          
-          router.push('/(app)/(tabs)/explore');
-          return;
+        } else {
+          const isAvailable = await Sharing.isAvailableAsync();
+          if (isAvailable) {
+            await Sharing.shareAsync(uri, {
+              mimeType: 'image/jpeg',
+              dialogTitle: 'Share your Lore',
+              UTI: 'public.jpeg'
+            });
+          }
         }
         
-        const isAvailable = await Sharing.isAvailableAsync();
-        
-        if (isAvailable) {
-          await Sharing.shareAsync(uri, {
-            mimeType: 'image/jpeg',
-            dialogTitle: 'Share your Lore',
-            UTI: 'public.jpeg'
-          });
-        }
-        
-        // Save to DB and exit
-        router.push('/(app)/(tabs)/explore');
+        // After sharing, close modal and head to archive
+        setShowSuccessModal(false);
+        router.push('/(app)/(tabs)/archive');
         
       } catch (err) {
         console.error("Failed to share", err);
       }
     }
   };
-
   return (
     <Screen>
       <TopBar title="Complete Quest" onBack={() => router.back()} />
@@ -205,27 +234,53 @@ export default function QuestCompletionScreen() {
         </View>
 
         {/* Action Buttons */}
-        <View className="mt-10 mb-6 space-y-4">
-          <Button 
-          label="Share to Instagram"
-            onPress={handleShare} 
-            disabled={!heroImage}
-          >
-            <AppText className={`text-center font-bold tracking-widest uppercase ${!heroImage ? 'opacity-40' : 'text-white'}`}>
-              Share to Instagram
-            </AppText>
-          </Button>
-          
-          {heroImage && (
-            <TouchableOpacity onPress={() => router.push('/(app)/(tabs)/explore')}>
-              <AppText className="opacity-50 text-center uppercase tracking-wider text-xs py-2">
-                Save to Archive Only
-              </AppText>
-            </TouchableOpacity>
-          )}
-        </View>
+  <View className="mt-10 mb-6 space-y-4">
+    <Button 
+      label="Save & Complete Quest"
+      onPress={handleSaveAndComplete} 
+      disabled={!heroImage || createLoreEntry.isPending}
+    >
+      <AppText className={`text-center font-bold tracking-widest uppercase ${!heroImage ? 'opacity-40' : 'text-white'}`}>
+        {createLoreEntry.isPending ? "Saving..." : "Save & Complete Quest"}
+      </AppText>
+    </Button>
+  </View>
 
       </ScrollView>
+    {/* ✨ NEW: Success & Share Popup */}
+      <Modal
+        visible={showSuccessModal}
+        transparent={true}
+        animationType="fade"
+      >
+        <View className="flex-1 bg-black/60 justify-center items-center px-6">
+          <View className="w-full bg-surface rounded-[32px] p-6 items-center shadow-lg">
+            <View className="w-16 h-16 rounded-full bg-forest items-center justify-center mb-4">
+              <AppText className="text-ivory text-2xl font-serif">✓</AppText>
+            </View>
+            
+            <AppText variant="title" className="text-center mb-2">Saved to Archive</AppText>
+            <AppText className="text-center text-ink/70 mb-8 max-w-[250px]">
+              Your memory is securely stored. Want to share your Lore Card with friends?
+            </AppText>
+            
+            <View className="w-full space-y-3">
+              <Button label="Share Lore Card" onPress={handleShare} />
+              
+              <TouchableOpacity 
+                onPress={() => {
+                  setShowSuccessModal(false);
+                  router.push('/(app)/(tabs)/archive');
+                }}
+                className="py-4 mt-2 border border-line rounded-full items-center justify-center bg-transparent"
+              >
+                <AppText className="text-center text-ink/60 font-sansSemi">Maybe Later</AppText>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
     </Screen>
   );
 }
