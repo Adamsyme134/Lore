@@ -50,7 +50,8 @@
         {
           "cameraPermission": "Lore lets you capture photographs when completing a quest."
         }
-      ]
+      ],
+      "expo-sharing"
     ],
     "experiments": {
       "typedRoutes": true

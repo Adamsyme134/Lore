@@ -8,6 +8,8 @@ type TopBarProps = {
   showBack?: boolean;
   rightLabel?: string;
   showProfile?: boolean; // <-- NEW PROP
+  onBack?: () => void;
+
 };
 
 export function TopBar({ title = "Lore", showBack = false, rightLabel, showProfile = false }: TopBarProps) {

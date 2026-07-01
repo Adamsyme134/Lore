@@ -1,239 +1,231 @@
-import { useMemo, useState } from "react";
-import { Alert, Pressable, TextInput, View } from "react-native";
-import { Image } from "expo-image";
-import * as ImagePicker from "expo-image-picker";
-import * as Location from "expo-location";
-import { router, useLocalSearchParams } from "expo-router";
-import { Screen } from "../../../src/shared/components/Screen";
-import { TopBar } from "../../../src/shared/components/TopBar";
-import { AppText } from "../../../src/shared/components/AppText";
-import { Button } from "../../../src/shared/components/Button";
-import { Chip } from "../../../src/shared/components/Chip";
-import { useQuest } from "../../../src/features/quests/api/questApi";
-import { useCreateLoreEntry } from "../../../src/features/lore/api/loreApi";
+import React, { useState, useRef, useEffect } from 'react';
+import { View, ScrollView, TextInput, TouchableOpacity, Image, Platform } from 'react-native';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import * as ImagePicker from 'expo-image-picker';
+import * as Sharing from 'expo-sharing';
+import ViewShot from 'react-native-view-shot';
+import { Camera, MapPin, Users, Plus, X } from 'lucide-react-native';
 
-type SelectedPhoto = {
-  uri: string;
-  width?: number | null;
-  height?: number | null;
-  mimeType?: string | null;
-};
+import { Screen } from '../../../src/shared/components/Screen';
+import { AppText } from '../../../src/shared/components/AppText';
+import { Button } from '../../../src/shared/components/Button';
+import { TopBar } from '../../../src/shared/components/TopBar';
+import { LoreCard } from '../../../src/features/lore/components/LoreCard';
+import { supabase } from '../../../src/lib/supabase'; 
+export default function QuestCompletionScreen() {
+  const { questId } = useLocalSearchParams();
+  const router = useRouter();
+  const viewShotRef = useRef<any>(null);
 
-const moodOptions = ["Quiet", "Curious", "Social", "Wild", "Reflective"];
+  // Form State
+  const [heroImage, setHeroImage] = useState<string | null>(null);
+  const [extraImages, setExtraImages] = useState<string[]>([]);
+  const [caption, setCaption] = useState('');
+  const [location, setLocation] = useState('');
 
-export default function CompleteQuestScreen() {
-  const { questId } = useLocalSearchParams<{ questId: string }>();
-  const { data: quest } = useQuest(questId);
-  const createLoreEntry = useCreateLoreEntry();
-  const [title, setTitle] = useState("");
-  const [journal, setJournal] = useState("");
-  const [locationName, setLocationName] = useState("");
-  const [mood, setMood] = useState("Curious");
-  const [latitude, setLatitude] = useState<number | null>(null);
-  const [longitude, setLongitude] = useState<number | null>(null);
-  const [photos, setPhotos] = useState<SelectedPhoto[]>([]);
-  const [locationStatus, setLocationStatus] = useState<string | null>(null);
+  
+  const [questTitle, setQuestTitle] = useState<string>("Loading...");
+  //const [coordinates, setCoordinates] = useState<string>("");
 
-  const pointsPreview = useMemo(() => {
-    if (!quest) {
-      return 0;
-    }
-    return quest.pointsValue + Math.min(3, photos.length) * 2;
-  }, [photos.length, quest]);
+  useEffect(() => {
+    const fetchQuestDetails = async () => {
+      if (!supabase) {
+  return;
+}
 
-  if (!quest) {
-    return (
-      <Screen>
-        <TopBar showBack title="Complete" />
-        <AppText variant="title">Quest not found.</AppText>
-      </Screen>
-    );
-  }
+      const { data, error } = await supabase
+        .from('quests')
+        .select('title')
+        .eq('id', questId)
+        .single();
 
-  async function pickImage() {
-    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (error) {
+        console.error("Error fetching quest details:", error);
+      } else {
+        setQuestTitle(data.title);
 
-    if (!permission.granted) {
-      Alert.alert("Photos permission needed", "Allow photo access to attach images to this Lore entry.");
-      return;
-    }
+      }
+    };
 
-    const result = await ImagePicker.launchImageLibraryAsync({
+    fetchQuestDetails();
+  }, [questId]);
+
+  const pickImage = async (isHero: boolean) => {
+    let result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsMultipleSelection: true,
-      selectionLimit: 6,
-      quality: 0.86
+      allowsEditing: true,
+      aspect: isHero ? [3, 4] : [1, 1],
+      quality: 1,
     });
 
     if (!result.canceled) {
-      setPhotos((current) => [
-        ...current,
-        ...result.assets.map((asset) => ({
-          uri: asset.uri,
-          width: asset.width,
-          height: asset.height,
-          mimeType: asset.mimeType
-        }))
-      ].slice(0, 6));
-    }
-  }
-
-  async function captureImage() {
-    const permission = await ImagePicker.requestCameraPermissionsAsync();
-
-    if (!permission.granted) {
-      Alert.alert("Camera permission needed", "Allow camera access to capture quest photographs.");
-      return;
-    }
-
-    const result = await ImagePicker.launchCameraAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      quality: 0.86
-    });
-
-    if (!result.canceled) {
-      const asset = result.assets[0];
-      setPhotos((current) => [
-        ...current,
-        {
-          uri: asset.uri,
-          width: asset.width,
-          height: asset.height,
-          mimeType: asset.mimeType
+      if (isHero) {
+        setHeroImage(result.assets[0].uri);
+      } else {
+        if (extraImages.length < 3) {
+          setExtraImages([...extraImages, result.assets[0].uri]);
         }
-      ].slice(0, 6));
+      }
     }
-  }
+  };
 
-  async function useCurrentLocation() {
-    setLocationStatus("Finding your position...");
-    const permission = await Location.requestForegroundPermissionsAsync();
+  const removeExtraImage = (index: number) => {
+    setExtraImages(prev => prev.filter((_, i) => i !== index));
+  };
 
-    if (!permission.granted) {
-      setLocationStatus("Location permission was not granted.");
-      return;
-    }
-
-    const current = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-    setLatitude(current.coords.latitude);
-    setLongitude(current.coords.longitude);
-    setLocationStatus("Location attached to this memory.");
-
-    if (!locationName) {
-      setLocationName("Current location");
-    }
-  }
-
-async function handleSubmit() {
-    // ✨ ADD THIS: Explicit check to satisfy TypeScript
-    if (!quest) {
-      Alert.alert("Error", "Quest data is missing.");
-      return;
-    }
-
-    if (!title.trim() || !journal.trim() || !locationName.trim()) {
-      Alert.alert("Missing detail", "Add a title, journal note and location before saving the entry.");
-      return;
-    }
-
-    try {
-      const entry = await createLoreEntry.mutateAsync({
-        quest, // TypeScript now knows 100% that 'quest' is not null here
-        title: title.trim(),
-        journal: journal.trim(),
-        location: locationName.trim(),
-        mood,
-        latitude,
-        longitude,
-        tags: [quest.mood],
-        photoAssets: photos
-      });
-
-      router.replace({ pathname: "/lore/[id]", params: { id: entry.id } });
-    } catch (error) {
-      Alert.alert("Could not save Lore entry", error instanceof Error ? error.message : "Try again.");
-    }
-  }
-  return (
-    <Screen contentClassName="px-0 pb-36">
-      <TopBar showBack title="Complete Quest" />
-      <View className="px-5">
+  const handleShare = async () => {
+    if (viewShotRef.current?.capture) {
+      try {
+        const uri = await viewShotRef.current.capture();
+        if (Platform.OS === 'web') {
+          const link = document.createElement('a');
+          link.href = uri;
+          link.download = 'my-lore-card.jpg';
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          
+          router.push('/(app)/(tabs)/explore');
+          return;
+        }
         
-        {/* ✨ FIX 4: The top Titlecard now embeds the newly selected photo dynamically! */}
-        <View className="rounded-[40px] border border-line bg-surface overflow-hidden">
-          {photos.length > 0 && (
-             <Image source={{ uri: photos[0].uri }} contentFit="cover" style={{ width: '100%', height: 180 }} />
+        const isAvailable = await Sharing.isAvailableAsync();
+        
+        if (isAvailable) {
+          await Sharing.shareAsync(uri, {
+            mimeType: 'image/jpeg',
+            dialogTitle: 'Share your Lore',
+            UTI: 'public.jpeg'
+          });
+        }
+        
+        // Save to DB and exit
+        router.push('/(app)/(tabs)/explore');
+        
+      } catch (err) {
+        console.error("Failed to share", err);
+      }
+    }
+  };
+
+  return (
+    <Screen>
+      <TopBar title="Complete Quest" onBack={() => router.back()} />
+      <ScrollView className="flex-1 px-4" contentContainerStyle={{ paddingBottom: 40 }}>
+        
+        {/* Header with dynamic "Change" button */}
+        <View className="flex-row justify-between items-end mb-3 mt-4">
+          <AppText className="font-serif text-lg">The Hero Shot</AppText>
+          {heroImage && (
+            <TouchableOpacity onPress={() => pickImage(true)}>
+              <AppText className="opacity-40 text-xs tracking-widest uppercase">Change Image</AppText>
+            </TouchableOpacity>
           )}
-          <View className="p-6">
-            <AppText variant="eyebrow">Turn quest into Lore</AppText>
-            <AppText variant="title" className="mt-3">{quest.title}</AppText>
-            <AppText className="mt-3 text-ink/70">{quest.journalPrompt}</AppText>
-            <View className="mt-5 flex-row flex-wrap gap-2">
-              <Chip label={`+${pointsPreview} LP`} />
-              <Chip label={photos.length === 1 ? "1 photo" : `${photos.length} photos`} />
+        </View>
+
+        {/* Live Preview / Hero Image Selector */}
+        {heroImage ? (
+          <View className="w-full rounded-xl overflow-hidden shadow-sm">
+            <ViewShot ref={viewShotRef} options={{ format: 'jpg', quality: 1.0 }}>
+              <LoreCard 
+                heroImageUri={heroImage}
+                title={questTitle}
+                caption={caption || "No words needed."}
+                locationName={location || "UNKNOWN LOCATION"}
+
+              />
+            </ViewShot>
+          </View>
+        ) : (
+          <TouchableOpacity 
+            onPress={() => pickImage(true)}
+            className="w-full h-32 rounded-xl border border-dashed border-black/10 bg-black/5 flex items-center justify-center transition-all"
+          >
+            <View className="items-center space-y-3">
+              <Camera color="rgba(0,0,0,0.3)" size={32} />
+              <AppText className="opacity-40 tracking-widest text-xs uppercase">Select Main Image</AppText>
             </View>
-          </View>
-        </View>
+          </TouchableOpacity>
+        )}
 
-        <View className="mt-5 rounded-card border border-line bg-surface p-5">
-          <AppText variant="subtitle">Photographs</AppText>
-          <AppText className="mt-2 text-ink/65">Add up to six. The first becomes the cover image.</AppText>
-          <View className="mt-5 flex-row gap-3">
-            <Button label="Choose" variant="secondary" className="flex-1" onPress={pickImage} />
-            <Button label="Camera" variant="quiet" className="flex-1" onPress={captureImage} />
-          </View>
-          {photos.length > 0 ? (
-            <View className="mt-5 flex-row flex-wrap gap-3">
-              {photos.map((photo, index) => (
-                <Pressable key={`${photo.uri}-${index}`} onPress={() => setPhotos((current) => current.filter((item) => item.uri !== photo.uri))}>
-                  <Image source={{ uri: photo.uri }} contentFit="cover" style={{ width: 96, height: 116, borderRadius: 24 }} />
-                </Pressable>
-              ))}
+        {/* Additional B-Roll Images */}
+        <View className="mt-8 flex-row justify-between items-center mb-3">
+          <AppText className="font-serif text-lg">Additional Photos</AppText>
+          <AppText className="opacity-40 text-xs tracking-widest">{extraImages.length} / 3</AppText>
+        </View>
+        <View className="flex-row space-x-3 h-24">
+          {extraImages.map((uri, index) => (
+            <View key={index} className="w-24 h-24 rounded-lg overflow-hidden relative border border-black/5">
+              <Image source={{ uri }} className="w-full h-full" resizeMode="cover" />
+              <TouchableOpacity 
+                className="absolute top-1 right-1 bg-black/50 p-1 rounded-full"
+                onPress={() => removeExtraImage(index)}
+              >
+                <X color="white" size={12} />
+              </TouchableOpacity>
             </View>
-          ) : null}
+          ))}
+          {extraImages.length < 3 && (
+            <TouchableOpacity 
+              onPress={() => pickImage(false)}
+              className="w-24 h-24 rounded-lg border border-dashed border-black/10 items-center justify-center bg-black/5"
+            >
+              <Plus color="rgba(0,0,0,0.3)" size={20} />
+            </TouchableOpacity>
+          )}
         </View>
 
-        <View className="mt-5 rounded-card border border-line bg-surface p-5">
-          <AppText variant="subtitle">Field note</AppText>
-          <TextInput
-            placeholder="Title"
-            placeholderTextColor="#787267"
-            value={title}
-            onChangeText={setTitle}
-            className="mt-5 rounded-3xl border border-line bg-background px-5 py-4 font-sans text-[15px] text-ink"
-          />
-          <TextInput
-            multiline
-            textAlignVertical="top"
-            placeholder="What happened?"
-            placeholderTextColor="#787267"
-            value={journal}
-            onChangeText={setJournal}
-            className="mt-3 min-h-[150px] rounded-3xl border border-line bg-background px-5 py-4 font-sans text-[15px] leading-6 text-ink"
-          />
-          <TextInput
-            placeholder="Location name"
-            placeholderTextColor="#787267"
-            value={locationName}
-            onChangeText={setLocationName}
-            className="mt-3 rounded-3xl border border-line bg-background px-5 py-4 font-sans text-[15px] text-ink"
-          />
-          <Button label="Use current location" variant="secondary" className="mt-4" onPress={useCurrentLocation} />
-          {locationStatus ? <AppText className="mt-3 text-ink/65">{locationStatus}</AppText> : null}
+        {/* Caption Input */}
+        <AppText className="font-serif text-lg mb-3 mt-8">Caption</AppText>
+        <TextInput
+          className="w-full bg-black/5 rounded-xl p-4 font-serif text-base border border-black/5 min-h-[100px] text-black"
+          placeholder="What will you remember..."
+          placeholderTextColor="rgba(0,0,0,0.3)"
+          multiline
+          textAlignVertical="top"
+          value={caption}
+          onChangeText={setCaption}
+        />
 
-          <View className="mt-5 flex-row flex-wrap gap-2">
-            {moodOptions.map((option) => (
-              <Pressable key={option} onPress={() => setMood(option)}>
-                <View className={mood === option ? "rounded-full bg-ink px-4 py-2" : "rounded-full border border-line bg-background px-4 py-2"}>
-                  <AppText variant="caption" className={mood === option ? "font-sansSemi text-ivory" : "font-sansSemi text-ink"}>{option}</AppText>
-                </View>
-              </Pressable>
-            ))}
+        {/* Location & Tags Input */}
+        <View className="flex-row space-x-3 mt-4">
+          <View className="flex-1 bg-black/5 rounded-xl p-4 border border-black/5 flex-row items-center space-x-3">
+            <MapPin color="rgba(0,0,0,0.3)" size={18} />
+            <TextInput
+              className="flex-1 font-sans text-sm text-black"
+              placeholder="Location (e.g., Mexico City)"
+              placeholderTextColor="rgba(0,0,0,0.3)"
+              value={location}
+              onChangeText={setLocation}
+            />
           </View>
+          <TouchableOpacity className="bg-black/5 rounded-xl p-4 border border-black/5 flex items-center justify-center w-14">
+            <Users color="rgba(0,0,0,0.3)" size={18} />
+          </TouchableOpacity>
         </View>
 
-        <Button label={createLoreEntry.isPending ? "Saving" : "Save Lore entry"} className="mt-6" onPress={handleSubmit} disabled={createLoreEntry.isPending} />
-      </View>
+        {/* Action Buttons */}
+        <View className="mt-10 mb-6 space-y-4">
+          <Button 
+          label="Share to Instagram"
+            onPress={handleShare} 
+            disabled={!heroImage}
+          >
+            <AppText className={`text-center font-bold tracking-widest uppercase ${!heroImage ? 'opacity-40' : 'text-white'}`}>
+              Share to Instagram
+            </AppText>
+          </Button>
+          
+          {heroImage && (
+            <TouchableOpacity onPress={() => router.push('/(app)/(tabs)/explore')}>
+              <AppText className="opacity-50 text-center uppercase tracking-wider text-xs py-2">
+                Save to Archive Only
+              </AppText>
+            </TouchableOpacity>
+          )}
+        </View>
+
+      </ScrollView>
     </Screen>
   );
 }
