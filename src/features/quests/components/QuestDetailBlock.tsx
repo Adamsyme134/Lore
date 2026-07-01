@@ -10,7 +10,7 @@ import { LinkWidget } from './widgets/LinkWidget';
 import { QuestStepCard } from "./QuestStepCard"; 
 import { useQuestExecution } from "../context/QuestExecutionContext"; 
 import { ChecklistWidget } from './widgets/ChecklistWidget'; 
-
+import { MapWidget } from './widgets/MapWidget';
 const parseConfig = (str: string) => {
   const obj: Record<string, string> = {};
   str.split('&').forEach(pair => {
@@ -126,7 +126,16 @@ export function QuestDetailBlock({ quest, checkedSteps = [], onToggleStep, isAct
                       flushInline();
                       const raw = part.slice(11, -1);
                       blocks.push(<ChecklistWidget key={`chk-${i}`} config={raw} stepIndex={index} />);
-                    } else if (part !== "") {
+                    } else if (part.startsWith('[CHECKLIST:')) { 
+                      flushInline();
+                      const raw = part.slice(11, -1);
+                      blocks.push(<ChecklistWidget key={`chk-${i}`} config={raw} stepIndex={index} />);
+                    } else if (part.startsWith('[MAP:')) {
+                      flushInline();
+                      const raw = part.slice(5, -1);
+                      blocks.push(<MapWidget key={`map-${i}`} config={raw} />);
+                    } 
+                    else if (part !== "") {
                       currentInline.push(<Text key={`text-${i}`}>{part}</Text>);
                     }
                   });

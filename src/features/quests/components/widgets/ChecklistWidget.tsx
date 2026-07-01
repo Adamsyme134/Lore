@@ -7,8 +7,8 @@ import { Ionicons } from '@expo/vector-icons';
 
 export function ChecklistWidget({ config, stepIndex }: { config: string, stepIndex: number }) {
   const { setVariable, getVariable } = useQuestExecution();
-  const items = config.replace('items=', '').split(',').map(s => decodeURIComponent(s.trim())).filter(Boolean);
-  
+  const rawItemsString = config.startsWith('items=') ? decodeURIComponent(config.replace('items=', '')) : config;
+  const items = rawItemsString.split(',').map(s => s.trim()).filter(Boolean);
   const stateKey = `step_${stepIndex}_checklist_state`;
   const completedKey = `step_${stepIndex}_checklist_completed`;
   

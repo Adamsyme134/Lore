@@ -78,7 +78,7 @@ export function QuestStepCard({
       )}
 
       {/* Action Button */}
-      {isActiveStep && (
+      {isActiveStep && !needsExpansion && (
         <View className="mt-6 pt-4 border-t border-line/50">
           <Button label="Complete Step" onPress={onComplete} className={`w-full ${theme.bg}`} disabled={isCompleteDisabled} />
         </View>

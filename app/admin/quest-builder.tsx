@@ -20,7 +20,7 @@ import { requireSupabase } from "../../src/lib/supabase";
 
 const CATEGORIES: (QuestCategory | "All")[] = ["All", "Adventure", "Skill", "Culture", "Food & Drink", "Wellness", "Social"];
 // -- WIDGETS SETUP -- //
-type WidgetType = 'RANDOMISER' | 'LOCATION' | 'YOUTUBE' | 'LINK' | 'CHECKLIST';
+type WidgetType = 'RANDOMISER' | 'LOCATION' | 'YOUTUBE' | 'LINK' | 'CHECKLIST' | 'MAP';
 export const WIDGET_REGISTRY: Record<WidgetType, {
   id: string;
   icon: string;
@@ -62,6 +62,13 @@ export const WIDGET_REGISTRY: Record<WidgetType, {
     label: "Checklist",
     placeholder: "Pack water, Check map...",
     theme: { bg: "bg-green-100", border: "border-green-300", text: "text-green-700", containerBg: "bg-green-50", containerBorder: "border-green-200", activeBg: "active:bg-green-200" }
+  },
+  MAP: {
+    id: "map",
+    icon: "🗺️",
+    label: "Interactive Map",
+    placeholder: "Configure Map...",
+    theme: { bg: "bg-emerald-100", border: "border-emerald-300", text: "text-emerald-700", containerBg: "bg-emerald-50", containerBorder: "border-emerald-200", activeBg: "active:bg-emerald-200" }
   }
 };
 
@@ -98,7 +105,7 @@ const extractTitleAndText = (stepStr: string) => {
 };
 
 const buildStepString = (title: string, text: string) => {
-  if (title.trim()) return `[TITLE:${title.trim()}]${text}`;
+  if (title) return `[TITLE:${title}]${text}`;
   return text;
 };
 // Helper to extract exposed variables from steps
@@ -734,7 +741,56 @@ export default function QuestBuilderAdmin() {
                                   </Pressable>
                                 );
                               }
-                              
+                              // --- VISUAL PREVIEW FOR CHECKLIST ---
+                              if (widgetType === 'CHECKLIST') {
+                                const c = parseConfig(widgetConfig);
+                                const items = (c.items || '').split(',').map(s => s.trim()).filter(Boolean);
+                                
+                                return (
+                                  <Pressable 
+                                    key={chunkIndex} 
+                                    onPress={() => setActiveWidgetConfig({ stepIndex: index, chunkIndex, type: widgetType, config: widgetConfig })}
+                                    className="w-full my-3 rounded-xl p-4 flex-col group shadow-sm border border-line bg-white relative"
+                                  >
+                                    {items.length === 0 ? (
+                                      <AppText className="text-ink/50 italic py-2">Empty checklist...</AppText>
+                                    ) : (
+                                      items.map((item, i) => (
+                                        <View key={i} className="flex-row items-center py-2 pointer-events-none">
+                                          <View className="w-6 h-6 rounded-md border border-line bg-white mr-3" />
+                                          <AppText className="text-base text-ink">{item}</AppText>
+                                        </View>
+                                      ))
+                                    )}
+                                    <View className="absolute top-3 right-3 bg-stone px-3 py-1.5 rounded-full border border-line opacity-50 group-hover:opacity-100 z-10">
+                                        <AppText className="text-xs font-sansSemi">✏️ Edit</AppText>
+                                    </View>
+                                  </Pressable>
+                                );
+                              }
+                              // --- VISUAL PREVIEW FOR MAP ---
+                              if (widgetType === 'MAP') {
+                                const c = parseConfig(widgetConfig);
+                                const pinsCount = (c.pins || '').split('|').filter(Boolean).length;
+                                return (
+                                  <Pressable 
+                                    key={chunkIndex} 
+                                    onPress={() => setActiveWidgetConfig({ stepIndex: index, chunkIndex, type: widgetType, config: widgetConfig })}
+                                    className="w-full my-3 rounded-xl p-4 flex-col group shadow-sm border border-line bg-stone overflow-hidden relative"
+                                  >
+                                    <View className="flex-row items-center mb-1">
+                                      <AppText className="text-2xl mr-2">🗺️</AppText>
+                                      <View>
+                                        <AppText className="font-sansSemi text-ink">{c.title || 'Interactive Map'}</AppText>
+                                        <AppText className="text-ink/60 text-xs">{pinsCount} pinned location(s)</AppText>
+                                      </View>
+                                    </View>
+                                    <View className="absolute top-3 right-3 bg-white px-3 py-1.5 rounded-full border border-line opacity-70 group-hover:opacity-100 z-10">
+                                      <AppText className="text-xs font-sansSemi">✏️ Edit Map</AppText>
+                                    </View>
+                                  </Pressable>
+                                );
+                              }
 
                               // --- FALLBACK: INLINE PILLS FOR RANDOMISER & LOCATION ---
                               return (
@@ -1230,6 +1286,92 @@ updateField('steps', newSteps);
                             );
                           })()}
 
+                          {/* MAP CONFIG UI */}
+                          {activeWidgetConfig.type === 'MAP' && (() => {
+                            const currentCfg = parseConfig(activeWidgetConfig.config);
+                            const pins = (currentCfg.pins || '').split('|').filter(Boolean);
+                            
+                            const modifyConfig = (key: string, val: string) => {
+                                const nextCfg = { ...currentCfg, [key]: val };
+                                const newConfigStr = serializeConfig(nextCfg);
+                                setActiveWidgetConfig(prev => prev ? {...prev, config: newConfigStr} : null);
+                                
+                                const newParts = rawStepText.split(WIDGET_REGEX);
+                                newParts[activeWidgetConfig!.chunkIndex] = `[MAP:${newConfigStr}]`;
+                                const newRawText = newParts.join('');
+                                const newSteps = [...quest.steps];
+                                newSteps[index] = buildStepString(title, newRawText);
+                                updateField('steps', newSteps);
+                            };
+
+                            const addPin = () => {
+                                const newPins = [...pins, '51.5074,-0.1278,New Location'];
+                                modifyConfig('pins', newPins.join('|'));
+                            };
+
+                            const updatePin = (i: number, val: string) => {
+                                const newPins = [...pins];
+                                newPins[i] = val;
+                                modifyConfig('pins', newPins.join('|'));
+                            };
+
+                            const removePin = (i: number) => {
+                                const newPins = pins.filter((_, idx) => idx !== i);
+                                modifyConfig('pins', newPins.join('|'));
+                            };
+
+                            return (
+                              <View className="flex-col gap-2 w-full">
+                                <AppText className="text-xs mb-1">Map Title</AppText>
+                                <TextInput
+                                  className="bg-white p-3 mb-2 rounded-lg border border-line font-sans text-sm outline-none"
+                                  placeholder="E.g. Route Overview"
+                                  value={currentCfg.title || ''}
+                                  onChangeText={(txt) => modifyConfig('title', txt)}
+                                />
+
+                                <View className="flex-row justify-between items-center mt-2 mb-1">
+                                  <AppText className="text-xs">Pins</AppText>
+                                  <Pressable onPress={addPin}><AppText className="text-blue text-xs font-sansSemi">+ Add Pin</AppText></Pressable>
+                                </View>
+
+                                <ScrollView className="max-h-[250px] w-full" nestedScrollEnabled>
+                                  {pins.map((pinStr, i) => {
+                                    const [lat, lng, ...titleParts] = pinStr.split(',');
+                                    const pinTitle = titleParts.join(',');
+                                    return (
+                                      <View key={i} className="flex-col gap-1 mb-3 p-3 bg-white rounded-lg border border-line">
+                                        <View className="flex-row justify-between items-center mb-1">
+                                          <AppText className="text-[10px] text-ink/50 uppercase font-sansSemi">Pin {i+1}</AppText>
+                                          <Pressable onPress={() => removePin(i)}><AppText className="text-red-500 text-[10px] font-sansSemi">Remove</AppText></Pressable>
+                                        </View>
+                                        <TextInput
+                                          className="bg-stone p-2 rounded border border-line font-sans text-xs outline-none"
+                                          placeholder="Title (e.g. The Red Lion)"
+                                          value={pinTitle}
+                                          onChangeText={(txt) => updatePin(i, `${lat},${lng},${txt}`)}
+                                        />
+                                        <View className="flex-row gap-2 mt-1">
+                                          <TextInput
+                                            className="flex-1 bg-stone p-2 rounded border border-line font-sans text-xs outline-none"
+                                            placeholder="Latitude"
+                                            value={lat}
+                                            onChangeText={(txt) => updatePin(i, `${txt},${lng},${pinTitle}`)}
+                                          />
+                                          <TextInput
+                                            className="flex-1 bg-stone p-2 rounded border border-line font-sans text-xs outline-none"
+                                            placeholder="Longitude"
+                                            value={lng}
+                                            onChangeText={(txt) => updatePin(i, `${lat},${txt},${pinTitle}`)}
+                                          />
+                                        </View>
+                                      </View>
+                                    );
+                                  })}
+                                </ScrollView>
+                              </View>
+                            );
+                          })()}
                         </View>
                       )}
 
