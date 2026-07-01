@@ -4,6 +4,7 @@ import { LinearGradient } from 'expo-linear-gradient'; // Ensure expo-linear-gra
 import { AppText } from '../../../shared/components/AppText';
 import { accentClass, type Accent } from '../../../shared/design/tokens';
 import { Button } from '../../../shared/components/Button';
+
 if (
   Platform.OS === 'android' && 
   UIManager.setLayoutAnimationEnabledExperimental && 
@@ -68,21 +69,25 @@ export function QuestStepCard({
 
       {/* Content Wrapper */}
       <View style={{ maxHeight: isExpanded ? undefined : EXPAND_THRESHOLD, overflow: 'hidden' }}>
-  <View onLayout={(e) => setContentHeight(e.nativeEvent.layout.height)}>
-    {children}
-  </View>
-</View>
+        <View onLayout={(e) => setContentHeight(e.nativeEvent.layout.height)}>
+          {children}
+        </View>
+      </View>
 
-      {/* Show More Overlay */}
+      {/* Show More Overlay - UPDATED TO BE FULL WIDTH & BOTTOM GLUED */}
       {needsExpansion && (
-        <View className="absolute bottom-[80px] left-0 right-0 h-24 justify-end items-center">
+        <View className="absolute bottom-0 left-0 right-0 h-32 justify-end rounded-b-card overflow-hidden">
           <LinearGradient colors={['transparent', 'rgba(255,255,255,0.8)', 'rgba(255,255,255,1)']} className="absolute inset-0" />
-          <Pressable onPress={toggleExpand} className="z-10 px-5 py-2 bg-stone rounded-full border border-line">
+          <Pressable 
+            onPress={toggleExpand} 
+            className="z-10 w-full py-3 bg-stone border-t border-line items-center justify-center"
+          >
             <AppText className="font-sansSemi text-xs text-ink/70">Show full step ↓</AppText>
           </Pressable>
         </View>
       )}
-        {/* Collapse Button */}
+
+      {/* Collapse Button */}
       {isExpanded && (
         <View className="mt-4 items-center">
           <Pressable onPress={toggleExpand} className="px-5 py-2 bg-stone rounded-full border border-line">
@@ -90,6 +95,7 @@ export function QuestStepCard({
           </Pressable>
         </View>
       )}
+
       {/* Action Button */}
       {isActiveStep && !needsExpansion && (
         <View className="mt-6 pt-4 border-t border-line/50">

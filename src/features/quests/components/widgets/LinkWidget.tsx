@@ -21,6 +21,7 @@ const parseConfig = (str: string) => {
 export function LinkWidget({ config }: LinkWidgetProps) {
   const cfg = parseConfig(config);
   const isInline = cfg.displayType === 'inline';
+  const isAffiliate = cfg.isAffiliate === 'true';
 
   if (isInline) {
     return (
@@ -52,9 +53,20 @@ export function LinkWidget({ config }: LinkWidgetProps) {
         <AppText className="font-sansSemi text-base" style={{ color: cfg.textColor || (cfg.bgImage ? 'white' : '#1C1A17') }}>
           {cfg.title || 'External Link'}
         </AppText>
+        
         {!!cfg.desc && (
            <AppText className="text-xs mt-1" style={{ color: cfg.textColor ? `${cfg.textColor}CC` : (cfg.bgImage ? 'rgba(255,255,255,0.8)' : 'rgba(28,26,23,0.6)') }}>
             {cfg.desc}
+          </AppText>
+        )}
+
+        {/* AFFILIATE DISCLAIMER */}
+        {isAffiliate && (
+          <AppText 
+            className="text-[9px] mt-1" 
+            style={{ color: cfg.textColor ? `${cfg.textColor}80` : (cfg.bgImage ? 'rgba(255,255,255,0.5)' : 'rgba(28,26,23,0.4)') }}
+          >
+            (i) we may earn a commission on payments made using this link
           </AppText>
         )}
       </View>

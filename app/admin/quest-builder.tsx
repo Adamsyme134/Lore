@@ -705,6 +705,7 @@ export default function QuestBuilderAdmin() {
                               if (widgetType === 'LINK') {
                                 const c = parseConfig(widgetConfig);
                                 const isInline = c.displayType === 'inline';
+                                const isAffiliate = c.isAffiliate === 'true';
 
                                 if (isInline) {
                                   return (
@@ -732,8 +733,17 @@ export default function QuestBuilderAdmin() {
                                     )}
                                     <View className="flex-1 mr-4 z-10">
                                         <AppText className="font-sansSemi text-base" style={{ color: c.textColor || (c.bgImage ? 'white' : '#1C1A17') }}>{c.title || 'Beautiful Link Title'}</AppText>
-                                        {!!c.desc && <AppText className="text-sm mt-0.5" style={{ color: c.textColor ? `${c.textColor}CC` : (c.bgImage ? 'rgba(255,255,255,0.8)' : 'rgba(28,26,23,0.6)') }}>{c.desc}</AppText>}
-                                        <AppText className="text-xs mt-1" style={{ color: c.bgImage ? 'rgba(255,255,255,0.6)' : '#3b82f6' }}>{c.url || 'https://...'}</AppText>
+                                        
+                                        {!!c.desc && <AppText className="text-xs mt-1" style={{ color: c.textColor ? `${c.textColor}CC` : (c.bgImage ? 'rgba(255,255,255,0.8)' : 'rgba(28,26,23,0.6)') }}>{c.desc}</AppText>}
+                                        
+                                        {/* PREVIEW: AFFILIATE DISCLAIMER */}
+                                        {isAffiliate && (
+                                          <AppText className="text-[9px] mt-1" style={{ color: c.textColor ? `${c.textColor}80` : (c.bgImage ? 'rgba(255,255,255,0.5)' : 'rgba(28,26,23,0.4)') }}>
+                                            (i) we may earn a commission on payments made using this link
+                                          </AppText>
+                                        )}
+
+                                        <AppText className="text-[10px] mt-1" style={{ color: c.bgImage ? 'rgba(255,255,255,0.6)' : '#3b82f6' }}>{c.url || 'https://...'}</AppText>
                                     </View>
                                     <View className="bg-stone px-3 py-1.5 rounded-full border border-line opacity-50 group-hover:opacity-100 z-10">
                                         <AppText className="text-xs font-sansSemi">✏️ Edit</AppText>
@@ -812,10 +822,11 @@ export default function QuestBuilderAdmin() {
                             return (
                               <View 
                                 key={chunkIndex} 
-                                className="relative justify-start" 
+                                className="relative justify-start shrink" 
                                 style={{ 
                                     minWidth: 20, 
                                     minHeight: 28, 
+                                    maxWidth: '100%',
                                     flex: (chunkIndex === parsed.length - 1 && !part.includes('\n')) ? 1 : undefined,
                                     width: part.includes('\n') ? '100%' : undefined
                                 }}
@@ -839,9 +850,13 @@ export default function QuestBuilderAdmin() {
                                   value={part}
                                   placeholder={chunkIndex === 0 && parsed.length === 1 ? "Enter a step..." : ""}
                                   onChangeText={(txt) => {
-                                      chunkTextsRef.current[`${index}-${chunkIndex}`] = txt;
+                                      // ✨ Auto-format bullet points: 
+                                      // Replace "- " or "* " at the start of any line with an indented bullet
+                                      const formattedTxt = txt.replace(/^[-*]\s/gm, '  • ');
+                                      
+                                      chunkTextsRef.current[`${index}-${chunkIndex}`] = formattedTxt;
                                       const newParts = [...parsed];
-                                      newParts[chunkIndex] = txt;
+                                      newParts[chunkIndex] = formattedTxt;
                                       const newRawText = newParts.join('');
                                       const newSteps = [...quest.steps];
                                       newSteps[index] = buildStepString(title, newRawText);
@@ -900,7 +915,52 @@ export default function QuestBuilderAdmin() {
                                   onKeyPress={(e: any) => {
     
                                     if (e.nativeEvent.key === "Enter") {
-                                        if (e.nativeEvent.shiftKey) return; 
+                                        if (e.nativeEvent.shiftKey) {
+                                            // ✨ Auto-continue bullet list on Shift+Enter
+                                            const currentTxt = chunkTextsRef.current[`${index}-${chunkIndex}`] ?? part;
+                                            const sel = selectionRef.current[`${index}-${chunkIndex}`] || { start: currentTxt.length, end: currentTxt.length };
+                                            
+                                            const textUpToCursor = currentTxt.substring(0, sel.start);
+                                            const lines = textUpToCursor.split('\n');
+                                            const lastLine = lines[lines.length - 1];
+                                            
+                                            // Check if the current line starts with a bullet point
+                                            const bulletMatch = lastLine.match(/^(\s*•\s+)/);
+                                            
+                                            if (bulletMatch) {
+                                                if (e.preventDefault) e.preventDefault();
+                                                const bulletPrefix = bulletMatch[1];
+                                                
+                                                if (lastLine.trim() === '•') {
+                                                    // If empty bullet, delete it to exit the list
+                                                    const newUpToCursor = textUpToCursor.substring(0, textUpToCursor.length - bulletPrefix.length);
+                                                    const textAfterCursor = currentTxt.substring(sel.end);
+                                                    const newTxt = newUpToCursor + '\n' + textAfterCursor;
+                                                    
+                                                    chunkTextsRef.current[`${index}-${chunkIndex}`] = newTxt;
+                                                    const newParts = [...parsed];
+                                                    newParts[chunkIndex] = newTxt;
+                                                    const newRawText = newParts.join('');
+                                                    const newSteps = [...quest.steps];
+                                                    newSteps[index] = buildStepString(title, newRawText);
+                                                    updateField('steps', newSteps);
+                                                } else {
+                                                    // Continue list with same indentation
+                                                    const textAfterCursor = currentTxt.substring(sel.end);
+                                                    const newTxt = textUpToCursor + '\n' + bulletPrefix + textAfterCursor;
+                                                    
+                                                    chunkTextsRef.current[`${index}-${chunkIndex}`] = newTxt;
+                                                    const newParts = [...parsed];
+                                                    newParts[chunkIndex] = newTxt;
+                                                    const newRawText = newParts.join('');
+                                                    const newSteps = [...quest.steps];
+                                                    newSteps[index] = buildStepString(title, newRawText);
+                                                    updateField('steps', newSteps);
+                                                }
+                                                return;
+                                            }
+                                            return; 
+                                        }
                                         
                                         if (e.preventDefault) e.preventDefault(); 
                                         
@@ -915,9 +975,9 @@ export default function QuestBuilderAdmin() {
                                             const newParts = [...parsed];
                                             newParts[chunkIndex] = updatedUpToCursor + textAfterCursor;
                                             const newRawText = newParts.join('');
-const newSteps = [...quest.steps];
-newSteps[index] = buildStepString(title, newRawText);
-updateField('steps', newSteps);
+                                            const newSteps = [...quest.steps];
+                                            newSteps[index] = buildStepString(title, newRawText);
+                                            updateField('steps', newSteps);
                                             setSlashMenu({ visible: false, query: "", stepIndex: -1, chunkIndex: -1, cursor: -1 });
                                         } else {
                                             const newSteps = [...quest.steps];
@@ -931,9 +991,9 @@ updateField('steps', newSteps);
                                         const newParts = [...parsed];
                                         newParts.splice(chunkIndex - 1, 2); 
                                         const newRawText = newParts.join('');
-const newSteps = [...quest.steps];
-newSteps[index] = buildStepString(title, newRawText);
-updateField('steps', newSteps);
+                                        const newSteps = [...quest.steps];
+                                        newSteps[index] = buildStepString(title, newRawText);
+                                        updateField('steps', newSteps);
                                       } else if (quest.steps.length > 1 && parsed.length === 1) {
                                         const newSteps = [...quest.steps];
                                         newSteps.splice(index, 1);
@@ -1190,6 +1250,7 @@ updateField('steps', newSteps);
                           {/* LINK CONFIG UI */}
                           {activeWidgetConfig.type === 'LINK' && (() => {
                             const currentCfg = parseConfig(activeWidgetConfig.config);
+                            const isAffiliate = currentCfg.isAffiliate === 'true';
                             
                             const modifyConfig = (key: string, val: string) => {
                                 const nextCfg = { ...currentCfg, [key]: val };
@@ -1212,6 +1273,17 @@ updateField('steps', newSteps);
                                   selected={currentCfg.displayType === 'inline' ? 'Inline' : 'Block'}
                                   onSelect={(v) => modifyConfig('displayType', v.toLowerCase())}
                                 />
+                                
+                                {/* AFFILIATE TOGGLE (Only show if Block type) */}
+                                {currentCfg.displayType !== 'inline' && (
+                                  <ToggleGroup
+                                    label="Affiliate Link?"
+                                    options={["No", "Yes"]}
+                                    selected={isAffiliate ? 'Yes' : 'No'}
+                                    onSelect={(v) => modifyConfig('isAffiliate', v === 'Yes' ? 'true' : 'false')}
+                                  />
+                                )}
+
                                 <AppText className="text-xs mb-1">Destination URL</AppText>
                                 <TextInput
                                   className="bg-white p-3 mb-2 rounded-lg border border-line font-sans text-sm outline-none"
@@ -1259,10 +1331,13 @@ updateField('steps', newSteps);
                           {/* CHECKLIST UI */}
                           {activeWidgetConfig.type === 'CHECKLIST' && (() => {
                             const currentCfg = parseConfig(activeWidgetConfig.config);
-                            const items = currentCfg.items || '';
+                            // Extract items, falling back if it's an old string
+                            const items = currentCfg.items !== undefined ? currentCfg.items : activeWidgetConfig.config.replace('items=', '');
+                            const isRequired = currentCfg.isRequired === 'true';
                             
-                            const modifyConfig = (val: string) => {
-                                const newConfigStr = `items=${encodeURIComponent(val)}`;
+                            const modifyConfig = (key: string, val: string) => {
+                                const nextCfg = { ...currentCfg, items, [key]: val };
+                                const newConfigStr = serializeConfig(nextCfg);
                                 setActiveWidgetConfig(prev => prev ? {...prev, config: newConfigStr} : null);
                                 
                                 const newParts = rawStepText.split(WIDGET_REGEX);
@@ -1275,12 +1350,18 @@ updateField('steps', newSteps);
 
                             return (
                               <View className="flex-col gap-2">
+                                <ToggleGroup 
+                                  label="Required to Complete Step?" 
+                                  options={["No", "Yes"]} 
+                                  selected={isRequired ? 'Yes' : 'No'} 
+                                  onSelect={(v) => modifyConfig('isRequired', v === 'Yes' ? 'true' : 'false')} 
+                                />
                                 <AppText className="text-xs mb-1">Checklist Items (Comma separated)</AppText>
                                 <TextInput
                                   className="bg-white p-3 mb-2 rounded-lg border border-line font-sans text-sm outline-none"
                                   placeholder="E.g. Pack water, Check map"
-                                  value={items}
-                                  onChangeText={modifyConfig}
+                                  value={decodeURIComponent(items)}
+                                  onChangeText={(txt) => modifyConfig('items', txt)}
                                 />
                               </View>
                             );

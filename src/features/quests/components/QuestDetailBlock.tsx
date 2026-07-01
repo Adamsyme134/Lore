@@ -42,7 +42,7 @@ export function QuestDetailBlock({ quest, checkedSteps = [], onToggleStep, isAct
   const isGroup = quest.maxParticipants > 1;
   const groupLabel = isGroup ? `Group (${quest.minParticipants}-${quest.maxParticipants})` : "Solo";
   const currentActiveStepIndex = isActive ? checkedSteps.length : -1;
-
+  
   return (
     <View className="mt-4">
       <View className="mb-6 flex-row flex-wrap gap-2 px-2">
@@ -70,8 +70,9 @@ export function QuestDetailBlock({ quest, checkedSteps = [], onToggleStep, isAct
           const isCompleteDisabled = hasChecklist && !isChecklistComplete;
           // Split ONLY the text that no longer contains the [TITLE:] tag
           const parsed = rawStepText.split(/(\[[A-Z_]+:.*?\])/g);
-
+          const isStepValid = getVariable(`step_${index}_valid`) ?? true;
           return (
+            
             <QuestStepCard 
               key={index} 
               stepIndex={index}
@@ -79,9 +80,10 @@ export function QuestDetailBlock({ quest, checkedSteps = [], onToggleStep, isAct
               isActiveStep={isActiveStep}
               isCompleted={isCompleted}
               isLocked={isLocked && !isCompleted}
-              isCompleteDisabled={isCompleteDisabled}
+              isCompleteDisabled={!isStepValid}
               accent={quest.accent}
               onComplete={() => { if (onToggleStep) onToggleStep(index); }}
+    
             >
               <View className="flex-col w-full">
                 

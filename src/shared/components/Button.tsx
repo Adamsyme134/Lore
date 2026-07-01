@@ -8,6 +8,7 @@ type ButtonProps = PressableProps & {
   label: string;
   variant?: ButtonVariant;
   className?: string;
+  disabled?: boolean;
 };
 
 const variantClass: Record<ButtonVariant, string> = {
