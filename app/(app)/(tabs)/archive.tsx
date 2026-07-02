@@ -11,6 +11,9 @@ import { LoreCard } from "../../../src/features/lore/components/LoreCard";
 export default function ArchiveScreen() {
   const router = useRouter();
   const { data: loreEntries } = useLoreEntries();
+  if (!loreEntries) {
+  return null;
+}
   const totalPoints = loreEntries.reduce((sum, entry) => sum + entry.pointsAwarded, 0);
 
   return (

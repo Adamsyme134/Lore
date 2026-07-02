@@ -35,7 +35,9 @@ type ExperienceState = {
   activateQuest: (questId: string) => void;
   toggleQuestStep: (questId: string, stepIndex: number) => void;
   addPreviewLoreEntry: (input: AddPreviewLoreInput) => LoreEntry;
+  deletePreviewLoreEntry: (entryId: string, questId?: string | null) => void;
 };
+
 
 // ✨ Wrapped in persist() to survive app reloads
 export const useExperienceStore = create<ExperienceState>()(
@@ -125,8 +127,22 @@ export const useExperienceStore = create<ExperienceState>()(
         });
 
         return entry;
+      },
+      deletePreviewLoreEntry: (entryId, questId) => {
+        set((state) => {
+          const entry = state.previewLoreEntries.find((e) => e.id === entryId);
+          const pointsToRemove = entry ? entry.pointsAwarded : 0;
+          return {
+            previewLoreEntries: state.previewLoreEntries.filter((e) => e.id !== entryId),
+            previewPoints: Math.max(0, state.previewPoints - pointsToRemove),
+            completedQuestIds: questId 
+              ? state.completedQuestIds.filter((id) => id !== questId) 
+              : state.completedQuestIds
+          };
+        });
       }
     }),
+    
     {
       name: "lore-experience-storage", // The key it will be saved under
       storage: createJSONStorage(() => AsyncStorage),

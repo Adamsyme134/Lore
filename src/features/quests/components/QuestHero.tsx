@@ -61,7 +61,7 @@ export function QuestHero({ quest, className, onPressOverride }: QuestHeroProps)
               {quest.pointsValue > 0 ? <Chip label={`${quest.pointsValue} LP`} tone="light" /> : null}
             </View>
 
-            <AppText variant="eyebrow" className="mb-3 text-ivory/80">
+            <AppText variant="eyebrow" className="mb-3 text-ivory/60">
               {quest.kicker}
             </AppText>
             <AppText variant="display" className="text-ivory">
@@ -69,7 +69,7 @@ export function QuestHero({ quest, className, onPressOverride }: QuestHeroProps)
             </AppText>
             
             <View className="mt-4 rounded-[20px] bg-ink p-4 shadow-md border border-line/5">
-              <AppText className="text-ivory/90 leading-6">
+              <AppText className="text-ivory/60 leading-6">
                 {quest.description}
               </AppText>
             </View>

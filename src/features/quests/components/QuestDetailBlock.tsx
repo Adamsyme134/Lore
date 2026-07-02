@@ -53,7 +53,7 @@ export function QuestDetailBlock({ quest, checkedSteps = [], onToggleStep, isAct
       </View>
 
       <View className="px-2 mb-6">
-        <AppText variant="subtitle" className={accent.text}>The Briefing</AppText>
+        <AppText variant="subtitle" className={accent.text}>Why do it?</AppText>
         <AppText className="mt-2 text-ink/70">{quest.whyItMatters}</AppText>
       </View>
 

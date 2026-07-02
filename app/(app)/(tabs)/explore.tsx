@@ -1,11 +1,12 @@
 // app/(app)/(tabs)/explore.tsx
 import { useState, useMemo, useEffect } from "react";
-import { View, ScrollView, TextInput, Pressable, ActivityIndicator } from "react-native";
+import { View, ScrollView, TextInput, Pressable, ActivityIndicator, TouchableOpacity } from "react-native";
 import { Screen } from "../../../src/shared/components/Screen";
 import { AppText } from "../../../src/shared/components/AppText";
 import { QuestCard } from "../../../src/features/quests/components/QuestCard";
 import { Ionicons } from '@expo/vector-icons'; // ✨ Needed for filter icon
 import { useAuth } from "../../../src/features/auth/AuthProvider";
+import { useRouter } from "expo-router";
 import type { 
   Quest, 
   QuestCategory, 
@@ -25,6 +26,7 @@ const COSTS: (QuestCost | "All")[] = ["All", "Free", "£", "££", "£££"]; //
 const LENGTHS: (QuestLength | "All")[] = ["All", "A few hours", "Full day", "Multi-day", "Long-term"]; // ✨ FIX 2
 
 export default function Explore() {
+  const router = useRouter(); // ✨ NEW
   const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
   const [activeCategory, setActiveCategory] = useState<QuestCategory | "All" | "Saved">("All");

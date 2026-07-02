@@ -249,3 +249,40 @@ export function useCreateLoreEntry() {
     }
   });
 }
+
+export function useDeleteLoreEntry() {
+  const { isBackendReady, user, refreshProfile } = useAuth();
+  const queryClient = useQueryClient();
+  const deletePreviewLoreEntry = useExperienceStore((state) => state.deletePreviewLoreEntry);
+
+  return useMutation({
+    mutationFn: async ({ entryId, questId }: { entryId: string, questId: string | null }) => {
+      // ✨ ALWAYS clear the local store cache so it doesn't artificially hide the quest
+      deletePreviewLoreEntry(entryId, questId);
+
+      if (!isBackendReady || !user || !supabase) {
+        return;
+      }
+
+      const client = requireSupabase();
+
+      const { error: deleteError } = await client.from("lore_entries").delete().eq("id", entryId);
+      if (deleteError) throw deleteError;
+
+      if (questId) {
+        const { error: questError } = await client.from("user_quests").delete().eq("user_id", user.id).eq("quest_id", questId);
+        if (questError) throw questError;
+      }
+    },
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["lore-entries"] }),
+        queryClient.invalidateQueries({ queryKey: ["points"] }),
+        queryClient.invalidateQueries({ queryKey: ["active-quests"] }),
+        queryClient.invalidateQueries({ queryKey: ["user-quests"] }),
+        queryClient.invalidateQueries({ queryKey: ["user-quests-status"] })
+      ]);
+      await refreshProfile();
+    }
+  });
+}

@@ -55,7 +55,7 @@ export default function QuestDetailScreen() {
               <View className="absolute inset-0 bg-charcoal/25" />
               <View className="absolute bottom-0 left-0 right-0 p-6">
                 <Animated.View entering={FadeInDown.duration(460)}>
-                  <AppText variant="eyebrow" className="mb-3 text-ivory/80">{quest.kicker}</AppText>
+                  <AppText variant="eyebrow" className="mb-3 text-ivory">{quest.kicker}</AppText>
                   <AppText variant="display" className="text-ivory">{quest.title}</AppText>
                 </Animated.View>
               </View>
@@ -73,15 +73,7 @@ export default function QuestDetailScreen() {
               ))}
             </View>
           )}
-          <View className="mt-6 rounded-card border border-line bg-surface p-6">
-            <AppText variant="subtitle">Journal prompt</AppText>
-            <AppText className="mt-3 text-ink/70">{quest.journalPrompt}</AppText>
-            <View className="mt-5 rounded-3xl bg-background px-4 py-3">
-              <AppText variant="caption" className="font-sansSemi text-ink">
-                Completion: {quest.pointsValue} Lore Points
-              </AppText>
-            </View>
-          </View>
+          
 
           <View className="mt-5">
             <QuestDetailBlock 

@@ -5,7 +5,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
 import type { Quest } from "../../../shared/types/domain";
 import { AppText } from "../../../shared/components/AppText";
-
+import { Chip } from "../../../shared/components/Chip";
 type QuestCardProps = {
   quest: Quest;
   compact?: boolean;
@@ -37,9 +37,28 @@ export function QuestCard({ quest, compact = false }: QuestCardProps) {
       />
 
       <View className="absolute bottom-0 left-0 right-0 p-5">
+        {!compact && (
+          <>
+            <View className="mb-3 flex-row flex-wrap gap-2">
+              {Array.isArray(quest.categories) ? quest.categories.map(cat => (
+                <Chip key={cat} label={cat} tone="light" />
+              )) : null}
+              {quest.length ? <Chip label={quest.length} tone="light" /> : null}
+              {quest.difficulty ? <Chip label={quest.difficulty} tone="light" /> : null}
+              {quest.cost ? <Chip label={quest.cost} tone="light" /> : null}
+            </View>
+            {quest.kicker && (
+              <AppText variant="eyebrow" className="mb-2 text-ivory/80">
+                {quest.kicker}
+              </AppText>
+            )}
+          </>
+        )}
+        
         <AppText variant={compact ? "subtitle" : "display"} className="text-ivory">
           {quest.title}
         </AppText>
+        
         {!compact && (
           <AppText numberOfLines={2} className="text-ivory/80 mt-1">
             {quest.description}
