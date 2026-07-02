@@ -87,8 +87,8 @@ export function useFriendMoments() {
   const { isBackendReady, user } = useAuth();
 
   return useQuery({
-    queryKey: ["friend-moments", user?.id],
-    queryFn: () => fetchFriendMomentsFromSupabase(user?.id),
+    queryKey: ["friend-moments", isBackendReady ? "remote" : "preview", user?.id],
+    queryFn: () => (isBackendReady && user?.id ? fetchFriendMomentsFromSupabase(user.id) : Promise.resolve([])),
     enabled: !!user
   });
 }

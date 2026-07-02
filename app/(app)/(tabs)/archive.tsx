@@ -35,20 +35,37 @@ export default function ArchiveScreen() {
       </View>
 
       <SectionHeader eyebrow="Recent" title="Memory roll" />
-{loreEntries.map((entry, index) => (
-  <TouchableOpacity 
-    key={entry.id} 
-    onPress={() => router.push(`/lore/${entry.id}`)}
-    className="mb-6 rounded-[32px] overflow-hidden"
-  >
-    <LoreCard 
-      heroImageUri={entry.imageUrl}
-      title={entry.questTitle}
-      caption={entry.excerpt}
-      locationName={entry.location}
-    />
-  </TouchableOpacity>
-))}
+      
+      {/* 3-Wide Flex Grid with Scaled Lore Cards */}
+      <View className="flex-row flex-wrap -mx-[1px] mt-2">
+        {loreEntries.map((entry) => (
+          <View 
+            key={entry.id} 
+            className="w-1/3 aspect-[3/4] p-[1px] items-center justify-center overflow-hidden"
+          >
+            <TouchableOpacity 
+              onPress={() => router.push(`/lore/${entry.id}`)}
+              activeOpacity={0.8}
+              // ✨ Render at 3x size, then shrink by 66% so it fits perfectly
+              style={{
+                width: '300%',
+                height: '300%',
+                transform: [{ scale: 0.3333 }]
+              }}
+            >
+              {/* Renders the full card layout without breaking text wrapping */}
+              <View pointerEvents="none" className="w-full h-full rounded-2xl overflow-hidden">
+                <LoreCard 
+                  heroImageUri={entry.imageUrl}
+                  title={entry.questTitle}
+                  caption={entry.excerpt}
+                  locationName={entry.location}
+                />
+              </View>
+            </TouchableOpacity>
+          </View>
+        ))}
+      </View>
     </Screen>
   );
 }

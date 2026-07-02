@@ -58,7 +58,7 @@ export default function QuestCompletionScreen() {
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
       aspect: isHero ? [3, 4] : [1, 1],
-      quality: 1,
+      quality: 0.5,
     });
 
     if (!result.canceled) {
@@ -77,7 +77,7 @@ export default function QuestCompletionScreen() {
   };
 
 
-  const handleSaveAndComplete = async () => {
+  const handleSaveAndComplete = () => {
     if (!quest || !heroImage) return;
 
     try {
@@ -88,7 +88,7 @@ export default function QuestCompletionScreen() {
       ];
 
       // Save to Supabase (this handles the completed status and points)
-      await createLoreEntry.mutateAsync({
+       createLoreEntry.mutateAsync({
         quest,
         title: quest.title,
         journal: caption || "No words needed.",

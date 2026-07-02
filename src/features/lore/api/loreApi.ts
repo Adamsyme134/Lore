@@ -71,11 +71,12 @@ function mapLoreEntry(row: LoreEntryRow): LoreEntry {
   };
 }
 
-async function fetchLoreEntriesFromSupabase() {
+async function fetchLoreEntriesFromSupabase(userId: string): Promise<LoreEntry[]> {
   const client = requireSupabase();
   const { data, error } = await client
     .from("lore_entries")
     .select("id, title, journal, location_name, latitude, longitude, mood, occurred_at, cover_photo_url, points_awarded, quest_id, quests(title, accent), lore_photos(id, public_url, storage_path, width, height)")
+    .eq('user_id', userId)
     .order("occurred_at", { ascending: false });
 
   if (error) {
@@ -86,13 +87,22 @@ async function fetchLoreEntriesFromSupabase() {
 }
 
 export function useLoreEntries() {
-  const { isBackendReady } = useAuth();
+  const { isBackendReady, user } = useAuth();
   const previewLoreEntries = useExperienceStore((state) => state.previewLoreEntries);
 
   return useQuery({
-    queryKey: ["lore-entries", isBackendReady ? "remote" : "preview", previewLoreEntries.length],
-    queryFn: () => (isBackendReady ? fetchLoreEntriesFromSupabase() : Promise.resolve(previewLoreEntries)),
-    initialData: previewLoreEntries
+    queryKey: ["lore-entries", isBackendReady ? "remote" : "preview", user?.id],
+    queryFn: () => {
+      // If no real backend, show the placeholders
+      if (!isBackendReady) return Promise.resolve(previewLoreEntries);
+      
+      // If we have a user, fetch their real lore
+      if (user?.id) return fetchLoreEntriesFromSupabase(user.id);
+      
+      // If still loading the user, return a true empty state, NOT fake data
+      return Promise.resolve([]);
+    }
+    // ✨ REMOVED: initialData completely so fake data stops ghosting the UI
   });
 }
 
@@ -101,7 +111,8 @@ export function useLoreEntry(id?: string) {
 
   return {
     ...query,
-    data: query.data.find((entry) => entry.id === id) ?? null
+    // ✨ ADDED: Optional chaining (?.) because data might be undefined while loading now
+    data: query.data?.find((entry) => entry.id === id) ?? null
   };
 }
 
@@ -217,7 +228,7 @@ export function useCreateLoreEntry() {
         throw pointsError;
       }
 
-      const entries = await fetchLoreEntriesFromSupabase();
+      const entries = await fetchLoreEntriesFromSupabase(user.id);
       const savedEntry = entries.find((entry) => entry.id === entryId) ?? entries[0];
 
       if (!savedEntry) {
@@ -229,9 +240,10 @@ export function useCreateLoreEntry() {
     onSuccess: async () => {
       await Promise.all([
     queryClient.invalidateQueries({ queryKey: ["lore-entries"] }),
-    queryClient.invalidateQueries({ queryKey: ["points"] }),
-    queryClient.invalidateQueries({ queryKey: ["active-quests"] }), // Add this line
-    queryClient.invalidateQueries({ queryKey: ["user-quests"] })    // Add this line
+        queryClient.invalidateQueries({ queryKey: ["points"] }),
+        queryClient.invalidateQueries({ queryKey: ["active-quests"] }),
+        queryClient.invalidateQueries({ queryKey: ["user-quests"] }),
+        queryClient.invalidateQueries({ queryKey: ["user-quests-status"] })
   ]);
       await refreshProfile();
     }

@@ -1,25 +1,45 @@
 import { View, ActivityIndicator, ScrollView, TouchableOpacity } from "react-native";
 import Animated, { FadeInDown } from "react-native-reanimated";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Screen } from "../../../src/shared/components/Screen";
 import { AppText } from "../../../src/shared/components/AppText";
 import { QuestHero } from "../../../src/features/quests/components/QuestHero";
 import { QuestCard } from "../../../src/features/quests/components/QuestCard";
-import { LoreEntryCard } from "../../../src/features/lore/components/LoreEntryCard";
+// ✨ We removed LoreEntryCard here
+import { FriendMomentCard } from "../../../src/features/social/components/FriendMomentCard";
 import { useQuests } from "../../../src/features/quests/api/questApi";
-import { useLoreEntries } from "../../../src/features/lore/api/loreApi";
+import { useFriendMoments } from "../../../src/features/social/api/socialApi"; // ✨ Added Friend API
 import { useAuth } from "../../../src/features/auth/AuthProvider";
 import { useExperienceStore } from "../../../src/features/app/store/useExperienceStore";
 import { router } from "expo-router";
+import { useQuery } from "@tanstack/react-query"; // ✨ Added useQuery
+import { requireSupabase } from "../../../src/lib/supabase";
 
 export default function TodayScreen() {
   const { data: quests = [], isLoading: isLoadingQuests } = useQuests();
-  const { data: loreEntries = [] } = useLoreEntries();
-  const { profile } = useAuth();
+  const { data: friendMoments = [] } = useFriendMoments(); // ✨ Get actual friends
+  const { profile, user } = useAuth();
 
   const previewPoints = useExperienceStore((state) => state.previewPoints);
-  const activeQuestsMap = useExperienceStore((state) => state.activeQuests); 
   
+  // ✨ NEW: Fetch the absolute truth of quest statuses from Supabase
+  const { data: questStatuses } = useQuery({
+    queryKey: ['user-quests-status', user?.id],
+    queryFn: async () => {
+      if (!user) return { active: [], completed: [] };
+      const { data } = await requireSupabase()
+        .from('user_quests')
+        .select('quest_id, status')
+        .eq('user_id', user.id);
+        
+      return {
+        active: data?.filter(d => d.status === 'active').map(d => d.quest_id) || [],
+        completed: data?.filter(d => d.status === 'completed').map(d => d.quest_id) || []
+      };
+    },
+    enabled: !!user
+  });
+
   const points = profile?.pointsTotal ?? previewPoints;
   const currentLevel = Math.floor(points / 100) + 1;
   const nextLevel = currentLevel + 1;
@@ -28,12 +48,23 @@ export default function TodayScreen() {
   const [rerollsLeft, setRerollsLeft] = useState(3);
   const [mainQuestIndex, setMainQuestIndex] = useState(0);
 
-  const activeQuestIds = Object.keys(activeQuestsMap);
-  const inProgressQuests = quests.filter((q) => activeQuestIds.includes(q.id));
+  // ✨ NEW: Calculate exactly which quests go where based on Supabase truth
+  const activeQuestIds = questStatuses?.active || [];
+  const completedQuestIds = questStatuses?.completed || [];
 
-  const unstartedQuests = quests.filter((q) => !activeQuestIds.includes(q.id));
+  // In Progress = Only quests explicitly marked as "active"
+  const inProgressQuests = useMemo(() => 
+    quests.filter((q) => activeQuestIds.includes(q.id)),
+  [quests, activeQuestIds]);
+
+  // Unstarted = Quests that are NOT active AND NOT completed
+  const unstartedQuests = useMemo(() => 
+    quests.filter((q) => !activeQuestIds.includes(q.id) && !completedQuestIds.includes(q.id)),
+  [quests, activeQuestIds, completedQuestIds]);
+
   const displayQuests = unstartedQuests.length > 0 ? unstartedQuests : quests;
   const todayQuest = displayQuests[mainQuestIndex % displayQuests.length];
+
 
   const handleReroll = () => {
     if (rerollsLeft > 0) {
@@ -137,11 +168,16 @@ export default function TodayScreen() {
           Friend's Lore
         </AppText>
         
-        {loreEntries.length > 0 ? (
-          loreEntries.map((entry) => (
-            <View key={entry.id} className="mb-6">
-              <LoreEntryCard entry={entry} />
-            </View>
+        {friendMoments.length > 0 ? (
+          friendMoments.map((moment) => (
+            <TouchableOpacity 
+              key={moment.id} 
+              onPress={() => router.push(`/lore/${moment.id}`)} 
+              activeOpacity={0.9} 
+              className="mb-6"
+            >
+              <FriendMomentCard moment={moment} />
+            </TouchableOpacity>
           ))
         ) : (
           <AppText className="text-center text-muted mt-4">No recent lore from friends.</AppText>
