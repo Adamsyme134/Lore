@@ -11,11 +11,16 @@ import { QuestStepCard } from "./QuestStepCard";
 import { useQuestExecution } from "../context/QuestExecutionContext"; 
 import { ChecklistWidget } from './widgets/ChecklistWidget'; 
 import { MapWidget } from './widgets/MapWidget';
+import { CardRevealWidget } from './widgets/CardRevealWidget';
 const parseConfig = (str: string) => {
   const obj: Record<string, string> = {};
   str.split('&').forEach(pair => {
-    const [k, v] = pair.split('=');
-    if (k) obj[k] = decodeURIComponent(v || '');
+    const idx = pair.indexOf('=');
+    if (idx > -1) {
+      const k = pair.substring(0, idx);
+      const v = pair.substring(idx + 1);
+      if (k) obj[k] = decodeURIComponent(v || '');
+    }
   });
   return obj;
 };
@@ -134,7 +139,11 @@ export function QuestDetailBlock({ quest, checkedSteps = [], onToggleStep, isAct
                       flushInline();
                       const raw = part.slice(5, -1);
                       blocks.push(<MapWidget key={`map-${i}`} config={raw} />);
-                    } 
+                    } else if (part.startsWith('[CARD_REVEAL:')) {
+                      flushInline();
+                      const raw = part.slice(13, -1);
+                      blocks.push(<CardRevealWidget key={`cardrev-${i}`} config={raw} stepIndex={index} chunkIndex={i} />);
+                    }
                     else if (part !== "") {
                       currentInline.push(<Text key={`text-${i}`}>{part}</Text>);
                     }

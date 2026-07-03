@@ -5,9 +5,10 @@ import { TopBar } from "../../src/shared/components/TopBar";
 import { Button } from "../../src/shared/components/Button";
 import { useAuth } from "../../src/features/auth/AuthProvider";
 import { useExperienceStore } from "src/features/app/store/useExperienceStore";
-
+import { debugResetCardProgress } from "src/features/quests/context/QuestExecutionContext";
 // Simple leveling formula: 1 level per 50 points
 function calculateLevel(points: number) {
+  
   const level = Math.floor(points / 50) + 1;
   const nextLevelThreshold = level * 50;
   const pointsNeeded = nextLevelThreshold - points;
@@ -16,6 +17,7 @@ function calculateLevel(points: number) {
 }
 
 export default function ProfileScreen() {
+  
   const { profile, signOut } = useAuth();
 
   if (!profile) return null;
@@ -54,7 +56,10 @@ export default function ProfileScreen() {
       </View>
       <Button 
   label="Reset All Step Progress" 
-  onPress={() => useExperienceStore.setState({ activeQuests: {} })} 
+  onPress={() => {
+    useExperienceStore.setState({ activeQuests: {} });
+    debugResetCardProgress();
+  }} 
 />
     </Screen>
   );

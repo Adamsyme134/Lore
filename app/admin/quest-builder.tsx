@@ -6,6 +6,7 @@ import { AppText } from "../../src/shared/components/AppText";
 import { QuestHero } from "../../src/features/quests/components/QuestHero";
 import { QuestCard } from "../../src/features/quests/components/QuestCard";
 import { YouTubeWidget } from "../../src/features/quests/components/widgets/YouTubeWidget";
+import { CardRevealWidget } from "../../src/features/quests/components/widgets/CardRevealWidget";
 import type { 
   Quest, 
   QuestCategory, 
@@ -20,7 +21,7 @@ import { requireSupabase } from "../../src/lib/supabase";
 
 const CATEGORIES: (QuestCategory | "All")[] = ["All", "Adventure", "Skill", "Culture", "Food & Drink", "Wellness", "Social"];
 // -- WIDGETS SETUP -- //
-type WidgetType = 'RANDOMISER' | 'LOCATION' | 'YOUTUBE' | 'LINK' | 'CHECKLIST' | 'MAP';
+type WidgetType = 'RANDOMISER' | 'LOCATION' | 'YOUTUBE' | 'LINK' | 'CHECKLIST' | 'MAP' | 'CARD_REVEAL';
 export const WIDGET_REGISTRY: Record<WidgetType, {
   id: string;
   icon: string;
@@ -69,7 +70,14 @@ export const WIDGET_REGISTRY: Record<WidgetType, {
     label: "Interactive Map",
     placeholder: "Configure Map...",
     theme: { bg: "bg-emerald-100", border: "border-emerald-300", text: "text-emerald-700", containerBg: "bg-emerald-50", containerBorder: "border-emerald-200", activeBg: "active:bg-emerald-200" }
-  }
+  },
+  CARD_REVEAL: {
+    id: "card_reveal",
+    icon: "🃏",
+    label: "Card Reveal",
+    placeholder: "Configure Cards...",
+    theme: { bg: "bg-purple-100", border: "border-purple-300", text: "text-purple-700", containerBg: "bg-purple-50", containerBorder: "border-purple-200", activeBg: "active:bg-purple-200" }
+  },
 };
 
 const SLASH_WIDGETS = Object.entries(WIDGET_REGISTRY).map(([type, data]) => ({ type, ...data }));
@@ -291,6 +299,7 @@ function DraggableImageCrop({ imageUrl, value, onChange }: { imageUrl: string, v
 }
 
 export default function QuestBuilderAdmin() {
+  const [leftPanelVisible, setLeftPanelVisible] = useState(true); // <-- ADD THIS
   const [view, setView] = useState<'grid' | 'editor'>('grid');
   const [focusIndex, setFocusIndex] = useState<number | null>(null);
   const [activeTab, setActiveTab] = useState<'basic' | 'tags' | 'metadata'>('basic');
@@ -496,6 +505,7 @@ export default function QuestBuilderAdmin() {
   return (
     <View className="flex-1 flex-row bg-surface">
       {/* --- LEFT PANEL: Base Configuration --- */}
+      {leftPanelVisible && (
       <View className="w-1/3 border-r border-line bg-surface flex-1 max-w-[500px]">
         <View className="p-6 border-b border-line flex-row justify-between items-center bg-white">
           <Pressable onPress={() => setView('grid')} className="px-4 py-2 bg-stone rounded-md"><AppText className="text-ink">← Back</AppText></Pressable>
@@ -582,6 +592,7 @@ export default function QuestBuilderAdmin() {
           )}
         </ScrollView>
       </View>
+      )}
 
       {/* --- RIGHT PANEL: WIDE INLINE EDITOR --- */}
       <View className="flex-1 bg-stone items-center justify-center p-4">
@@ -589,6 +600,11 @@ export default function QuestBuilderAdmin() {
         <View className="absolute top-10 flex-row bg-white rounded-full p-1 border border-line shadow-sm z-50">
           <Pressable onPress={() => setPreviewMode('hero')} className={`px-6 py-2 rounded-full ${previewMode === 'hero' ? 'bg-ink' : 'bg-transparent'}`}><AppText className={previewMode === 'hero' ? 'text-ivory' : 'text-ink/60'}>Card Preview</AppText></Pressable>
           <Pressable onPress={() => setPreviewMode('details')} className={`px-6 py-2 rounded-full ${previewMode === 'details' ? 'bg-ink' : 'bg-transparent'}`}><AppText className={previewMode === 'details' ? 'text-ivory' : 'text-ink/60'}>Details Editor</AppText></Pressable>
+        </View>
+        <View className="absolute top-10 left-4 bg-white rounded-full p-2 border border-line shadow-sm z-50">
+          <Pressable onPress={() => setLeftPanelVisible(!leftPanelVisible)}>
+            <AppText className="font-sansSemi text-ink/70 px-2">{leftPanelVisible ? '◀ Hide Settings' : '▶ Show Settings'}</AppText>
+          </Pressable>
         </View>
 
         <View className={`bg-surface border-[8px] border-white shadow-xl overflow-hidden justify-center transition-all duration-300 ${
@@ -797,6 +813,23 @@ export default function QuestBuilderAdmin() {
                                     </View>
                                     <View className="absolute top-3 right-3 bg-white px-3 py-1.5 rounded-full border border-line opacity-70 group-hover:opacity-100 z-10">
                                       <AppText className="text-xs font-sansSemi">✏️ Edit Map</AppText>
+                                    </View>
+                                  </Pressable>
+                                );
+                              }
+                              // --- VISUAL PREVIEW FOR CARD REVEAL ---
+                              if (widgetType === 'CARD_REVEAL') {
+                                return (
+                                  <Pressable 
+                                    key={chunkIndex} 
+                                    onPress={() => setActiveWidgetConfig({ stepIndex: index, chunkIndex, type: widgetType, config: widgetConfig })}
+                                    className="w-full my-3 group relative"
+                                  >
+                                    <View pointerEvents="none">
+                                      <CardRevealWidget config={widgetConfig} stepIndex={index} chunkIndex={chunkIndex} isBuilder={true} />
+                                    </View>
+                                    <View className="absolute top-0 right-0 bg-white px-3 py-1.5 rounded-full shadow flex-row items-center border border-line opacity-70 group-hover:opacity-100 z-10">
+                                      <AppText className="text-xs font-sansSemi">✏️ Edit Cards</AppText>
                                     </View>
                                   </Pressable>
                                 );
@@ -1453,6 +1486,74 @@ updateField('steps', newSteps);
                               </View>
                             );
                           })()}
+                          {/* CARD REVEAL UI */}
+                          {activeWidgetConfig.type === 'CARD_REVEAL' && (() => {
+                            const currentCfg = parseConfig(activeWidgetConfig.config);
+                            const cardCount = currentCfg.cardCount || '3';
+                            let entries: any[] = [];
+                            try { entries = JSON.parse(currentCfg.entries || '[]'); } catch (e) {}
+
+                            const modifyConfig = (key: string, val: string) => {
+                                const nextCfg = { ...currentCfg, [key]: val };
+                                const newConfigStr = serializeConfig(nextCfg);
+                                setActiveWidgetConfig(prev => prev ? {...prev, config: newConfigStr} : null);
+                                
+                                const newParts = rawStepText.split(WIDGET_REGEX);
+                                newParts[activeWidgetConfig!.chunkIndex] = `[CARD_REVEAL:${newConfigStr}]`;
+                                const newRawText = newParts.join('');
+                                const newSteps = [...quest.steps];
+                                newSteps[index] = buildStepString(title, newRawText);
+                                updateField('steps', newSteps);
+                            };
+
+                            const addEntry = () => {
+                                const newEntries = [...entries, { title: 'New Mini Quest', bgColor: '#303030', bgImage: '' }];
+                                modifyConfig('entries', JSON.stringify(newEntries));
+                            };
+                            const updateEntry = (i: number, field: string, val: string) => {
+                                const newEntries = [...entries];
+                                newEntries[i][field] = val;
+                                modifyConfig('entries', JSON.stringify(newEntries));
+                            };
+                            const removeEntry = (i: number) => {
+                                const newEntries = entries.filter((_, idx) => idx !== i);
+                                modifyConfig('entries', JSON.stringify(newEntries));
+                            };
+
+                            return (
+                              <View className="flex-col gap-2 w-full">
+                                <AppText className="text-xs mb-1">Number of Cards on Screen</AppText>
+                                <TextInput
+                                  className="bg-white p-3 mb-2 rounded-lg border border-line font-sans text-sm outline-none"
+                                  value={cardCount}
+                                  keyboardType="number-pad"
+                                  onChangeText={(txt) => modifyConfig('cardCount', txt)}
+                                />
+
+                                <View className="flex-row justify-between items-center mt-2 mb-1">
+                                  <AppText className="text-xs">Randomised Entry List</AppText>
+                                  <Pressable onPress={addEntry}><AppText className="text-purple-600 text-xs font-sansSemi">+ Add Entry</AppText></Pressable>
+                                </View>
+
+                                <ScrollView className="max-h-[300px] w-full" nestedScrollEnabled>
+                                  {entries.map((entry, i) => (
+                                    <View key={i} className="flex-col gap-1 mb-3 p-3 bg-white rounded-lg border border-line">
+                                      <View className="flex-row justify-between items-center mb-2">
+                                        <AppText className="text-[10px] text-ink/50 uppercase font-sansSemi">Entry {i+1}</AppText>
+                                        <Pressable onPress={() => removeEntry(i)}><AppText className="text-red-500 text-[10px] font-sansSemi">Remove</AppText></Pressable>
+                                      </View>
+                                      <TextInput className="bg-stone p-2 rounded border border-line font-sans text-xs mb-2 outline-none" placeholder="Task (e.g. Make them laugh)" value={entry.title} onChangeText={(txt) => updateEntry(i, 'title', txt)} />
+                                      <View className="flex-row gap-2 mb-2">
+                                          <TextInput className="flex-1 bg-stone p-2 rounded border border-line font-sans text-xs outline-none" placeholder="Bg Hex (e.g. #FF0000)" value={entry.bgColor} onChangeText={(txt) => updateEntry(i, 'bgColor', txt)} />
+                                      </View>
+                                      <TextInput className="bg-stone p-2 rounded border border-line font-sans text-xs outline-none" placeholder="Bg Image URL (Optional)" value={entry.bgImage} onChangeText={(txt) => updateEntry(i, 'bgImage', txt)} />
+                                    </View>
+                                  ))}
+                                </ScrollView>
+                              </View>
+                            );
+                          })()}
+
                         </View>
                       )}
 
