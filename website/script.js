@@ -1,10 +1,11 @@
 // script.js
 
-// 1. Initialize Supabase (Replace with your actual keys from Supabase Dashboard)
-const EXPO_PUBLIC_SUPABASE_URL = 'https://vqoxqetfrjuvtpkqifbw.supabase.co';
-const EXPO_PUBLIC_SUPABASE_ANON_KEY = 'sb_publishable_TPUy3RvrZS4b3RO1maV7yw_MoIsLeuP';
+// 1. Initialize Supabase (Replace with your actual keys!)
+const SUPABASE_URL = 'https://YOUR-PROJECT-ID.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5c...YOUR-ANON-KEY...';
 
-const supabase = supabase.createClient(EXPO_PUBLIC_SUPABASE_URL, EXPO_PUBLIC_SUPABASE_ANON_KEY);
+// FIX: Name the variable supabaseClient so it doesn't conflict with the window object!
+const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // 2. Helper to determine difficulty based on your points_value
 function getDifficultyLabel(points) {
@@ -16,7 +17,8 @@ function getDifficultyLabel(points) {
 // 3. Fetch data from your actual Lore database
 async function loadQuests() {
   try {
-    const { data: quests, error } = await supabase
+    // FIX: Use supabaseClient here
+    const { data: quests, error } = await supabaseClient
       .from('quests')
       .select('*')
       .eq('is_active', true)
@@ -29,7 +31,7 @@ async function loadQuests() {
   } catch (error) {
     console.error('Error loading quests from Supabase:', error);
     document.getElementById('quest-container').innerHTML = 
-      '<p>Error loading curated adventures. Please try again later.</p>';
+      '<p style="text-align: center; color: var(--text-secondary);">Error loading curated adventures. Please ensure your Supabase keys are correct and policies are set.</p>';
   }
 }
 
@@ -39,23 +41,21 @@ function renderQuests(quests) {
   container.innerHTML = ''; // Clear loading state
 
   if (!quests || quests.length === 0) {
-    container.innerHTML = '<p>No featured adventures selected yet.</p>';
+    container.innerHTML = '<p style="text-align: center; color: var(--text-secondary);">No featured adventures selected yet.</p>';
     return;
   }
 
   quests.forEach((quest) => {
-    // Generate the steps HTML dynamically from your PostgreSQL text[] array
     let stepsHtml = '';
     quest.steps.forEach((stepText, index) => {
-      // In the design, step 1 is ticked/open, others are locked
       const isFirst = index === 0;
-      const statusIcon = isFirst ? '<span>✅</span>' : '<span>🔒</span>';
-      const statusClass = isFirst ? 'step-closed' : 'step-locked';
+      // Using standard checkmark and lock emojis for zero-cost icons
+      const statusIcon = isFirst ? '<span>✓</span>' : '<span>🔒</span>';
       
       stepsHtml += `
         <li>
           <div class="step-label"><span class="step-number">${index + 1}</span> ${stepText}</div>
-          <div class="${statusClass}">${statusIcon}</div>
+          <div class="step-status">${statusIcon}</div>
         </li>
       `;
     });
@@ -71,6 +71,7 @@ function renderQuests(quests) {
         <div class="quest-details">
           <div class="quest-title-row">
             <h3>${quest.title}</h3>
+            <div class="arrow-circle">→</div>
           </div>
           <div class="quest-location"><span>📍</span> ${quest.location_hint}</div> 
           
@@ -88,5 +89,4 @@ function renderQuests(quests) {
   });
 }
 
-// Execute on page load
 loadQuests();
