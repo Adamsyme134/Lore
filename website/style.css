@@ -1,11 +1,21 @@
 /* style.css */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500&family=Playfair+Display:ital,wght@0,400;0,600;1,400&display=swap');
+
 :root {
-  --text-primary: #1F1F1F;
-  --text-secondary: #5F5F5F;
-  --bg-color: #FAFAFA;
-  --bg-card: #FFFFFF;
-  --font-heading: "Playfair Display", serif; /* Modern serif for headings */
-  --font-body: "Inter", sans-serif; /* Clean sans-serif for body */
+  /* Site-wide Dark Theme */
+  --bg-color: #121212; 
+  --text-primary: #FFFFFF;
+  --text-secondary: #999999;
+  --border-color: #333333;
+  
+  /* Quest Card Light Theme */
+  --bg-card: #F4EFE6; 
+  --card-text-primary: #1A1A1A;
+  --card-text-secondary: #555555;
+  --card-border: #E5E0D8;
+  
+  --font-heading: "Playfair Display", serif;
+  --font-body: "Inter", sans-serif;
 }
 
 body {
@@ -32,18 +42,41 @@ header {
 .logo {
   font-family: var(--font-heading);
   font-size: 24px;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+}
+
+.header-nav {
+  display: flex;
+  align-items: center;
+}
+
+.btn-solid {
+  background-color: #FFFFFF;
+  color: #121212 !important;
+  border: none;
+  padding: 12px 24px;
+  border-radius: 30px;
+  font-size: 14px;
+  cursor: pointer;
+  text-decoration: none;
+  font-weight: 500;
+  transition: opacity 0.2s;
+}
+
+.btn-solid:hover {
+  opacity: 0.9;
 }
 
 .hero {
   text-align: center;
-  padding: 120px 60px;
+  padding: 80px 60px 100px;
   max-width: 800px;
   margin: 0 auto;
 }
 
 .hero h1 {
-  font-size: 80px;
+  font-size: 72px;
   line-height: 1.1;
   margin-bottom: 24px;
 }
@@ -52,50 +85,70 @@ header {
   font-size: 18px;
   color: var(--text-secondary);
   max-width: 600px;
-  margin: 0 auto 60px;
+  margin: 0 auto 40px;
 }
 
 .email-form {
   display: flex;
-  justify-content: center;
+  justify-content: space-between;
   align-items: center;
-  border: 1px solid #E0E0E0;
+  border: 1px solid var(--border-color);
   border-radius: 50px;
   max-width: 480px;
   margin: 0 auto;
-  background-color: var(--bg-card);
+  background-color: transparent;
+  padding: 6px;
 }
 
 .email-form input {
   border: none;
-  background: none;
-  padding: 18px 24px;
+  background: transparent;
+  color: #FFFFFF;
+  padding: 12px 24px;
   font-size: 16px;
   flex-grow: 1;
+  outline: none;
+}
+
+.email-form input::placeholder {
+  color: #666;
+}
+
+.email-form button {
+  background-color: #FFFFFF;
+  color: #121212;
+  border: none;
+  border-radius: 30px;
+  padding: 14px 24px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
 }
 
 .quest-selection-title {
   text-align: center;
-  margin: 100px 0 60px;
+  margin: 60px 0 60px;
   text-transform: uppercase;
-  font-size: 14px;
+  font-size: 12px;
   letter-spacing: 0.15em;
   color: var(--text-secondary);
 }
 
 .quests-section {
   display: flex;
-  gap: 30px;
+  gap: 24px;
   justify-content: center;
-  padding: 0 60px;
+  padding: 0 40px;
   margin-bottom: 120px;
+  flex-wrap: wrap;
 }
 
+/* CARDS - Notice they use the light variables */
 .quest-card {
-  width: 320px;
-  border-radius: 20px;
-  border: 1px solid #E0E0E0;
+  width: 340px;
+  border-radius: 12px;
   background-color: var(--bg-card);
+  color: var(--card-text-primary);
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -103,28 +156,30 @@ header {
 
 .quest-image-container {
   position: relative;
-  height: 200px;
+  height: 220px;
+  padding: 12px 12px 0 12px;
 }
 
 .quest-image-container img {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  border-radius: 8px;
 }
 
 .difficulty-tag {
   position: absolute;
-  top: 15px;
-  right: 15px;
-  background-color: rgba(255, 255, 255, 0.8);
-  backdrop-filter: blur(5px);
-  padding: 8px 16px;
+  top: 24px;
+  right: 24px;
+  background-color: rgba(255, 255, 255, 0.9);
+  padding: 6px 12px;
   border-radius: 20px;
   font-size: 12px;
   font-weight: 500;
   display: flex;
   align-items: center;
   gap: 6px;
+  color: #111;
 }
 
 .quest-details {
@@ -137,13 +192,26 @@ header {
 .quest-title-row {
   display: flex;
   justify-content: space-between;
-  align-items: start;
+  align-items: flex-start;
   margin-bottom: 8px;
 }
 
 .quest-details h3 {
-  font-size: 22px;
+  font-size: 24px;
   line-height: 1.2;
+  margin: 0;
+  padding-right: 12px;
+}
+
+.arrow-circle {
+  background-color: rgba(0,0,0,0.05);
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
 }
 
 .quest-location {
@@ -151,14 +219,15 @@ header {
   align-items: center;
   gap: 6px;
   font-size: 12px;
-  color: var(--text-secondary);
-  margin-bottom: 18px;
+  color: var(--card-text-secondary);
+  margin-bottom: 16px;
 }
 
 .quest-description {
   font-size: 14px;
-  color: var(--text-secondary);
+  color: var(--card-text-secondary);
   margin-bottom: 24px;
+  line-height: 1.5;
   flex-grow: 1;
 }
 
@@ -166,20 +235,33 @@ header {
   list-style: none;
   padding: 0;
   margin: 0;
+  border: 1px solid var(--card-border);
+  border-radius: 12px;
+  overflow: hidden;
 }
 
 .quest-checklist li {
   display: flex;
   align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  font-size: 13px;
+  background-color: transparent;
+}
+
+.quest-checklist li:not(:last-child) {
+  border-bottom: 1px solid var(--card-border);
+}
+
+.step-label {
+  display: flex;
+  align-items: center;
   gap: 12px;
-  border-bottom: 1px solid #F0F0F0;
-  padding: 12px 0;
-  font-size: 12px;
 }
 
 .step-number {
-  color: #FFFFFF;
-  background-color: var(--text-primary);
+  background-color: var(--card-text-primary);
+  color: var(--bg-card);
   width: 20px;
   height: 20px;
   border-radius: 50%;
@@ -187,28 +269,19 @@ header {
   align-items: center;
   justify-content: center;
   font-size: 10px;
-  font-weight: bold;
+  font-weight: 600;
 }
 
-/* Visually hiding icons, assuming standard UI font icons are not available for zero cost */
-.check-icon, .arrow-icon, .lock-icon, .close-icon {
-  display: none;
-}
-
-.step-closed, .step-locked {
-  display: flex;
-  align-items: center;
-}
-
-.step-label {
-  flex-grow: 1;
+.step-status {
+  color: var(--card-text-secondary);
+  font-size: 14px;
 }
 
 .view-quest-link {
   display: flex;
   align-items: center;
   gap: 8px;
-  color: var(--text-primary);
+  color: var(--card-text-primary);
   text-decoration: none;
   margin-top: 24px;
   font-size: 14px;
@@ -216,22 +289,25 @@ header {
 }
 
 footer {
-  border-top: 1px solid #E0E0E0;
-  padding: 60px;
+  border-top: 1px solid var(--border-color);
+  padding: 60px 80px;
   display: flex;
   justify-content: space-between;
+  flex-wrap: wrap;
 }
 
 .footer-column {
-  width: 180px;
+  width: 200px;
+  margin-bottom: 30px;
 }
 
 .footer-heading {
-  font-size: 14px;
+  font-size: 12px;
   text-transform: uppercase;
   color: var(--text-secondary);
-  margin-bottom: 18px;
+  margin-bottom: 20px;
   letter-spacing: 0.1em;
+  font-weight: 600;
 }
 
 .footer-links {
@@ -241,7 +317,7 @@ footer {
 }
 
 .footer-links li {
-  margin-bottom: 8px;
+  margin-bottom: 12px;
 }
 
 .footer-links a {
@@ -251,34 +327,9 @@ footer {
 }
 
 .copyright {
-  grid-column: span 3;
+  width: 100%;
   text-align: center;
   color: var(--text-secondary);
   font-size: 12px;
-  padding-top: 60px;
-}
-
-/* Button override */
-.btn-solid {
-  background-color: var(--text-primary);
-  color: #FFFFFF !important;
-  border: none;
-  padding: 12px 24px;
-  border-radius: 20px;
-  font-size: 14px;
-  cursor: pointer;
-  text-decoration: none;
-  font-weight: 500;
-}
-
-.email-form button {
-  background-color: var(--bg-card);
-  color: var(--text-primary);
-  border: 1px solid #E0E0E0;
-  border-radius: 20px;
-  padding: 12px 20px;
-  font-size: 14px;
-  margin: 6px;
-  font-weight: 500;
-  cursor: pointer;
+  padding-top: 40px;
 }
