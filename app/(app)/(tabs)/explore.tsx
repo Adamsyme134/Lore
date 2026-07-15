@@ -15,7 +15,8 @@ import type {
   QuestDifficulty, 
   QuestSeason, 
   QuestAccessibility, 
-  QuestLocationType 
+  QuestLocationType, 
+  QuestCountry
 } from "../../../src/shared/types/domain";
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { requireSupabase } from "../../../src/lib/supabase";
@@ -82,6 +83,7 @@ export default function Explore() {
             cost: (q.cost as QuestCost) || "Free",
             length: (q.length as QuestLength) || "Half day",
             difficulty: (q.difficulty as QuestDifficulty) || "Medium",
+            country: (q.country as QuestCountry) || "Any",
             minParticipants: q.min_participants || 1,
             maxParticipants: q.max_participants || 1,
             seasons: (q.seasons as QuestSeason[]) || ["All year"],

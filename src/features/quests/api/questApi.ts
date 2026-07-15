@@ -14,7 +14,7 @@ import type {
 } from "../../../shared/types/domain";
 import type { Accent } from "../../../shared/design/tokens";
 import { useExperienceStore } from "../../app/store/useExperienceStore";
-
+import { QuestCountry } from "../../../shared/types/domain";
 type QuestRow = {
   id: string;
   slug: string;
@@ -37,6 +37,7 @@ type QuestRow = {
   cost?: string;
   length?: string;
   difficulty?: string;
+  country?: string;
   min_participants?: number;
   max_participants?: number;
   seasons?: string[];
@@ -74,6 +75,7 @@ function mapQuest(row: QuestRow): Quest {
     cost: (row.cost as QuestCost) || "Free",
     length: (row.length as QuestLength) || "Half day",
     difficulty: (row.difficulty as QuestDifficulty) || "Medium",
+      country: (row.country as QuestCountry) || "Any",
     minParticipants: row.min_participants || 1,
     maxParticipants: row.max_participants || 1,
     seasons: (row.seasons as QuestSeason[]) || ["All year"],

@@ -15,11 +15,14 @@ import type {
   QuestDifficulty, 
   QuestSeason, 
   QuestAccessibility, 
-  QuestLocationType 
+  QuestLocationType, 
+  QuestCountry
 } from "../../src/shared/types/domain";
 import { requireSupabase } from "../../src/lib/supabase";
 
 const CATEGORIES: (QuestCategory | "All")[] = ["All", "Adventure", "Skill", "Culture", "Food & Drink", "Wellness", "Social"];
+const COUNTRIES: QuestCountry[] = ["Any", "United Kingdom", "United States", "France", "Italy", "Spain", "Mexico", "Japan", "Australia", "Albania"];
+
 // -- WIDGETS SETUP -- //
 type WidgetType = 'RANDOMISER' | 'LOCATION' | 'YOUTUBE' | 'LINK' | 'CHECKLIST' | 'MAP' | 'CARD_REVEAL';
 export const WIDGET_REGISTRY: Record<WidgetType, {
@@ -232,6 +235,7 @@ const createBlankQuest = (): Quest => ({
   cost: "Free" as QuestCost,
   length: "Half day" as QuestLength,
   difficulty: "Medium" as QuestDifficulty,
+  country: "Any" as QuestCountry,
   minParticipants: 1,
   maxParticipants: 1,
   seasons: ["All year"] as QuestSeason[],
@@ -360,6 +364,7 @@ export default function QuestBuilderAdmin() {
             cost: (q.cost as QuestCost) || "Free",
             length: (q.length as QuestLength) || "Half day",
             difficulty: (q.difficulty as QuestDifficulty) || "Medium",
+            country: (q.country as QuestCountry) || "Any",
             minParticipants: q.min_participants || 1,
             maxParticipants: q.max_participants || 1,
             seasons: (q.seasons as QuestSeason[]) || ["All year"],
@@ -402,6 +407,7 @@ export default function QuestBuilderAdmin() {
         cost: quest.cost,
         length: quest.length,
         difficulty: quest.difficulty,
+        country: quest.country,
         min_participants: quest.minParticipants,
         max_participants: quest.maxParticipants,
         seasons: quest.seasons,
@@ -584,12 +590,20 @@ export default function QuestBuilderAdmin() {
           )}
 
           {activeTab === 'metadata' && (
-            <View>
-              <MultiToggleGroup label="Seasons" options={["Spring", "Summer", "Autumn", "Winter", "All year"]} selected={quest.seasons} onSelect={(val) => updateField("seasons", val)} />
-              <MultiToggleGroup label="Accessibility" options={["Walking", "Public Transport", "Driving", "Wheelchair Accessible"]} selected={quest.accessibility} onSelect={(val) => updateField("accessibility", val)} />
-              <MultiToggleGroup label="Location Types" options={["City", "Town", "Countryside", "Abroad", "Anywhere"]} selected={quest.locationTypes} onSelect={(val) => updateField("locationTypes", val)} />
-            </View>
-          )}
+  <View className="z-50">
+    <View className="mb-6 z-50">
+      <Dropdown 
+        label="Country" 
+        value={quest.country} 
+        options={COUNTRIES} 
+        onSelect={(val) => updateField("country", val)} 
+      />
+    </View>
+    <MultiToggleGroup label="Seasons" options={["Spring", "Summer", "Autumn", "Winter", "All year"]} selected={quest.seasons} onSelect={(val) => updateField("seasons", val)} />
+    <MultiToggleGroup label="Accessibility" options={["Walking", "Public Transport", "Driving", "Wheelchair Accessible"]} selected={quest.accessibility} onSelect={(val) => updateField("accessibility", val)} />
+    <MultiToggleGroup label="Location Types" options={["City", "Town", "Countryside", "Abroad", "Anywhere"]} selected={quest.locationTypes} onSelect={(val) => updateField("locationTypes", val)} />
+  </View>
+)}
         </ScrollView>
       </View>
       )}

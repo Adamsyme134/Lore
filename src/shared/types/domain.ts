@@ -69,6 +69,7 @@ export type QuestSeason = "Spring" | "Summer" | "Autumn" | "Winter" | "All year"
 export type QuestAccessibility = "Walking" | "Public Transport" | "Driving" | "Wheelchair Accessible";
 export type QuestLocationType = "City" | "Town" | "Countryside" | "Abroad" | "Anywhere";
 export type QuestMood = "quiet" | "social" | "curious" | "wild" | "creative";
+export type QuestCountry = "Any" | "United Kingdom" | "United States" | "France" | "Italy" | "Spain" | "Mexico" | "Japan" | "Australia" | "Albania"; // Expand this list as needed
 
 export type Quest = {
   id: string;
@@ -96,6 +97,7 @@ export type Quest = {
   cost: QuestCost;
   length: QuestLength;
   difficulty: QuestDifficulty;
+  country: QuestCountry;
   
   // Group System Foundation
   minParticipants: number;
