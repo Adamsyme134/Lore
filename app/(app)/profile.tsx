@@ -1,4 +1,4 @@
-import { View } from "react-native";
+import { Pressable, View } from "react-native";
 import { Screen } from "../../src/shared/components/Screen";
 import { AppText } from "../../src/shared/components/AppText";
 import { TopBar } from "../../src/shared/components/TopBar";
@@ -6,6 +6,8 @@ import { Button } from "../../src/shared/components/Button";
 import { useAuth } from "../../src/features/auth/AuthProvider";
 import { useExperienceStore } from "src/features/app/store/useExperienceStore";
 import { debugResetCardProgress } from "src/features/quests/context/QuestExecutionContext";
+import { useColorScheme } from "nativewind";
+import { useThemeStore } from "src/features/app/store/useThemeStore";
 // Simple leveling formula: 1 level per 50 points
 function calculateLevel(points: number) {
   
@@ -19,11 +21,16 @@ function calculateLevel(points: number) {
 export default function ProfileScreen() {
   
   const { profile, signOut } = useAuth();
-
+  const { colorScheme, setColorScheme } = useColorScheme();
+  const { setThemePreference } = useThemeStore();
   if (!profile) return null;
 
   const { level, pointsNeeded } = calculateLevel(profile.pointsTotal);
 
+  const handleThemeChange = (theme: 'light' | 'dark' | 'system') => {
+    setColorScheme(theme);
+    setThemePreference(theme);
+  };
   return (
     <Screen contentClassName="pt-3">
       <TopBar showBack title="Explorer Profile" />
@@ -50,7 +57,23 @@ export default function ProfileScreen() {
           </AppText>
         </View>
       </View>
-
+      {/* NEW THEME TOGGLE */}
+      <View className="mt-6 px-5">
+        <AppText variant="eyebrow" className="mb-2 text-ink/60">Appearance</AppText>
+        <View className="flex-row rounded-xl border border-line bg-surface overflow-hidden">
+          {['system', 'light', 'dark'].map((t) => (
+            <Pressable
+              key={t}
+              onPress={() => handleThemeChange(t as any)}
+              className={`flex-1 items-center justify-center py-3 ${colorScheme === t ? 'bg-ink' : 'bg-transparent'}`}
+            >
+              <AppText className={`capitalize font-sansSemi text-xs ${colorScheme === t ? 'text-background' : 'text-ink'}`}>
+                {t}
+              </AppText>
+            </Pressable>
+          ))}
+        </View>
+      </View>
       <View className="mt-auto px-5 pb-8 pt-10">
         <Button label="Sign Out" variant="secondary" onPress={signOut} />
       </View>

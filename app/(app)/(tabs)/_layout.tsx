@@ -4,7 +4,7 @@ import { LoreTabBar } from "../../../src/shared/components/LoreTabBar";
 export default function TabLayout() {
   return (
     <Tabs
-      tabBar={(props) => <LoreTabBar {...props} />}
+      tabBar={(props) => <LoreTabBar {...(props as any)} />}
       screenOptions={{
         headerShown: false,
         tabBarHideOnKeyboard: true

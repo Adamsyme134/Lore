@@ -69,8 +69,13 @@ export type QuestSeason = "Spring" | "Summer" | "Autumn" | "Winter" | "All year"
 export type QuestAccessibility = "Walking" | "Public Transport" | "Driving" | "Wheelchair Accessible";
 export type QuestLocationType = "City" | "Town" | "Countryside" | "Abroad" | "Anywhere";
 export type QuestMood = "quiet" | "social" | "curious" | "wild" | "creative";
-export type QuestCountry = "Any" | "United Kingdom" | "United States" | "France" | "Italy" | "Spain" | "Mexico" | "Japan" | "Australia" | "Albania"; // Expand this list as needed
-
+export type QuestCountry = string;
+export type QuestStats = {
+  views: number;
+  inProgress: number;
+  completed: number;
+  recentAvatars?: string[];
+};
 export type Quest = {
   id: string;
   slug: string;
@@ -86,7 +91,7 @@ export type Quest = {
   imagePosition?: string;
   steps: string[]; 
   contentBlocks?: QuestContentBlock[];
-   
+  stats?: QuestStats;
   journalPrompt: string;
   pointsValue: number;
   galleryUrls?: string[];

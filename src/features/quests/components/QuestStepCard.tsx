@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { View, Pressable, LayoutAnimation, Platform, UIManager } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient'; // Ensure expo-linear-gradient is installed
+import { Ionicons } from '@expo/vector-icons';
 import { AppText } from '../../../shared/components/AppText';
 import { accentClass, type Accent } from '../../../shared/design/tokens';
 import { Button } from '../../../shared/components/Button';
@@ -16,6 +16,7 @@ if (
 type QuestStepCardProps = {
   stepIndex: number;
   totalSteps: number;
+  title?: string;
   isActiveStep: boolean;
   isCompleted: boolean;
   isLocked: boolean;
@@ -26,80 +27,79 @@ type QuestStepCardProps = {
 };
 
 export function QuestStepCard({ 
-  stepIndex, 
-  totalSteps,
-  isActiveStep, 
-  isCompleted, 
-  isLocked, 
-  isCompleteDisabled,
-  accent,
-  onComplete, 
-  children 
+  stepIndex, title, isActiveStep, isCompleted, isLocked, isCompleteDisabled, accent, onComplete, children 
 }: QuestStepCardProps) {
-  const [isExpanded, setIsExpanded] = useState(false);
-  const [contentHeight, setContentHeight] = useState(0);
-  const EXPAND_THRESHOLD = 250; 
+  
+  const [isExpanded, setIsExpanded] = useState(isActiveStep && !isCompleted);
+
+  // AUTO EXPAND & COLLAPSE EFFECT
+  useEffect(() => {
+    if (isActiveStep && !isCompleted) {
+      // Open the card when it becomes the active step
+      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+      setIsExpanded(true);
+    } else if (isCompleted) {
+      // Collapse the card when it gets marked as completed
+      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+      setIsExpanded(false);
+    }
+  }, [isActiveStep, isCompleted]);
 
   const theme = accentClass[accent] || accentClass['orange'];
-  const needsExpansion = !isExpanded && contentHeight >= EXPAND_THRESHOLD;
 
   const toggleExpand = () => {
+    if (isLocked) return;
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     setIsExpanded(!isExpanded);
   };
 
+  const containerStyle = isActiveStep 
+    ? `bg-surface rounded-[24px] p-5 shadow-sm border border-line mb-4`
+    : `bg-transparent py-4 px-2 border-b border-line/30 mb-2`;
+
   return (
-    <View 
-      className={`rounded-card bg-white p-5 mb-4 shadow-sm border ${isActiveStep ? theme.border : 'border-line'} ${isLocked ? 'opacity-50' : 'opacity-100'}`}
-      pointerEvents={isLocked ? 'none' : 'auto'}
-    >
-      {/* Step Header */}
-      <View className="flex-row items-center mb-4">
-        <View className={`h-8 w-8 items-center justify-center rounded-md border-2 ${isCompleted ? theme.bg + ' border-transparent' : 'border-line ' + theme.subtle}`}>
-          {isCompleted ? (
-            <AppText className="text-white text-xs font-bold">✓</AppText>
-          ) : (
-            <AppText variant="caption" className={theme.text}>{stepIndex + 1}</AppText>
-          )}
+    <View className={`${containerStyle} ${isLocked ? 'opacity-50' : 'opacity-100'}`}>
+      
+      {/* Header Row */}
+      <Pressable onPress={toggleExpand} disabled={isLocked} className="flex-row items-center justify-between">
+        <View className="flex-row items-center flex-1">
+          <View className={`h-7 w-7 items-center justify-center rounded-full ${isCompleted ? 'bg-ink' : isActiveStep ? 'bg-ink' : 'border border-line bg-transparent'}`}>
+            {isLocked ? (
+               <Ionicons name="lock-closed-outline" size={12} color="var(--color-text)" style={{ opacity: 0.6 }} />
+            ) : isCompleted ? (
+              <AppText className="text-background text-xs font-bold">✓</AppText>
+            ) : (
+              <AppText className={`text-xs font-sansSemi ${isActiveStep ? 'text-background' : 'text-ink'}`}>{stepIndex + 1}</AppText>
+            )}
+          </View>
+          
+          <View className="ml-3 flex-1">
+            <AppText variant="subtitle" className="text-ink text-base">
+              {title || `Step ${stepIndex + 1}`}
+            </AppText>
+            {isLocked && (
+              <AppText className="text-[10px] text-ink/50 mt-1 font-sans uppercase tracking-widest">
+                Complete previous step to unlock
+              </AppText>
+            )}
+          </View>
         </View>
-        <AppText variant="subtitle" className="ml-3 text-ink/80">
-          Step {stepIndex + 1} of {totalSteps}
-        </AppText>
-      </View>
 
-      {/* Content Wrapper */}
-      <View style={{ maxHeight: isExpanded ? undefined : EXPAND_THRESHOLD, overflow: 'hidden' }}>
-        <View onLayout={(e) => setContentHeight(e.nativeEvent.layout.height)}>
+        {!isLocked && (
+          <Ionicons name={isExpanded ? "chevron-up" : "chevron-down"} size={18} color="var(--color-text)" style={{ opacity: 0.5 }} />
+        )}
+      </Pressable>
+
+      {/* Expandable Content Body */}
+      {isExpanded && !isLocked && (
+        <View className="mt-4">
           {children}
-        </View>
-      </View>
 
-      {/* Show More Overlay - UPDATED TO BE FULL WIDTH & BOTTOM GLUED */}
-      {needsExpansion && (
-        <View className="absolute bottom-0 left-0 right-0 h-32 justify-end rounded-b-card overflow-hidden">
-          <LinearGradient colors={['transparent', 'rgba(255,255,255,0.8)', 'rgba(255,255,255,1)']} className="absolute inset-0" />
-          <Pressable 
-            onPress={toggleExpand} 
-            className="z-10 w-full py-3 bg-stone border-t border-line items-center justify-center"
-          >
-            <AppText className="font-sansSemi text-xs text-ink/70">Show full step ↓</AppText>
-          </Pressable>
-        </View>
-      )}
-
-      {/* Collapse Button */}
-      {isExpanded && (
-        <View className="mt-4 items-center">
-          <Pressable onPress={toggleExpand} className="px-5 py-2 bg-stone rounded-full border border-line">
-            <AppText className="font-sansSemi text-xs text-ink/70">Collapse step ↑</AppText>
-          </Pressable>
-        </View>
-      )}
-
-      {/* Action Button */}
-      {isActiveStep && !needsExpansion && (
-        <View className="mt-6 pt-4 border-t border-line/50">
-          <Button label="Complete Step" onPress={onComplete} className={`w-full ${theme.bg}`} disabled={isCompleteDisabled} />
+          {isActiveStep && !isCompleted && (
+            <View className="mt-5">
+              <Button label="Next step" onPress={onComplete} className={`w-full ${theme.bg}`} disabled={isCompleteDisabled} />
+            </View>
+          )}
         </View>
       )}
     </View>

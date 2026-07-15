@@ -1,4 +1,4 @@
-import { View, Text } from "react-native";
+import { View } from "react-native";
 import type { Quest } from "../../../shared/types/domain";
 import { AppText } from "../../../shared/components/AppText";
 import { Chip } from "../../../shared/components/Chip";
@@ -106,9 +106,9 @@ export function QuestDetailBlock({ quest, checkedSteps = [], onToggleStep, isAct
                   const flushInline = () => {
                     if (currentInline.length > 0) {
                       blocks.push(
-                        <Text key={`inline-${blocks.length}`} className={`leading-8 text-base font-sans ${isCompleted ? 'text-ink/50' : 'text-ink/80'}`}>
+                        <AppText key={`inline-${blocks.length}`} className={`leading-8 text-base font-sans ${isCompleted ? 'text-ink/50' : 'text-ink/80'}`}>
                           {currentInline}
-                        </Text>
+                        </AppText>
                       );
                       currentInline = [];
                     }
@@ -145,7 +145,7 @@ export function QuestDetailBlock({ quest, checkedSteps = [], onToggleStep, isAct
                       blocks.push(<CardRevealWidget key={`cardrev-${i}`} config={raw} stepIndex={index} chunkIndex={i} />);
                     }
                     else if (part !== "") {
-                      currentInline.push(<Text key={`text-${i}`}>{part}</Text>);
+                      currentInline.push(<AppText key={`text-${i}`}>{part}</AppText>);
                     }
                   });
 

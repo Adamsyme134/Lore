@@ -21,7 +21,6 @@ import type {
 import { requireSupabase } from "../../src/lib/supabase";
 
 const CATEGORIES: (QuestCategory | "All")[] = ["All", "Adventure", "Skill", "Culture", "Food & Drink", "Wellness", "Social"];
-const COUNTRIES: QuestCountry[] = ["Any", "United Kingdom", "United States", "France", "Italy", "Spain", "Mexico", "Japan", "Australia", "Albania"];
 
 // -- WIDGETS SETUP -- //
 type WidgetType = 'RANDOMISER' | 'LOCATION' | 'YOUTUBE' | 'LINK' | 'CHECKLIST' | 'MAP' | 'CARD_REVEAL';
@@ -141,7 +140,84 @@ const extractExposedVariables = (steps: string[]): string[] => {
   
   return vars;
 };
+function LocationAutocomplete({ label, value, onSelect }: { label: string, value: string, onSelect: (val: string) => void }) {
+  const [query, setQuery] = useState(value);
+  const [results, setResults] = useState<any[]>([]);
+  const [isOpen, setIsOpen] = useState(false);
+  const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    setQuery(value);
+  }, [value]);
 
+  const fetchLocation = async (text: string) => {
+    try {
+      const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(text)}&limit=5`, {
+        headers: { 'User-Agent': 'LoreApp/1.0' }
+      });
+      const data = await res.json();
+      setResults(data);
+      setIsOpen(data.length > 0);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const search = (text: string) => {
+    setQuery(text);
+    
+    // ✨ Clear existing timer if user types again quickly
+    if (debounceTimer.current) clearTimeout(debounceTimer.current);
+
+    if (text.length < 3) {
+      setResults([]);
+      setIsOpen(false);
+      return;
+    }
+
+    // ✨ Only fetch after 500ms of inactivity
+    debounceTimer.current = setTimeout(() => {
+      fetchLocation(text);
+    }, 500);
+  };
+
+  return (
+    <View className="mb-6 relative z-[100]">
+      {label ? <AppText variant="subtitle" className="mb-2 text-xs">{label}</AppText> : null}
+      <TextInput
+        className="bg-white border border-line rounded-lg p-3 font-sans text-ink"
+        placeholder="Search city, region, or country..."
+        value={query}
+        onChangeText={search} // ✨ Debounced search
+      />
+      {isOpen && results.length > 0 && (
+        <View className="absolute top-full mt-1 left-0 right-0 bg-white border border-line rounded-lg shadow-lg z-[100] max-h-48 overflow-hidden">
+          <ScrollView nestedScrollEnabled>
+            {results.map((item, i) => {
+              const nameParts = item.display_name.split(', ');
+              const shortName = nameParts.length > 2 
+                ? `${nameParts[0]}, ${nameParts[nameParts.length - 1]}` 
+                : item.display_name;
+                
+              return (
+                <Pressable
+                  key={i}
+                  onPress={() => {
+                    onSelect(shortName);
+                    setQuery(shortName);
+                    setIsOpen(false);
+                  }}
+                  className="p-3 border-b border-line/50 hover:bg-stone"
+                >
+                  <AppText className="text-ink font-sans text-sm">{shortName}</AppText>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+        </View>
+      )}
+    </View>
+  );
+}
 function Dropdown({ label, value, options, onSelect }: { label: string, value: string, options: string[], onSelect: (val: any) => void }) {
   const [isOpen, setIsOpen] = useState(false);
   return (
@@ -219,6 +295,7 @@ const createBlankQuest = (): Quest => ({
   slug: `new-quest-${Date.now()}`,
   title: "Untitled Quest",
   kicker: "NEW ADVENTURE",
+  stats: { views: 0, inProgress: 0, completed: 0, recentAvatars: [] },
   description: "Describe the adventure here...",
   whyItMatters: "Explain why they should do this...",
   locationHint: "Anywhere",
@@ -364,12 +441,19 @@ export default function QuestBuilderAdmin() {
             cost: (q.cost as QuestCost) || "Free",
             length: (q.length as QuestLength) || "Half day",
             difficulty: (q.difficulty as QuestDifficulty) || "Medium",
-            country: (q.country as QuestCountry) || "Any",
+            country: q.country || "Any",
             minParticipants: q.min_participants || 1,
             maxParticipants: q.max_participants || 1,
             seasons: (q.seasons as QuestSeason[]) || ["All year"],
             accessibility: (q.accessibility as QuestAccessibility[]) || [],
-            locationTypes: (q.location_types as QuestLocationType[]) || ["Anywhere"]
+            locationTypes: (q.location_types as QuestLocationType[]) || ["Anywhere"],
+            // ✨ PARSE INCOMING STATS (Fallback to 0 if your DB views aren't set up yet)
+            stats: {
+              views: q.view_count || 0,
+              inProgress: q.active_count || 0,
+              completed: q.completed_count || 0,
+              recentAvatars: q.recent_avatars || []
+            }
           }));
           setSavedQuests(mappedQuests);
         }
@@ -492,10 +576,27 @@ export default function QuestBuilderAdmin() {
           <ScrollView>
             <View className="flex-row flex-wrap gap-6">
               {filtered.map(q => (
-                <View key={q.id} className="w-64">
+                <View key={q.id} className="w-64 mb-4">
                   <QuestCard quest={q} />
-                  <Pressable onPress={() => { setQuest(q); setView('editor'); setPreviewMode('hero'); setActiveTab('basic'); }} className="mt-2 bg-stone py-2 rounded-lg items-center border border-line">
-                    <AppText className="text-ink font-sansSemi">Edit Quest</AppText>
+                  
+                  {/* ✨ NEW ADMIN ANALYTICS ROW */}
+                  <View className="mt-3 mb-2 bg-white border border-line rounded-xl p-3 flex-row justify-between shadow-sm">
+                    <View className="items-center flex-1 border-r border-line/50">
+                      <AppText className="text-[9px] text-ink/50 uppercase tracking-widest font-sansSemi mb-1">Views</AppText>
+                      <AppText className="text-ink font-sansSemi text-sm">{q.stats?.views || 0}</AppText>
+                    </View>
+                    <View className="items-center flex-1 border-r border-line/50">
+                      <AppText className="text-[9px] text-ink/50 uppercase tracking-widest font-sansSemi mb-1">Active</AppText>
+                      <AppText className="text-orange font-sansSemi text-sm">{q.stats?.inProgress || 0}</AppText>
+                    </View>
+                    <View className="items-center flex-1">
+                      <AppText className="text-[9px] text-ink/50 uppercase tracking-widest font-sansSemi mb-1">Done</AppText>
+                      <AppText className="text-green-600 font-sansSemi text-sm">{q.stats?.completed || 0}</AppText>
+                    </View>
+                  </View>
+
+                  <Pressable onPress={() => { setQuest(q); setView('editor'); setPreviewMode('hero'); setActiveTab('basic'); }} className="bg-stone py-2 rounded-lg items-center border border-line hover:bg-stone-300">
+                    <AppText className="text-ink font-sansSemi text-sm">Edit Quest</AppText>
                   </Pressable>
                 </View>
               ))}
@@ -590,20 +691,22 @@ export default function QuestBuilderAdmin() {
           )}
 
           {activeTab === 'metadata' && (
-  <View className="z-50">
-    <View className="mb-6 z-50">
-      <Dropdown 
-        label="Country" 
-        value={quest.country} 
-        options={COUNTRIES} 
-        onSelect={(val) => updateField("country", val)} 
-      />
-    </View>
-    <MultiToggleGroup label="Seasons" options={["Spring", "Summer", "Autumn", "Winter", "All year"]} selected={quest.seasons} onSelect={(val) => updateField("seasons", val)} />
-    <MultiToggleGroup label="Accessibility" options={["Walking", "Public Transport", "Driving", "Wheelchair Accessible"]} selected={quest.accessibility} onSelect={(val) => updateField("accessibility", val)} />
-    <MultiToggleGroup label="Location Types" options={["City", "Town", "Countryside", "Abroad", "Anywhere"]} selected={quest.locationTypes} onSelect={(val) => updateField("locationTypes", val)} />
-  </View>
-)}
+            <View className="z-50">
+              <View className="mb-6 z-50">
+                <LocationAutocomplete 
+                  label="Location Search" 
+                  value={quest.country} 
+                  onSelect={(val) => {
+                    updateField("country", val); 
+                    updateField("locationHint", val); // Automatically syncs with the Hero Pill!
+                  }} 
+                />
+              </View>
+              <MultiToggleGroup label="Seasons" options={["Spring", "Summer", "Autumn", "Winter", "All year"]} selected={quest.seasons} onSelect={(val) => updateField("seasons", val)} />
+              <MultiToggleGroup label="Accessibility" options={["Walking", "Public Transport", "Driving", "Wheelchair Accessible"]} selected={quest.accessibility} onSelect={(val) => updateField("accessibility", val)} />
+              <MultiToggleGroup label="Location Types" options={["City", "Town", "Countryside", "Abroad", "Anywhere"]} selected={quest.locationTypes} onSelect={(val) => updateField("locationTypes", val)} />
+            </View>
+          )}
         </ScrollView>
       </View>
       )}
@@ -625,7 +728,10 @@ export default function QuestBuilderAdmin() {
           previewMode === 'details' ? 'w-[90%] max-w-[900px] h-[90vh] rounded-[24px]' : 'w-[400px] h-[750px] rounded-[45px] px-4'
         }`}>
           {previewMode === 'hero' ? (
-            <QuestHero quest={quest} onPressOverride={() => setPreviewMode('details')} />
+            <QuestHero 
+  quest={{ ...quest, stats: { views: 0, inProgress: 0, completed: 1, recentAvatars: ['https://i.pravatar.cc/100?img=32'] } }} 
+  onPressOverride={() => setPreviewMode('details')} 
+/>
           ) : (
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingVertical: 40, paddingHorizontal: 40 }}>
               

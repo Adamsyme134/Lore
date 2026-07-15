@@ -13,7 +13,7 @@ type LoreTabBarProps = {
     routes: LoreTabRoute[];
   };
   navigation: {
-    emit: (options: { type: string; target: string; canPreventDefault: boolean }) => { defaultPrevented: boolean };
+    emit: (options: { type: "tabPress"; target?: string; canPreventDefault: boolean }) => { defaultPrevented: boolean };
     navigate: (name: string) => void;
   };
 };
@@ -32,7 +32,7 @@ export function LoreTabBar({ state, navigation }: LoreTabBarProps) {
   const visibleRoutes = state.routes.filter(route => route.name !== 'map');
 
   return (
-    <View className="absolute bottom-6 left-5 right-5 rounded-full border border-line bg-background/95 px-2 py-2 shadow-lg shadow-charcoal/10">
+    <View className="absolute bottom-6 left-5 right-5 rounded-full border border-line bg-background px-2 py-2 shadow-lg shadow-charcoal/10">
       <View className="flex-row items-center justify-between">
         {visibleRoutes.map((route, index) => {
           // adjust active index check since we filtered routes

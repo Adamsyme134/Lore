@@ -15,6 +15,7 @@ import type {
 import type { Accent } from "../../../shared/design/tokens";
 import { useExperienceStore } from "../../app/store/useExperienceStore";
 import { QuestCountry } from "../../../shared/types/domain";
+
 type QuestRow = {
   id: string;
   slug: string;
@@ -32,7 +33,6 @@ type QuestRow = {
   journal_prompt: string;
   points_value: number;
   
-  // ✨ Add the dynamic columns so TS knows they might exist
   category?: string;
   cost?: string;
   length?: string;
@@ -46,10 +46,15 @@ type QuestRow = {
   image_position?: string; 
   categories?: string[];
   gallery_urls?: string[];
+
+  // ✨ NEW: The stats returned by our Supabase View
+  view_count?: number;
+  active_count?: number;
+  completed_count?: number;
+  recent_avatars?: string[];
 };
 
 function mapQuest(row: QuestRow): Quest {
-  
   return {
     id: row.id,
     slug: row.slug,
@@ -58,7 +63,7 @@ function mapQuest(row: QuestRow): Quest {
     description: row.description,
     whyItMatters: row.why_it_matters || "",
     locationHint: row.location_hint || "Anywhere",
-    duration: row.duration_label || row.length || "Half day", // ✨ Added fallback
+    duration: row.duration_label || row.length || "Half day",
     mood: row.mood || "wild",
     accent: row.accent || "orange",
     imageUrl: row.image_url,
@@ -66,60 +71,71 @@ function mapQuest(row: QuestRow): Quest {
     contentBlocks: row.content_blocks || null,
     journalPrompt: row.journal_prompt || "",
     pointsValue: row.points_value || 10,
-    
     imagePosition: (row.image_position as "top" | "center" | "bottom") || "center",
     galleryUrls: row.gallery_urls || [],
-    // ✨ Typecast the new fields
     categories: (row.categories as QuestCategory[]) || (row.category ? [row.category as QuestCategory] : ["Adventure"]),
     category: (row.category as QuestCategory) || "Adventure",
     cost: (row.cost as QuestCost) || "Free",
     length: (row.length as QuestLength) || "Half day",
     difficulty: (row.difficulty as QuestDifficulty) || "Medium",
-      country: (row.country as QuestCountry) || "Any",
+    country: (row.country as QuestCountry) || "Any",
     minParticipants: row.min_participants || 1,
     maxParticipants: row.max_participants || 1,
     seasons: (row.seasons as QuestSeason[]) || ["All year"],
     accessibility: (row.accessibility as QuestAccessibility[]) || [],
     locationTypes: (row.location_types as QuestLocationType[]) || ["Anywhere"],
     
+    // ✨ NEW: Map the stats to the frontend object
+    stats: {
+      views: row.view_count || 0,
+      inProgress: row.active_count || 0,
+      completed: row.completed_count || 0,
+      recentAvatars: row.recent_avatars || []
+    }
   };
 }
-
 
 async function fetchQuestsFromSupabase() {
   const client = requireSupabase();
   const { data, error } = await client
-    .from("quests")
-    .select("*") // ✨ Changed this to "*" so it grabs all the new columns automatically
+    .from("v_quests_with_stats") // ✨ Read from the new View, not the raw table!
+    .select("*") 
     .eq("is_active", true)
     .order("created_at", { ascending: false });
 
   if (error) throw error;
-
   return (data ?? []).map((row) => mapQuest(row as QuestRow));
 }
 
-
 export function useQuests() {
   const { isBackendReady } = useAuth();
-
   return useQuery({
     queryKey: ["quests", isBackendReady ? "remote" : "preview"],
     queryFn: () => (isBackendReady ? fetchQuestsFromSupabase() : Promise.resolve(previewQuests)),
-    
     initialData: isBackendReady ? undefined : previewQuests
+  });
+}
+
+// ✨ NEW: Mutation to trigger a view count increment
+export function useTrackQuestView() {
+  const { isBackendReady } = useAuth();
+  return useMutation({
+    mutationFn: async (questId: string) => {
+      if (!isBackendReady || !supabase) return;
+      const { error } = await supabase.rpc("increment_quest_view", { quest_id_param: questId });
+      if (error) throw error;
+    }
   });
 }
 
 export function useActivateQuest() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
-  const activateQuest = useExperienceStore((state) => state.activateQuest); // ✨ Grab local action
+  const activateQuest = useExperienceStore((state) => state.activateQuest);
 
   return useMutation({
     mutationFn: async (questId: string) => {
-      activateQuest(questId); // ✨ Ensure instant UI update locally
-      
+      activateQuest(questId); 
       if (!user || !supabase) return;
 
       const { error } = await supabase
@@ -131,13 +147,13 @@ export function useActivateQuest() {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["user-quests"] });
       void queryClient.invalidateQueries({ queryKey: ["active-quests"] });
+      void queryClient.invalidateQueries({ queryKey: ["quests"] }); // ✨ Force refresh stats
     }
   });
 }
 
 export function useQuest(id?: string) {
   const questsQuery = useQuests();
-
   return {
     ...questsQuery,
     data: questsQuery.data?.find((quest) => quest.id === id || quest.slug === id) ?? null,
@@ -152,19 +168,28 @@ export function useActiveQuests() {
     queryFn: async () => {
       if (!user || !supabase) return [];
       
-      const { data, error } = await supabase
+      // 1. Safely grab the list of quest IDs the user is currently doing
+      const { data: userQuests, error: uqError } = await supabase
         .from("user_quests")
-        .select("quest_id, quests(*)") // Join with quest details
+        .select("quest_id")
         .eq("user_id", user.id)
         .eq("status", "active");
         
-      if (error) throw error;
-      return (data || []).map((item) => {
-  // 1. Cast item.quests as 'any' first to bypass the initial structural check
-  // 2. Then cast it as 'QuestRow' to satisfy your mapping function
-  const questData = item.quests as any; 
-  return mapQuest(questData as QuestRow);
-});
+      if (uqError) throw uqError;
+      
+      if (!userQuests || userQuests.length === 0) return [];
+      
+      const questIds = userQuests.map(uq => uq.quest_id);
+      
+      // 2. Fetch those quests from our new rich View so they have live stats!
+      const { data: questsData, error: qError } = await supabase
+        .from("v_quests_with_stats")
+        .select("*")
+        .in("id", questIds);
+        
+      if (qError) throw qError;
+      
+      return (questsData || []).map((row) => mapQuest(row as QuestRow));
     },
     enabled: !!user
   });
@@ -177,23 +202,14 @@ export function useSaveQuest() {
 
   return useMutation({
     mutationFn: async (questId: string) => {
-      // ✨ FIX: Always toggle the local state immediately for instant UI feedback (the bookmark filling in)
       toggleSavedQuest(questId);
+      if (!isBackendReady || !user || !supabase) return;
 
-      // If the backend isn't ready or user isn't logged in, just rely on local state
-      if (!isBackendReady || !user || !supabase) {
-        return;
-      }
-
-      // Otherwise, sync this change to Supabase
       const { error } = await supabase
         .from("user_quests")
         .upsert({ user_id: user.id, quest_id: questId, status: "saved" }, { onConflict: "user_id,quest_id" });
 
-      if (error) {
-        console.error("Failed to sync save state to backend:", error);
-        throw error;
-      }
+      if (error) throw error;
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["user-quests"] });
