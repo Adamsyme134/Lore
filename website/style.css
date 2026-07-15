@@ -1,0 +1,284 @@
+/* style.css */
+:root {
+  --text-primary: #1F1F1F;
+  --text-secondary: #5F5F5F;
+  --bg-color: #FAFAFA;
+  --bg-card: #FFFFFF;
+  --font-heading: "Playfair Display", serif; /* Modern serif for headings */
+  --font-body: "Inter", sans-serif; /* Clean sans-serif for body */
+}
+
+body {
+  font-family: var(--font-body);
+  color: var(--text-primary);
+  background-color: var(--bg-color);
+  margin: 0;
+  line-height: 1.6;
+}
+
+h1, h2, h3, .heading-serif {
+  font-family: var(--font-heading);
+  font-weight: normal;
+  margin-top: 0;
+}
+
+header {
+  padding: 40px 60px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.logo {
+  font-family: var(--font-heading);
+  font-size: 24px;
+  letter-spacing: 0.1em;
+}
+
+.hero {
+  text-align: center;
+  padding: 120px 60px;
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.hero h1 {
+  font-size: 80px;
+  line-height: 1.1;
+  margin-bottom: 24px;
+}
+
+.hero p {
+  font-size: 18px;
+  color: var(--text-secondary);
+  max-width: 600px;
+  margin: 0 auto 60px;
+}
+
+.email-form {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  border: 1px solid #E0E0E0;
+  border-radius: 50px;
+  max-width: 480px;
+  margin: 0 auto;
+  background-color: var(--bg-card);
+}
+
+.email-form input {
+  border: none;
+  background: none;
+  padding: 18px 24px;
+  font-size: 16px;
+  flex-grow: 1;
+}
+
+.quest-selection-title {
+  text-align: center;
+  margin: 100px 0 60px;
+  text-transform: uppercase;
+  font-size: 14px;
+  letter-spacing: 0.15em;
+  color: var(--text-secondary);
+}
+
+.quests-section {
+  display: flex;
+  gap: 30px;
+  justify-content: center;
+  padding: 0 60px;
+  margin-bottom: 120px;
+}
+
+.quest-card {
+  width: 320px;
+  border-radius: 20px;
+  border: 1px solid #E0E0E0;
+  background-color: var(--bg-card);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.quest-image-container {
+  position: relative;
+  height: 200px;
+}
+
+.quest-image-container img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.difficulty-tag {
+  position: absolute;
+  top: 15px;
+  right: 15px;
+  background-color: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(5px);
+  padding: 8px 16px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.quest-details {
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  flex-grow: 1;
+}
+
+.quest-title-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: start;
+  margin-bottom: 8px;
+}
+
+.quest-details h3 {
+  font-size: 22px;
+  line-height: 1.2;
+}
+
+.quest-location {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-bottom: 18px;
+}
+
+.quest-description {
+  font-size: 14px;
+  color: var(--text-secondary);
+  margin-bottom: 24px;
+  flex-grow: 1;
+}
+
+.quest-checklist {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.quest-checklist li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border-bottom: 1px solid #F0F0F0;
+  padding: 12px 0;
+  font-size: 12px;
+}
+
+.step-number {
+  color: #FFFFFF;
+  background-color: var(--text-primary);
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: bold;
+}
+
+/* Visually hiding icons, assuming standard UI font icons are not available for zero cost */
+.check-icon, .arrow-icon, .lock-icon, .close-icon {
+  display: none;
+}
+
+.step-closed, .step-locked {
+  display: flex;
+  align-items: center;
+}
+
+.step-label {
+  flex-grow: 1;
+}
+
+.view-quest-link {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-primary);
+  text-decoration: none;
+  margin-top: 24px;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+footer {
+  border-top: 1px solid #E0E0E0;
+  padding: 60px;
+  display: flex;
+  justify-content: space-between;
+}
+
+.footer-column {
+  width: 180px;
+}
+
+.footer-heading {
+  font-size: 14px;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  margin-bottom: 18px;
+  letter-spacing: 0.1em;
+}
+
+.footer-links {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.footer-links li {
+  margin-bottom: 8px;
+}
+
+.footer-links a {
+  color: var(--text-primary);
+  text-decoration: none;
+  font-size: 14px;
+}
+
+.copyright {
+  grid-column: span 3;
+  text-align: center;
+  color: var(--text-secondary);
+  font-size: 12px;
+  padding-top: 60px;
+}
+
+/* Button override */
+.btn-solid {
+  background-color: var(--text-primary);
+  color: #FFFFFF !important;
+  border: none;
+  padding: 12px 24px;
+  border-radius: 20px;
+  font-size: 14px;
+  cursor: pointer;
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.email-form button {
+  background-color: var(--bg-card);
+  color: var(--text-primary);
+  border: 1px solid #E0E0E0;
+  border-radius: 20px;
+  padding: 12px 20px;
+  font-size: 14px;
+  margin: 6px;
+  font-weight: 500;
+  cursor: pointer;
+}

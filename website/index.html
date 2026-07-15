@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LORE — Make life more interesting.</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+
+  <header>
+    <div class="logo">LORE</div>
+    <div class="header-nav">
+      <span style="color: var(--text-secondary); margin-right: 20px;">About Lore</span>
+      <a href="#waitlist" class="btn-solid">Join waitlist</a>
+    </div>
+  </header>
+
+  <section class="hero" id="waitlist">
+    <h1>Make life more interesting</h1>
+    <p>Real-world adventures. Beautiful memories. A life well lived.</p>
+    
+    <form name="waitlist-signup" method="POST" data-netlify="true" class="email-form">
+      <input type="email" name="email" placeholder="Enter your email" required />
+      <button type="submit">Join the waitlist</button>
+    </form>
+    
+    <p style="font-size: 12px; color: var(--text-secondary); margin-top: 20px;">Be the first to know when Lore launches.</p>
+  </section>
+
+  <h2 class="quest-selection-title">A taste of what's to come</h2>
+
+  <section class="quests-section" id="quest-container">
+    <p>Loading curated adventures...</p>
+  </section>
+
+  <footer>
+    <div class="footer-column">
+      <div class="logo">LORE</div>
+      <p style="font-size: 14px; color: var(--text-secondary);">Real-world adventures.<br>Beautiful memories.<br>A life well lived.</p>
+    </div>
+    <div class="footer-column">
+      <div class="footer-heading">Product</div>
+      <ul class="footer-links">
+        <li><a href="#">How it works</a></li>
+        <li><a href="#">Quests</a></li>
+        <li><a href="#">Lore Entries</a></li>
+        <li><a href="#">For friends</a></li>
+      </ul>
+    </div>
+    <div class="footer-column">
+      <div class="footer-heading">Company</div>
+      <ul class="footer-links">
+        <li><a href="#">About</a></li>
+        <li><a href="#">Journal</a></li>
+        <li><a href="#">Careers</a></li>
+        <li><a href="#">Contact</a></li>
+      </ul>
+    </div>
+    <div class="footer-column">
+      <div class="footer-heading">Legal</div>
+      <ul class="footer-links">
+        <li><a href="#">Privacy Policy</a></li>
+        <li><a href="#">Terms of Service</a></li>
+        <li><a href="#">Cookie Policy</a></li>
+      </ul>
+    </div>
+    <div class="copyright">
+      © 2024 Lore. All rights reserved.
+    </div>
+  </footer>
+
+  <script src="script.js"></script>
+</body>
+</html>
