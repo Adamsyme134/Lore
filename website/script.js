@@ -1,120 +1,148 @@
 // script.js
-console.log("--- STARTING DIAGNOSTIC SCRIPT ---");
+const SUPABASE_URL = 'https://vqoxqetfrjuvtpkqifbw.supabase.co'; 
+// Use your working anon key here:
+const SUPABASE_ANON_KEY = 'YOUR_WORKING_ANON_KEY_HERE'; 
 
-const SUPABASE_URL = 'https://vqoxqetfrjuvtpkqifbw.supabase.co'; // Replace with yours
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZxb3hxZXRmcmp1dnRwa3FpZmJ3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIzODMzNTcsImV4cCI6MjA5Nzk1OTM1N30.beOvBmtqIxmj-UM03H_dyQd8w35FaJy3VsHptcnjsK0'; // Replace with yours
+const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-
-
-// Helper function
-function getDifficultyLabel(points) {
-  if (points <= 10) return 'Easy';
-  if (points <= 15) return 'Moderate';
-  return 'Challenging';
+// Helper to safely extract YouTube IDs from various URL formats
+function getYouTubeId(url) {
+  if (!url) return null;
+  const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+  const match = url.match(regExp);
+  return (match && match[2].length === 11) ? match[2] : null;
 }
 
-try {
-  console.log("1. Checking if Supabase library loaded from HTML...");
-  if (typeof window.supabase === 'undefined') {
-    console.error("CRITICAL ERROR: window.supabase is undefined. The CDN script in index.html might be missing or blocked.");
+// Global function to handle expand/collapse
+window.toggleQuest = function(questId) {
+  const body = document.getElementById(`quest-body-${questId}`);
+  const btn = document.getElementById(`quest-btn-${questId}`);
+  
+  if (body.style.display === 'none' || body.style.display === '') {
+    body.style.display = 'flex';
+    btn.innerHTML = 'Collapse quest <span>↑</span>';
   } else {
-    console.log("1b. Supabase library found successfully!");
+    body.style.display = 'none';
+    btn.innerHTML = 'Expand quest <span>↓</span>';
   }
+};
 
-  console.log("2. Attempting to create Supabase Client...");
-  const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-  console.log("2b. Supabase Client created!");
-
-  async function loadQuests() {
-    console.log("3. loadQuests() started. Fetching from database...");
-    try {
-      const { data: quests, error } = await supabaseClient
-        .from('quests')
-        .select('*')
-        .eq('is_active', true)
-        .eq('is_curated', true)
-        .limit(3);
-
-      console.log("4. Network request finished. Checking for errors...");
-
-      if (error) {
-        console.error("SUPABASE API ERROR:", error);
-        throw error;
+// Render the rich content blocks or fallback to standard steps
+function renderQuestContent(quest) {
+  // 1. Check if the quest uses the new contentBlocks system
+  if (quest.contentBlocks && quest.contentBlocks.length > 0) {
+    return quest.contentBlocks.map(block => {
+      if (block.type === 'text') {
+        return `<p class="quest-text-block">${block.content}</p>`;
       }
-
-      console.log("5. Data retrieved successfully! Here is the data:", quests);
-      renderQuests(quests);
-      
-    } catch (error) {
-      console.error('CAUGHT ERROR IN LOADQUESTS:', error);
-      document.getElementById('quest-container').innerHTML = 
-        '<p style="text-align: center; color: var(--text-secondary);">Error loading curated adventures. Check console for details.</p>';
-    }
+      if (block.type === 'widget') {
+        if (block.widgetType === 'youtube') {
+          const videoId = block.config?.videoId || getYouTubeId(block.config?.url);
+          if (!videoId) return '';
+          return `
+            <div class="widget-video-container">
+              <iframe src="https://www.youtube.com/embed/${videoId}" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+            </div>`;
+        }
+        if (block.widgetType === 'link') {
+          return `
+            <a href="${block.config?.url}" target="_blank" class="widget-link">
+              ${block.config?.title || block.config?.url || 'Visit Link'} <span>↗</span>
+            </a>`;
+        }
+        // Fallback for app-native widgets (Randomiser, Map, etc.)
+        return `
+          <div class="widget-fallback">
+            <span>✨</span> Interactive ${block.widgetType} available in the Lore app
+          </div>`;
+      }
+      return '';
+    }).join('');
+  }
+  
+  // 2. Fallback to standard steps array for older quests
+  if (quest.steps && quest.steps.length > 0) {
+    let stepsHtml = '<ul class="quest-checklist">';
+    quest.steps.forEach((stepText, index) => {
+      stepsHtml += `
+        <li>
+          <div class="step-label"><span class="step-number">${index + 1}</span> ${stepText}</div>
+        </li>`;
+    });
+    stepsHtml += '</ul>';
+    return stepsHtml;
   }
 
-  function renderQuests(quests) {
-    console.log("6. renderQuests() started.");
-    const container = document.getElementById('quest-container');
-    container.innerHTML = ''; 
+  return '';
+}
 
-    if (!quests || quests.length === 0) {
-      console.log("7. No quests found (array is empty).");
-      container.innerHTML = '<p style="text-align: center; color: var(--text-secondary);">No featured adventures selected yet.</p>';
-      return;
-    }
+async function loadQuests() {
+  try {
+    const { data: quests, error } = await supabaseClient
+      .from('quests')
+      .select('*')
+      .eq('is_active', true)
+      .eq('is_curated', true)
+      .limit(3);
 
-    console.log(`8. Rendering ${quests.length} quests to the screen...`);
+    if (error) throw error;
+    renderQuests(quests);
     
-    quests.forEach((quest) => {
-      let stepsHtml = '';
-      quest.steps.forEach((stepText, index) => {
-        const isFirst = index === 0;
-        const statusIcon = isFirst ? '<span>✓</span>' : '<span>🔒</span>';
-        
-        stepsHtml += `
-          <li>
-            <div class="step-label"><span class="step-number">${index + 1}</span> ${stepText}</div>
-            <div class="step-status">${statusIcon}</div>
-          </li>
-        `;
-      });
+  } catch (error) {
+    console.error('Error loading quests:', error);
+    document.getElementById('quest-container').innerHTML = 
+      '<p style="text-align: center; color: var(--text-secondary);">Error loading curated adventures.</p>';
+  }
+}
 
-      const cardHtml = `
-        <div class="quest-card">
-          <div class="quest-image-container">
-            <img src="${quest.image_url}" alt="${quest.title}" />
-            <div class="difficulty-tag">
-              <span>📊</span> ${getDifficultyLabel(quest.points_value)}
-            </div>
+function renderQuests(quests) {
+  const container = document.getElementById('quest-container');
+  container.innerHTML = ''; 
+
+  if (!quests || quests.length === 0) {
+    container.innerHTML = '<p style="text-align: center; color: var(--text-secondary);">No featured adventures selected yet.</p>';
+    return;
+  }
+
+  quests.forEach((quest) => {
+    // Generate Info Tags securely (falling back if data is missing)
+    const costLabel = quest.cost || 'Free';
+    const durationLabel = quest.length || quest.duration_label || 'Flexible';
+    const locationLabel = quest.locationHint || quest.location_hint || 'Anywhere';
+    const difficultyLabel = quest.difficulty || 'All levels';
+
+    const cardHtml = `
+      <div class="quest-card">
+        <div class="quest-image-container">
+          <img src="${quest.image_url || quest.imageUrl}" alt="${quest.title}" />
+        </div>
+        
+        <div class="quest-header">
+          <h3>${quest.title}</h3>
+          
+          <div class="quest-meta-grid">
+            <div class="meta-pill"><span>📍</span> ${locationLabel}</div>
+            <div class="meta-pill"><span>💰</span> ${costLabel}</div>
+            <div class="meta-pill"><span>⏱️</span> ${durationLabel}</div>
+            <div class="meta-pill"><span>📊</span> ${difficultyLabel}</div>
           </div>
-          <div class="quest-details">
-            <div class="quest-title-row">
-              <h3>${quest.title}</h3>
-              <div class="arrow-circle">→</div>
-            </div>
-            <div class="quest-location"><span>📍</span> ${quest.location_hint}</div> 
-            
-            <p class="quest-description">${quest.description}</p>
-            
-            <ul class="quest-checklist">
-              ${stepsHtml}
-            </ul>
-            
-            <a href="#" class="view-quest-link">View full quest <span>→</span></a>
+          
+          <button id="quest-btn-${quest.id}" class="expand-btn" onclick="toggleQuest('${quest.id}')">
+            Expand quest <span>↓</span>
+          </button>
+        </div>
+
+        <div id="quest-body-${quest.id}" class="quest-body" style="display: none;">
+          <p class="quest-description">${quest.description}</p>
+          
+          <div class="quest-content-area">
+            ${renderQuestContent(quest)}
           </div>
         </div>
-      `;
-      container.innerHTML += cardHtml;
-    });
-    
-    console.log("9. Finished rendering successfully!");
-  }
-
-  console.log("Executing loadQuests now...");
-  loadQuests();
-
-} catch (globalError) {
-  console.error("GLOBAL SCRIPT CRASH:", globalError);
-  document.getElementById('quest-container').innerHTML = 
-        '<p style="text-align: center; color: red;">A critical script error occurred. Check console.</p>';
+      </div>
+    `;
+    container.innerHTML += cardHtml;
+  });
 }
+
+loadQuests();
