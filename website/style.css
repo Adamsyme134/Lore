@@ -533,3 +533,48 @@ header {
     border-right: none;
   }
 }
+/* --- NAVBAR & BUTTON FIXES --- */
+  
+  /* 1. Prevent all buttons from squishing and wrapping text */
+  button, 
+  a.btn, 
+  [class*="btn"] {
+    white-space: nowrap !important;
+    flex-shrink: 0 !important;
+  }
+
+  /* 2. Hide the non-essential "About Lore" link to free up space for the logo and button */
+  header a:not(:first-child):not([class*="btn"]),
+  nav a:not(:first-child):not([class*="btn"]) {
+    display: none !important; 
+  }
+
+  /* --- WAITLIST FORM FIXES --- */
+  
+  /* 3. Break the form into a stacked column instead of a squished row */
+  form {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 12px !important;
+    border: none !important; /* Remove the outer pill border */
+    background: transparent !important;
+    padding: 0 !important;
+    width: 100% !important;
+  }
+
+  /* 4. Restore the pill shape specifically to the input field */
+  form input[type="email"] {
+    width: 100% !important;
+    border: 1px solid rgba(255, 255, 255, 0.2) !important; 
+    border-radius: 9999px !important;
+    padding: 16px 24px !important;
+    text-align: center; /* Centers the placeholder text nicely on mobile */
+  }
+
+  /* 5. Make the submit button full-width and perfectly pill-shaped */
+  form button {
+    width: 100% !important;
+    position: static !important; /* Resets positioning if you previously used absolute */
+    padding: 16px 24px !important;
+    margin: 0 !important;
+  }
