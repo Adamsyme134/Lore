@@ -2,7 +2,7 @@
 console.log("--- STARTING DIAGNOSTIC SCRIPT ---");
 
 const SUPABASE_URL = 'https://vqoxqetfrjuvtpkqifbw.supabase.co'; // Replace with yours
-const SUPABASE_ANON_KEY = 'sb_secret_k5GJKOrOT1iwETWTPTlGcA_oQwLb05G'; // Replace with yours
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZxb3hxZXRmcmp1dnRwa3FpZmJ3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIzODMzNTcsImV4cCI6MjA5Nzk1OTM1N30.beOvBmtqIxmj-UM03H_dyQd8w35FaJy3VsHptcnjsK0'; // Replace with yours
 
 
 
