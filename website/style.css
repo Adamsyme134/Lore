@@ -1,6 +1,18 @@
 /* style.css */
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500&family=Playfair+Display:ital,wght@0,400;0,600;1,400&display=swap');
+/* --- GLOBAL RESET & OVERFLOW FIX --- */
+html, body {
+  overflow-x: hidden !important; /* Kills the horizontal scrollbar */
+  width: 100% !important;
+  max-width: 100vw !important;
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
 
+*, *:before, *:after {
+  box-sizing: inherit;
+}
 :root {
   /* Site-wide Dark Theme */
   --bg-color: #121212; 
