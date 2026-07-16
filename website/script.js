@@ -189,11 +189,29 @@ function renderQuests(quests) {
         let contentHtml = '';
 
         parts.forEach(part => {
+          // Parse YouTube
           if (part.startsWith('[YOUTUBE:')) {
             const raw = part.slice(9, -1);
             const config = parseConfig(raw);
             if (config.rawEmbed) contentHtml += `<div class="app-youtube-widget">${config.rawEmbed}</div>`;
-          } else if (part !== "") {
+          } 
+          // Parse External Links
+          else if (part.startsWith('[LINK:')) {
+            const raw = part.slice(6, -1);
+            const config = parseConfig(raw);
+            
+            // Build the Link UI Widget
+            contentHtml += `
+              <a href="${config.url}" target="_blank" class="app-link-widget">
+                ${config.bgImage ? `<img src="${config.bgImage}" class="app-link-img" alt="${config.title}" />` : `<div class="app-link-img"></div>`}
+                <span class="app-link-text">${config.title || 'View Link'}</span>
+                <svg class="app-link-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M9 18l6-6-6-6" />
+                </svg>
+              </a>`;
+          } 
+          // Parse Standard Text
+          else if (part !== "") {
             let cleanText = part.trim();
             if (cleanText) contentHtml += `<div class="app-step-text">${cleanText}</div>`;
           }
