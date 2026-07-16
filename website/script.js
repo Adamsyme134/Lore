@@ -2,7 +2,7 @@
 console.log("--- STARTING DIAGNOSTIC SCRIPT ---");
 
 const SUPABASE_URL = 'https://vqoxqetfrjuvtpkqifbw.supabase.co'; // Replace with yours
-const SUPABASE_ANON_KEY = 'esb_publishable_TPUy3RvrZS4b3RO1maV7yw_MoIsLeuP'; // Replace with yours
+const SUPABASE_ANON_KEY = 'sb_secret_k5GJKOrOT1iwETWTPTlGcA_oQwLb05G'; // Replace with yours
 
 
 
