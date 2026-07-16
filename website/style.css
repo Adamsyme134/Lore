@@ -483,3 +483,53 @@ header {
   opacity: 0.4;
   margin-left: 8px;
 }
+/* --- MOBILE RESPONSIVENESS (< 800px) --- */
+@media (max-width: 800px) {
+  /* Revert container from fixed height to natural vertical flex flow */
+  #quest-container {
+    height: auto !important;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 24px;
+    margin-bottom: 40px;
+  }
+
+  /* Override the JS absolute positioning */
+  .app-quest-wrapper {
+    position: relative !important;
+    left: auto !important;
+    top: auto !important;
+    transform: none !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 400px !important;
+  }
+
+  /* When a card is clicked, hide the other two so the user doesn't have to scroll past them */
+  #quest-container.has-active-quest .is-side-quest {
+    display: none !important;
+  }
+
+  /* Adjust the expanded hero details for smaller screens */
+  .expanded-details {
+    padding: 24px 20px;
+  }
+
+  .title-row {
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .info-grid {
+    flex-wrap: wrap;
+    gap: 20px;
+    border-right: none;
+  }
+
+  /* Make the 4 info columns wrap 2x2 */
+  .info-col {
+    min-width: 45%;
+    border-right: none;
+  }
+}
