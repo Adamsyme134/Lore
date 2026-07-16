@@ -76,6 +76,9 @@ function renderQuestContent(quest) {
   return '';
 }
 
+// Remove all the old toggleQuest and renderQuestContent functions.
+// We are mimicking the static display card from the app!
+
 async function loadQuests() {
   try {
     const { data: quests, error } = await supabaseClient
@@ -105,41 +108,55 @@ function renderQuests(quests) {
   }
 
   quests.forEach((quest) => {
-    // Generate Info Tags securely (falling back if data is missing)
-    const costLabel = quest.cost || 'Free';
-    const durationLabel = quest.length || quest.duration_label || 'Flexible';
-    const locationLabel = quest.locationHint || quest.location_hint || 'Anywhere';
-    const difficultyLabel = quest.difficulty || 'All levels';
+    // Handle Supabase snake_case vs App camelCase
+    const maxParticipants = quest.maxParticipants || quest.max_participants || 1;
+    const isGroup = maxParticipants > 1;
+    
+    // Build Chips just like the App's mapping
+    let chipsHtml = '';
+    const cats = Array.isArray(quest.categories) ? quest.categories : (quest.categories ? JSON.parse(quest.categories) : []);
+    cats.forEach(cat => {
+      chipsHtml += `<div class="app-chip">${cat}</div>`;
+    });
+    
+    const length = quest.length || quest.duration_label;
+    if (length) chipsHtml += `<div class="app-chip">${length}</div>`;
+    if (quest.difficulty) chipsHtml += `<div class="app-chip">${quest.difficulty}</div>`;
+    if (quest.cost) chipsHtml += `<div class="app-chip">${quest.cost}</div>`;
 
+    // Exact imagePosition parsing from QuestCard.tsx
+    let contentPos = 'center';
+    const rawPos = quest.imagePosition || quest.image_position;
+    if (rawPos) {
+      const posMatch = rawPos.match(/(\d+(?:\.\d+)?)%\s+(\d+(?:\.\d+)?)%/);
+      contentPos = posMatch ? `${posMatch[1]}% ${posMatch[2]}%` : rawPos;
+    }
+
+    // Outputting the exact hierarchy of QuestCard.tsx
     const cardHtml = `
-      <div class="quest-card">
-        <div class="quest-image-container">
-          <img src="${quest.image_url || quest.imageUrl}" alt="${quest.title}" />
-        </div>
+      <a href="#waitlist" class="app-quest-card ${isGroup ? 'is-group' : ''}">
         
-        <div class="quest-header">
-          <h3>${quest.title}</h3>
-          
-          <div class="quest-meta-grid">
-            <div class="meta-pill"><span>📍</span> ${locationLabel}</div>
-            <div class="meta-pill"><span>💰</span> ${costLabel}</div>
-            <div class="meta-pill"><span>⏱️</span> ${durationLabel}</div>
-            <div class="meta-pill"><span>📊</span> ${difficultyLabel}</div>
-          </div>
-          
-          <button id="quest-btn-${quest.id}" class="expand-btn" onclick="toggleQuest('${quest.id}')">
-            Expand quest <span>↓</span>
-          </button>
-        </div>
+        <img class="app-quest-img" 
+             src="${quest.image_url || quest.imageUrl}" 
+             alt="${quest.title}" 
+             style="object-position: ${contentPos};" />
+        
+        <div class="app-quest-gradient"></div>
 
-        <div id="quest-body-${quest.id}" class="quest-body" style="display: none;">
-          <p class="quest-description">${quest.description}</p>
+        ${isGroup ? `
+          <div class="app-group-badge">Group Quest</div>
+        ` : ''}
+
+        <div class="app-quest-content">
+          ${chipsHtml ? `<div class="app-quest-chips">${chipsHtml}</div>` : ''}
           
-          <div class="quest-content-area">
-            ${renderQuestContent(quest)}
-          </div>
+          ${quest.kicker ? `<div class="app-quest-kicker">${quest.kicker}</div>` : ''}
+          
+          <h3 class="app-quest-title">${quest.title}</h3>
+          
+          ${quest.description ? `<p class="app-quest-desc">${quest.description}</p>` : ''}
         </div>
-      </div>
+      </a>
     `;
     container.innerHTML += cardHtml;
   });

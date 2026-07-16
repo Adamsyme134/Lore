@@ -143,323 +143,121 @@ header {
   flex-wrap: wrap;
 }
 
-/* CARDS - Notice they use the light variables */
-.quest-card {
-  width: 340px;
-  border-radius: 12px;
-  background-color: var(--bg-card);
-  color: var(--card-text-primary);
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-}
+/* --- EXACT APP-MATCHING QUEST CARDS --- */
 
-.quest-image-container {
+.app-quest-card {
   position: relative;
-  height: 220px;
-  padding: 12px 12px 0 12px;
-}
-
-.quest-image-container img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  border-radius: 8px;
-}
-
-.difficulty-tag {
-  position: absolute;
-  top: 24px;
-  right: 24px;
-  background-color: rgba(255, 255, 255, 0.9);
-  padding: 6px 12px;
-  border-radius: 20px;
-  font-size: 12px;
-  font-weight: 500;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  color: #111;
-}
-
-.quest-details {
-  padding: 24px;
-  display: flex;
-  flex-direction: column;
-  flex-grow: 1;
-}
-
-.quest-title-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: 8px;
-}
-
-.quest-details h3 {
-  font-size: 24px;
-  line-height: 1.2;
-  margin: 0;
-  padding-right: 12px;
-}
-
-.arrow-circle {
-  background-color: rgba(0,0,0,0.05);
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-
-.quest-location {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  color: var(--card-text-secondary);
-  margin-bottom: 16px;
-}
-
-.quest-description {
-  font-size: 14px;
-  color: var(--card-text-secondary);
-  margin-bottom: 24px;
-  line-height: 1.5;
-  flex-grow: 1;
-}
-
-.quest-checklist {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  border: 1px solid var(--card-border);
-  border-radius: 12px;
+  width: 340px; 
+  height: 280px; /* Maps to App non-compact height */
+  border-radius: 24px; /* rounded-[24px] */
   overflow: hidden;
-}
-
-.quest-checklist li {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 12px 16px;
-  font-size: 13px;
-  background-color: transparent;
-}
-
-.quest-checklist li:not(:last-child) {
-  border-bottom: 1px solid var(--card-border);
-}
-
-.step-label {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.step-number {
-  background-color: var(--card-text-primary);
-  color: var(--bg-card);
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 10px;
-  font-weight: 600;
-}
-
-.step-status {
-  color: var(--card-text-secondary);
-  font-size: 14px;
-}
-
-.view-quest-link {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: var(--card-text-primary);
+  background-color: #D3C7B5; /* bg-stone */
   text-decoration: none;
-  margin-top: 24px;
-  font-size: 14px;
-  font-weight: 500;
+  display: block;
+  border: 1px solid rgba(221, 211, 194, 0.2); /* border border-line/20 */
+  transition: transform 0.2s ease, border-color 0.2s ease;
 }
 
-footer {
-  border-top: 1px solid var(--border-color);
-  padding: 60px 80px;
-  display: flex;
-  justify-content: space-between;
-  flex-wrap: wrap;
+.app-quest-card:hover {
+  transform: translateY(-4px); 
 }
 
-.footer-column {
-  width: 200px;
-  margin-bottom: 30px;
+/* Group Quest border class mapping */
+.app-quest-card.is-group {
+  border: 3px solid #2D6A4F; 
 }
 
-.footer-heading {
-  font-size: 12px;
-  text-transform: uppercase;
-  color: var(--text-secondary);
-  margin-bottom: 20px;
-  letter-spacing: 0.1em;
-  font-weight: 600;
-}
-
-.footer-links {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-}
-
-.footer-links li {
-  margin-bottom: 12px;
-}
-
-.footer-links a {
-  color: var(--text-primary);
-  text-decoration: none;
-  font-size: 14px;
-}
-
-.copyright {
-  width: 100%;
-  text-align: center;
-  color: var(--text-secondary);
-  font-size: 12px;
-  padding-top: 40px;
-}
-
-/* --- NEW QUEST CARD STYLES --- */
-
-.quest-header {
-  padding: 20px 24px 0 24px;
-}
-
-.quest-header h3 {
-  font-size: 22px;
-  line-height: 1.2;
-  margin: 0 0 16px 0;
-  color: var(--card-text-primary);
-}
-
-/* Info Tags */
-.quest-meta-grid {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-bottom: 20px;
-}
-
-.meta-pill {
-  background-color: rgba(0, 0, 0, 0.04);
-  border: 1px solid rgba(0, 0, 0, 0.05);
-  padding: 6px 12px;
-  border-radius: 16px;
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--card-text-secondary);
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-/* Expand Button */
-.expand-btn {
-  width: 100%;
-  background-color: transparent;
-  border: 1px solid var(--card-border);
-  color: var(--card-text-primary);
-  padding: 12px;
-  border-radius: 12px;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 8px;
-  transition: background-color 0.2s;
-  margin-bottom: 24px;
-}
-
-.expand-btn:hover {
-  background-color: rgba(0, 0, 0, 0.02);
-}
-
-/* Hidden Body Area */
-.quest-body {
-  padding: 0 24px 24px 24px;
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-  border-top: 1px solid var(--card-border);
-  padding-top: 24px;
-}
-
-.quest-content-area {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.quest-text-block {
-  font-size: 14px;
-  line-height: 1.6;
-  color: var(--card-text-primary);
-  margin: 0;
-}
-
-/* Widget: YouTube */
-.widget-video-container {
-  position: relative;
-  width: 100%;
-  padding-bottom: 56.25%; /* 16:9 Aspect Ratio */
-  border-radius: 12px;
-  overflow: hidden;
-  background-color: #000;
-}
-
-.widget-video-container iframe {
+.app-quest-img {
   position: absolute;
   top: 0;
   left: 0;
   width: 100%;
   height: 100%;
+  object-fit: cover; /* contentFit="cover" */
 }
 
-/* Widget: Link */
-.widget-link {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  background-color: var(--card-text-primary);
-  color: var(--bg-card);
-  padding: 14px 20px;
-  border-radius: 12px;
-  text-decoration: none;
-  font-size: 14px;
-  font-weight: 500;
-  transition: opacity 0.2s;
+.app-quest-gradient {
+  position: absolute;
+  inset: 0;
+  /* Exact mapping of: colors={['transparent', 'rgba(28, 26, 23, 0.95)']} locations={[0.2, 1]} */
+  background: linear-gradient(to bottom, rgba(28, 26, 23, 0) 20%, rgba(28, 26, 23, 0.95) 100%);
+  pointer-events: none;
 }
 
-.widget-link:hover {
-  opacity: 0.9;
-}
-
-/* Widget: App Fallback (e.g. Map/Randomiser) */
-.widget-fallback {
-  background-color: rgba(0, 0, 0, 0.03);
-  padding: 14px;
-  border-radius: 12px;
+/* absolute top-4 right-4 bg-[#2D6A4F] px-3 py-1.5 rounded-full shadow-md border border-white/20 */
+.app-group-badge {
+  position: absolute;
+  top: 16px; 
+  right: 16px; 
+  background-color: #2D6A4F;
+  padding: 6px 12px; 
+  border-radius: 9999px; 
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); 
+  border: 1px solid rgba(255, 255, 255, 0.2); 
+  color: #FFFFFF;
   font-size: 12px;
-  color: var(--card-text-secondary);
+  font-family: var(--font-body); 
+  font-weight: 600; /* font-sansSemi */
+}
+
+/* absolute bottom-0 left-0 right-0 p-5 */
+.app-quest-content {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 20px; 
   display: flex;
-  align-items: center;
-  gap: 8px;
-  border: 1px dashed var(--card-border);
+  flex-direction: column;
+}
+
+/* mb-3 flex-row flex-wrap gap-2 */
+.app-quest-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px; 
+  margin-bottom: 12px; 
+}
+
+/* Mapping <Chip tone="light" /> */
+.app-chip {
+  background-color: rgba(245, 240, 231, 0.95); /* ivory, slightly transparent */
+  color: #171612; /* ink */
+  padding: 4px 10px;
+  border-radius: 16px;
+  font-size: 11px;
+  font-weight: 600;
+  font-family: var(--font-body);
+}
+
+/* variant="eyebrow" text-ivory/80 mb-2 */
+.app-quest-kicker {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: rgba(245, 240, 231, 0.8); 
+  margin-bottom: 8px; 
+}
+
+/* variant="display" text-ivory */
+.app-quest-title {
+  font-family: var(--font-heading); 
+  font-size: 26px;
+  line-height: 1.1;
+  color: #F5F0E7; /* ivory */
+  margin: 0;
+}
+
+/* text-ivory/80 mt-1 numberOfLines={2} */
+.app-quest-desc {
+  font-family: var(--font-body);
+  font-size: 14px;
+  color: rgba(245, 240, 231, 0.8); 
+  margin: 4px 0 0 0; 
+  display: -webkit-box;
+  -webkit-line-clamp: 2; /* Forces exactly 2 lines before truncating with ... */
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  line-height: 1.4;
 }
