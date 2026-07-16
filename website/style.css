@@ -262,148 +262,220 @@ header {
   line-height: 1.4;
 }
 /* --- QUEST STEPS (QuestDetailBlock & QuestStepCard exactly mapped) --- */
+/* --- ANIMATED LAYOUT WRAPPERS --- */
+#quest-container {
+  display: flex;
+  justify-content: center;
+  gap: 24px;
+  width: 100%;
+  transition: gap 0.5s cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+#quest-container.has-active-quest {
+  gap: 0;
+}
 
 .app-quest-wrapper {
+  width: 340px;
+  display: flex;
+  flex-direction: column;
+  transition: all 0.6s cubic-bezier(0.25, 1, 0.5, 1);
+  border-radius: 24px;
+  background-color: transparent;
+}
+
+/* Hide unselected quests smoothly */
+.app-quest-wrapper.is-inactive-quest {
+  width: 0;
+  opacity: 0;
+  margin: 0;
+  transform: scale(0.9);
+  pointer-events: none;
+  overflow: hidden;
+}
+
+/* Expand selected quest to 50% of screen */
+.app-quest-wrapper.is-active-quest {
+  width: 50vw;
+  min-width: 600px;
+  max-width: 900px;
+  background-color: #F4EFE6; /* Matches screenshot cream */
+  border-radius: 0;
+}
+
+/* Card image animation */
+.app-quest-card {
+  position: relative;
+  width: 100%;
+  height: 280px;
+  transition: height 0.6s cubic-bezier(0.25, 1, 0.5, 1);
+  cursor: pointer;
+  display: block;
+  border-radius: 24px;
+  overflow: hidden;
+}
+
+.is-active-quest .app-quest-card {
+  height: 350px;
+  border-radius: 24px 24px 0 0;
+}
+
+/* Fade out card text when expanded */
+.app-quest-content {
+  transition: opacity 0.3s;
+}
+.is-active-quest .app-quest-content {
+  opacity: 0;
+}
+
+/* --- EXPANDED HERO DETAILS (Matching Screenshot Exactly) --- */
+.expanded-details {
+  display: none;
+  opacity: 0;
+  padding: 32px 40px;
+  background-color: #F4EFE6;
+  color: #1C1A17;
+}
+
+.is-active-quest .expanded-details {
+  display: block;
+  animation: fadeIn 0.5s 0.3s forwards;
+}
+
+.title-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.title-row h2 {
+  font-family: var(--font-heading, serif);
+  font-size: 36px;
+  letter-spacing: -0.02em;
+  margin: 0 0 12px 0;
+  color: #1C1A17;
+}
+
+.title-row p {
+  font-family: var(--font-body, sans-serif);
+  font-size: 15px;
+  margin: 0;
+  color: #1C1A17;
+}
+
+.bookmark-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 1px solid rgba(28, 26, 23, 0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  cursor: pointer;
+  color: #1C1A17;
+}
+
+/* 4-Column Info Grid */
+.info-grid {
+  display: flex;
+  justify-content: space-between;
+  border-top: 1px solid rgba(28, 26, 23, 0.15);
+  border-bottom: 1px solid rgba(28, 26, 23, 0.15);
+  padding: 20px 0;
+  margin: 32px 0;
+}
+
+.info-col {
+  flex: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 16px;
-  width: 100%;
-  max-width: 340px;
+  text-align: center;
+  border-right: 1px solid rgba(28, 26, 23, 0.15);
+  padding: 0 8px;
 }
 
-.app-steps-container {
-  display: none; /* Hidden until clicked */
-  width: 100%;
-  flex-direction: column;
-  animation: slideDown 0.3s ease-out forwards;
+.info-col:last-child {
+  border-right: none;
 }
 
-.app-quest-wrapper.expanded .app-steps-container {
-  display: flex;
+.info-col svg {
+  width: 20px;
+  height: 20px;
+  margin-bottom: 12px;
+  opacity: 0.8;
 }
 
-/* QuestStepCard.tsx: Inactive State (bg-transparent py-4 px-2 border-b border-line/30) */
+.info-label {
+  font-family: var(--font-body, sans-serif);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: rgba(28, 26, 23, 0.8);
+  margin-bottom: 6px;
+}
+
+.info-val {
+  font-family: var(--font-body, sans-serif);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+/* Why This Quest Section */
+.why-quest h4 {
+  font-family: var(--font-body, sans-serif);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: #1C1A17;
+  margin: 0 0 12px 0;
+}
+
+.why-quest p {
+  font-family: var(--font-body, sans-serif);
+  font-size: 14px;
+  line-height: 1.6;
+  color: rgba(28, 26, 23, 0.9);
+  margin: 0 0 32px 0;
+}
+
+/* --- FIXED WHITE STEPS --- */
 .app-step-card {
-  background: transparent;
-  padding: 16px 8px;
-  border-bottom: 1px solid rgba(23, 22, 18, 0.1);
-  margin-bottom: 8px;
+  background: #FFFFFF;
+  border-radius: 16px;
+  padding: 20px;
+  margin-bottom: 12px;
+  border: 1px solid rgba(28, 26, 23, 0.08);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
   cursor: pointer;
   transition: all 0.2s ease;
 }
 
-/* QuestStepCard.tsx: Active State (bg-surface rounded-[24px] p-5 shadow-sm border border-line) */
-.app-step-card.is-active {
-  background-color: #FFFFFF; /* bg-surface */
-  border-radius: 24px;
-  padding: 20px;
-  box-shadow: 0 1px 2px rgba(0,0,0,0.05);
-  border: 1px solid rgba(23, 22, 18, 0.1);
-  margin-bottom: 16px;
-  border-bottom: 1px solid rgba(23, 22, 18, 0.1); /* Override inactive border */
+.app-step-card:hover {
+  border-color: rgba(28, 26, 23, 0.2);
 }
 
-.app-step-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.app-step-header-left {
-  display: flex;
-  align-items: center;
-  flex: 1;
-}
-
-/* h-7 w-7 items-center justify-center rounded-full */
+.app-step-header { display: flex; align-items: center; }
 .app-step-circle {
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  font-size: 12px;
-  font-weight: 600;
-  font-family: var(--font-body);
+  width: 28px; height: 28px; border-radius: 50%; display: flex;
+  justify-content: center; align-items: center; font-size: 12px; font-weight: 600;
 }
+.app-step-circle.default { border: 1px solid rgba(28, 26, 23, 0.2); color: #1C1A17; }
+.app-step-circle.active { background-color: #1C1A17; color: #FFFFFF; }
+.app-step-title { font-size: 16px; font-weight: 600; margin-left: 12px; color: #1C1A17; }
 
-.app-step-circle.default {
-  border: 1px solid rgba(23, 22, 18, 0.1); /* border-line */
-  color: #171612; /* text-ink */
-}
-
-.app-step-circle.active, .app-step-circle.completed {
-  background-color: #171612; /* bg-ink */
-  color: #FFFFFF;
-}
-
-.app-step-title {
-  font-family: var(--font-body);
-  font-weight: 600; /* variant="subtitle" */
-  font-size: 16px;
-  color: #171612;
-  margin-left: 12px;
-}
-
-.app-step-body {
-  display: none;
-  margin-top: 16px;
-}
-
-.app-step-card.is-active .app-step-body {
-  display: block;
-}
-
-/* QuestDetailBlock.tsx: text formatting */
-.app-step-text {
-  font-family: var(--font-body);
-  font-size: 16px;
-  line-height: 2; /* leading-8 */
-  color: rgba(23, 22, 18, 0.8); /* text-ink/80 */
-  margin-bottom: 16px;
-  white-space: pre-wrap;
-}
-
-/* Link Widget */
-.app-link-widget {
-  display: flex;
-  align-items: center;
-  padding: 12px;
-  background-color: rgba(23, 22, 18, 0.03);
-  border-radius: 12px;
-  border: 1px solid rgba(23, 22, 18, 0.1);
-  text-decoration: none;
-  color: #171612;
-  font-weight: 600;
-  margin: 12px 0;
-  font-family: var(--font-body);
-  font-size: 14px;
-}
-
-.app-link-widget img {
-  width: 40px;
-  height: 40px;
-  border-radius: 8px;
-  object-fit: cover;
-  margin-right: 12px;
-}
+.app-step-body { display: none; margin-top: 16px; }
+.app-step-card.is-active .app-step-body { display: block; }
+.app-step-text { font-size: 15px; line-height: 1.8; color: rgba(28, 26, 23, 0.8); margin-bottom: 16px; white-space: pre-wrap; }
 
 /* Youtube Widget */
-.app-youtube-widget {
-  width: 100%;
-  border-radius: 12px;
-  overflow: hidden;
-  margin: 16px 0;
-}
+.app-youtube-widget { width: 100%; border-radius: 12px; overflow: hidden; margin: 16px 0; }
+.app-youtube-widget iframe { width: 100%; height: 240px; }
 
-.app-youtube-widget iframe {
-  width: 100%;
-  height: 200px;
-}
-
-@keyframes slideDown {
-  from { opacity: 0; transform: translateY(-10px); }
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
   to { opacity: 1; transform: translateY(0); }
 }
