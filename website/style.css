@@ -262,54 +262,63 @@ header {
   line-height: 1.4;
 }
 /* --- QUEST STEPS (QuestDetailBlock & QuestStepCard exactly mapped) --- */
-/* --- ANIMATED LAYOUT WRAPPERS --- */
+/* --- 3D CAROUSEL LAYOUT ENGINE --- */
 #quest-container {
-  display: flex;
-  justify-content: center;
-  gap: 24px;
+  position: relative;
   width: 100%;
-  transition: gap 0.5s cubic-bezier(0.25, 1, 0.5, 1);
-}
-
-#quest-container.has-active-quest {
-  gap: 0;
+  height: 320px; /* Default grid height */
+  transition: height 0.6s cubic-bezier(0.25, 1, 0.5, 1);
+  margin-bottom: 60px;
 }
 
 .app-quest-wrapper {
-  width: 340px;
-  display: flex;
-  flex-direction: column;
+  position: absolute;
+  top: 0;
   transition: all 0.6s cubic-bezier(0.25, 1, 0.5, 1);
   border-radius: 24px;
+}
+
+/* 1. Standard 3-Column Grid View */
+.is-grid-view {
+  width: 340px;
+  min-width: 340px;
   background-color: transparent;
+  cursor: pointer;
 }
 
-/* Hide unselected quests smoothly */
-.app-quest-wrapper.is-inactive-quest {
-  width: 0;
-  opacity: 0;
-  margin: 0;
-  transform: scale(0.9);
-  pointer-events: none;
-  overflow: hidden;
+.is-grid-view:hover {
+  transform: translateX(-50%) translateY(-4px) !important;
 }
 
-/* Expand selected quest to 50% of screen */
-.app-quest-wrapper.is-active-quest {
+/* 2. The Selected Center Quest */
+.is-active-quest {
   width: 50vw;
   min-width: 600px;
   max-width: 900px;
-  background-color: #F4EFE6; /* Matches screenshot cream */
-  border-radius: 0;
+  background-color: #F4EFE6; /* Cream */
+  cursor: default;
+  box-shadow: 0 24px 48px rgba(0,0,0,0.15);
 }
 
-/* Card image animation */
+/* 3. The "Hidden" Side Quests */
+.is-side-quest {
+  width: 340px;
+  min-width: 340px;
+  opacity: 0.4;
+  cursor: pointer;
+  background-color: transparent;
+}
+
+.is-side-quest:hover {
+  opacity: 0.7;
+}
+
+/* Card image animations */
 .app-quest-card {
   position: relative;
   width: 100%;
   height: 280px;
   transition: height 0.6s cubic-bezier(0.25, 1, 0.5, 1);
-  cursor: pointer;
   display: block;
   border-radius: 24px;
   overflow: hidden;
@@ -326,15 +335,48 @@ header {
 }
 .is-active-quest .app-quest-content {
   opacity: 0;
+  pointer-events: none;
 }
 
-/* --- EXPANDED HERO DETAILS (Matching Screenshot Exactly) --- */
+/* --- THE CLOSE BUTTON --- */
+.close-expanded-btn {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  z-index: 100;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.5);
+  color: #FFFFFF;
+  border: 1px solid rgba(255,255,255,0.2);
+  backdrop-filter: blur(8px);
+  cursor: pointer;
+  display: none; /* Hidden by default */
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s, transform 0.2s;
+  opacity: 0;
+}
+
+.close-expanded-btn:hover {
+  background: rgba(0, 0, 0, 0.8);
+  transform: scale(1.05);
+}
+
+.is-active-quest .close-expanded-btn {
+  display: flex;
+  animation: fadeIn 0.5s 0.4s forwards;
+}
+
+/* --- EXPANDED HERO DETAILS --- */
 .expanded-details {
   display: none;
   opacity: 0;
   padding: 32px 40px;
   background-color: #F4EFE6;
   color: #1C1A17;
+  border-radius: 0 0 24px 24px;
 }
 
 .is-active-quest .expanded-details {
@@ -342,104 +384,25 @@ header {
   animation: fadeIn 0.5s 0.3s forwards;
 }
 
-.title-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-}
-
-.title-row h2 {
-  font-family: var(--font-heading, serif);
-  font-size: 36px;
-  letter-spacing: -0.02em;
-  margin: 0 0 12px 0;
-  color: #1C1A17;
-}
-
-.title-row p {
-  font-family: var(--font-body, sans-serif);
-  font-size: 15px;
-  margin: 0;
-  color: #1C1A17;
-}
-
-.bookmark-btn {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  border: 1px solid rgba(28, 26, 23, 0.2);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: transparent;
-  cursor: pointer;
-  color: #1C1A17;
-}
+.title-row { display: flex; justify-content: space-between; align-items: flex-start; }
+.title-row h2 { font-family: var(--font-heading, serif); font-size: 36px; letter-spacing: -0.02em; margin: 0 0 12px 0; color: #1C1A17; }
+.title-row p { font-family: var(--font-body, sans-serif); font-size: 15px; margin: 0; color: #1C1A17; }
+.bookmark-btn { width: 40px; height: 40px; border-radius: 50%; border: 1px solid rgba(28, 26, 23, 0.2); display: flex; align-items: center; justify-content: center; background: transparent; cursor: pointer; color: #1C1A17; }
 
 /* 4-Column Info Grid */
-.info-grid {
-  display: flex;
-  justify-content: space-between;
-  border-top: 1px solid rgba(28, 26, 23, 0.15);
-  border-bottom: 1px solid rgba(28, 26, 23, 0.15);
-  padding: 20px 0;
-  margin: 32px 0;
-}
+.info-grid { display: flex; justify-content: space-between; border-top: 1px solid rgba(28, 26, 23, 0.15); border-bottom: 1px solid rgba(28, 26, 23, 0.15); padding: 20px 0; margin: 32px 0; }
+.info-col { flex: 1; display: flex; flex-direction: column; align-items: center; text-align: center; border-right: 1px solid rgba(28, 26, 23, 0.15); padding: 0 8px; }
+.info-col:last-child { border-right: none; }
+.info-col svg { width: 20px; height: 20px; margin-bottom: 12px; opacity: 0.8; }
+.info-label { font-family: var(--font-body, sans-serif); font-size: 10px; font-weight: 700; letter-spacing: 0.15em; text-transform: uppercase; color: rgba(28, 26, 23, 0.8); margin-bottom: 6px; }
+.info-val { font-family: var(--font-body, sans-serif); font-size: 13px; font-weight: 500; }
 
-.info-col {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  text-align: center;
-  border-right: 1px solid rgba(28, 26, 23, 0.15);
-  padding: 0 8px;
-}
+.why-quest h4 { font-family: var(--font-body, sans-serif); font-size: 11px; font-weight: 700; letter-spacing: 0.15em; text-transform: uppercase; color: #1C1A17; margin: 0 0 12px 0; }
+.why-quest p { font-family: var(--font-body, sans-serif); font-size: 14px; line-height: 1.6; color: rgba(28, 26, 23, 0.9); margin: 0 0 32px 0; }
 
-.info-col:last-child {
-  border-right: none;
-}
-
-.info-col svg {
-  width: 20px;
-  height: 20px;
-  margin-bottom: 12px;
-  opacity: 0.8;
-}
-
-.info-label {
-  font-family: var(--font-body, sans-serif);
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.15em;
-  text-transform: uppercase;
-  color: rgba(28, 26, 23, 0.8);
-  margin-bottom: 6px;
-}
-
-.info-val {
-  font-family: var(--font-body, sans-serif);
-  font-size: 13px;
-  font-weight: 500;
-}
-
-/* Why This Quest Section */
-.why-quest h4 {
-  font-family: var(--font-body, sans-serif);
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.15em;
-  text-transform: uppercase;
-  color: #1C1A17;
-  margin: 0 0 12px 0;
-}
-
-.why-quest p {
-  font-family: var(--font-body, sans-serif);
-  font-size: 14px;
-  line-height: 1.6;
-  color: rgba(28, 26, 23, 0.9);
-  margin: 0 0 32px 0;
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 /* --- FIXED WHITE STEPS --- */
