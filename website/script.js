@@ -1,8 +1,10 @@
 // script.js
 console.log("--- STARTING DIAGNOSTIC SCRIPT ---");
 
-const SUPABASE_URL = 'https://YOUR-PROJECT-ID.supabase.co'; // Replace with yours
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5c...YOUR-ANON-KEY...'; // Replace with yours
+const SUPABASE_URL = 'https://vqoxqetfrjuvtpkqifbw.supabase.co'; // Replace with yours
+const SUPABASE_ANON_KEY = 'esb_publishable_TPUy3RvrZS4b3RO1maV7yw_MoIsLeuP'; // Replace with yours
+
+
 
 // Helper function
 function getDifficultyLabel(points) {
