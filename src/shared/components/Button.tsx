@@ -31,7 +31,7 @@ export function Button({ label, variant = "primary", className, ...props }: Butt
       android_ripple={{ color: "rgba(245,240,231,0.16)", borderless: false }}
     >
       {({ pressed }) => (
-        <View className={cx("items-center justify-center rounded-full px-6 py-4", variantClass[variant], pressed && "opacity-80")}>
+        <View className={cx("min-h-[56px] items-center justify-center rounded-full px-6 py-4", variantClass[variant], pressed && "opacity-80")}>
           <AppText variant="caption" className={cx("font-sansBold uppercase tracking-editorial", labelClass[variant])}>
             {label}
           </AppText>

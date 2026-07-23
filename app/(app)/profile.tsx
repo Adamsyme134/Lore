@@ -1,13 +1,13 @@
-import { Pressable, View } from "react-native";
+import { Alert, Platform, Pressable, View } from "react-native";
 import { Screen } from "../../src/shared/components/Screen";
 import { AppText } from "../../src/shared/components/AppText";
 import { TopBar } from "../../src/shared/components/TopBar";
 import { Button } from "../../src/shared/components/Button";
 import { useAuth } from "../../src/features/auth/AuthProvider";
-import { useExperienceStore } from "src/features/app/store/useExperienceStore";
 import { debugResetCardProgress } from "src/features/quests/context/QuestExecutionContext";
 import { useColorScheme } from "nativewind";
 import { useThemeStore } from "src/features/app/store/useThemeStore";
+import { useQuitAllActiveQuests } from "../../src/features/quests/api/questApi";
 // Simple leveling formula: 1 level per 50 points
 function calculateLevel(points: number) {
   
@@ -23,6 +23,7 @@ export default function ProfileScreen() {
   const { profile, signOut } = useAuth();
   const { colorScheme, setColorScheme } = useColorScheme();
   const { setThemePreference } = useThemeStore();
+  const quitAllActiveQuests = useQuitAllActiveQuests();
   if (!profile) return null;
 
   const { level, pointsNeeded } = calculateLevel(profile.pointsTotal);
@@ -31,6 +32,37 @@ export default function ProfileScreen() {
     setColorScheme(theme);
     setThemePreference(theme);
   };
+
+  const handleResetStepProgress = () => {
+    const reset = () => {
+      quitAllActiveQuests.mutate(undefined, {
+        onSettled: () => {
+          void debugResetCardProgress();
+        }
+      });
+    };
+
+    if (Platform.OS === "web") {
+      if ((globalThis as any).confirm?.("Reset all quest progress and clear saved step progress?") !== false) {
+        reset();
+      }
+      return;
+    }
+
+    Alert.alert(
+      "Reset all quest progress?",
+      "This will quit every in-progress quest and clear saved step progress.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Reset",
+          style: "destructive",
+          onPress: reset
+        }
+      ]
+    );
+  };
+
   return (
     <Screen contentClassName="pt-3">
       <TopBar showBack title="Explorer Profile" />
@@ -78,12 +110,10 @@ export default function ProfileScreen() {
         <Button label="Sign Out" variant="secondary" onPress={signOut} />
       </View>
       <Button 
-  label="Reset All Step Progress" 
-  onPress={() => {
-    useExperienceStore.setState({ activeQuests: {} });
-    debugResetCardProgress();
-  }} 
-/>
+        label={quitAllActiveQuests.isPending ? "Resetting..." : "Reset All Step Progress"} 
+        onPress={handleResetStepProgress}
+        disabled={quitAllActiveQuests.isPending}
+      />
     </Screen>
   );
 }

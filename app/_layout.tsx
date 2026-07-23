@@ -2,10 +2,11 @@ import "../global.css";
 import "react-native-gesture-handler";
 
 import { useEffect } from "react";
-import { Slot, SplashScreen } from "expo-router";
+import { Stack, SplashScreen } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { QueryClientProvider } from "@tanstack/react-query";
+import { useColorScheme } from "nativewind";
 import {
   useFonts,
   Inter_400Regular,
@@ -23,6 +24,7 @@ import { AuthProvider } from "../src/features/auth/AuthProvider";
 void SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
+  const { setColorScheme } = useColorScheme();
   const [fontsLoaded] = useFonts({
     Inter_400Regular,
     Inter_500Medium,
@@ -31,6 +33,10 @@ export default function RootLayout() {
     PlayfairDisplay_600SemiBold,
     PlayfairDisplay_700Bold
   });
+
+  useEffect(() => {
+    setColorScheme("light");
+  }, [setColorScheme]);
 
   useEffect(() => {
     if (fontsLoaded) {
@@ -47,7 +53,7 @@ export default function RootLayout() {
       <QueryClientProvider client={queryClient}>
         <AuthProvider>
           <StatusBar style="auto" />
-          <Slot />
+          <Stack screenOptions={{ headerShown: false }} />
         </AuthProvider>
       </QueryClientProvider>
     </GestureHandlerRootView>

@@ -15,10 +15,7 @@ import { MapPreview } from "../../../src/features/map/components/MapPreview";
 import { accentClass } from "../../../src/shared/design/tokens";
 import { useLoreEntry, useDeleteLoreEntry } from "../../../src/features/lore/api/loreApi";
 import { LoreCard } from "../../../src/features/lore/components/LoreCard";
-let MediaLibrary: any;
-if (Platform.OS !== 'web') {
-  MediaLibrary = require("expo-media-library");
-}
+import * as MediaLibrary from "expo-media-library/legacy";
 
 export default function LoreDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();

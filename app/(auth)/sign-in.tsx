@@ -5,7 +5,6 @@ import { Screen } from "../../src/shared/components/Screen";
 import { AppText } from "../../src/shared/components/AppText";
 import { Button } from "../../src/shared/components/Button";
 import { useAuth } from "../../src/features/auth/AuthProvider";
-import { isSupabaseConfigured } from "../../src/lib/supabase";
 
 export default function SignInScreen() {
   const { signInWithEmail} = useAuth();
@@ -59,7 +58,14 @@ export default function SignInScreen() {
             className="mt-3 rounded-3xl border border-line bg-background px-5 py-4 font-sans text-[15px] text-ink"
           />
 
-          <Button label="Sign In" className="mt-5" onPress={handleSignIn} />
+          {error ? <AppText className="mt-4 text-burgundy">{error}</AppText> : null}
+
+          <Button label={isSubmitting ? "Signing in" : "Sign In"} className="mt-5" onPress={handleSignIn} disabled={isSubmitting} />
+          <Pressable className="mt-5 items-center">
+            <Link href="/sign-up" asChild>
+              <AppText variant="caption" className="font-sansSemi text-ink">Need an account? Sign up</AppText>
+            </Link>
+          </Pressable>
         </View>
       </KeyboardAvoidingView>
     </Screen>

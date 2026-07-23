@@ -31,12 +31,18 @@ export function QuestCard({ quest, compact = false }: QuestCardProps) {
       />
 
       <LinearGradient
-        colors={['transparent', 'rgba(28, 26, 23, 0.95)']}
-        locations={[0.2, 1]}
-        className="absolute inset-0"
+        colors={["transparent", "rgba(0, 0, 0, 0.88)"]}
+        locations={[0, 1]}
+        style={{
+          position: "absolute",
+          left: 0,
+          right: 0,
+          bottom: 0,
+          height: compact ? 112 : 176
+        }}
       />
 
-      <View className="absolute bottom-0 left-0 right-0 p-5">
+      <View className="absolute bottom-0 left-0 right-0 px-5 py-5">
         {!compact && (
           <>
             <View className="mb-3 flex-row flex-wrap gap-2">
@@ -55,15 +61,12 @@ export function QuestCard({ quest, compact = false }: QuestCardProps) {
           </>
         )}
         
-        <AppText variant={compact ? "subtitle" : "display"} className="text-ivory">
+        <AppText
+          variant={compact ? "subtitle" : "display"}
+          className={compact ? "text-ivory leading-7" : "text-ivory leading-[52px] mb-3"}
+        >
           {quest.title}
         </AppText>
-        
-        {!compact && (
-          <AppText numberOfLines={2} className="text-ivory/80 mt-1">
-            {quest.description}
-          </AppText>
-        )}
       </View>
 
       {isGroup && (

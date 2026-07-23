@@ -1,6 +1,6 @@
-import { View, ActivityIndicator, ScrollView, TouchableOpacity } from "react-native";
+import { View, ActivityIndicator, RefreshControl, ScrollView, TouchableOpacity } from "react-native";
 import Animated, { FadeInDown } from "react-native-reanimated";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { Screen } from "../../../src/shared/components/Screen";
 import { AppText } from "../../../src/shared/components/AppText";
 import { QuestHero } from "../../../src/features/quests/components/QuestHero";
@@ -16,14 +16,15 @@ import { useQuery } from "@tanstack/react-query"; // ✨ Added useQuery
 import { requireSupabase } from "../../../src/lib/supabase";
 
 export default function TodayScreen() {
-  const { data: quests = [], isLoading: isLoadingQuests } = useQuests();
-  const { data: friendMoments = [] } = useFriendMoments(); // ✨ Get actual friends
+  const { data: quests = [], isLoading: isLoadingQuests, refetch: refetchQuests } = useQuests();
+  const { data: friendMoments = [], refetch: refetchFriendMoments } = useFriendMoments(); // ✨ Get actual friends
   const { profile, user } = useAuth();
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const previewPoints = useExperienceStore((state) => state.previewPoints);
   
   // ✨ NEW: Fetch the absolute truth of quest statuses from Supabase
-  const { data: questStatuses } = useQuery({
+  const { data: questStatuses, refetch: refetchQuestStatuses } = useQuery({
     queryKey: ['user-quests-status', user?.id],
     queryFn: async () => {
       if (!user) return { active: [], completed: [] };
@@ -65,6 +66,19 @@ export default function TodayScreen() {
   const displayQuests = unstartedQuests.length > 0 ? unstartedQuests : quests;
   const todayQuest = displayQuests[mainQuestIndex % displayQuests.length];
 
+  const handleRefresh = useCallback(async () => {
+    setIsRefreshing(true);
+    try {
+      await Promise.all([
+        refetchQuests(),
+        refetchFriendMoments(),
+        user ? refetchQuestStatuses() : Promise.resolve()
+      ]);
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, [refetchFriendMoments, refetchQuestStatuses, refetchQuests, user]);
+
 
   const handleReroll = () => {
     if (rerollsLeft > 0) {
@@ -83,14 +97,32 @@ export default function TodayScreen() {
 
   if (!todayQuest) {
     return (
-      <Screen contentClassName="pt-3 px-5">
+      <Screen
+        contentClassName="pt-3 px-5"
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={handleRefresh}
+            tintColor="#2c2a25"
+          />
+        }
+      >
         <AppText variant="title" className="mt-8 text-center text-ink/60">No quests available.</AppText>
       </Screen>
     );
   }
 
   return (
-    <Screen contentClassName="pt-2">
+    <Screen
+      contentClassName="pt-2"
+      refreshControl={
+        <RefreshControl
+          refreshing={isRefreshing}
+          onRefresh={handleRefresh}
+          tintColor="#2c2a25"
+        />
+      }
+    >
       
       {/* --- PAGE 1: HEADER & LEVEL BAR --- */}
       <View className="mb-6 flex-row items-center justify-between gap-4 px-5">
@@ -116,7 +148,7 @@ export default function TodayScreen() {
       </View>
 
       {/* --- PAGE 1: RECOMMENDED QUEST FOR TODAY --- */}
-      <Animated.View entering={FadeInDown.delay(120).duration(420)} className="px-5 mb-10">
+      <Animated.View entering={FadeInDown.delay(120).duration(420)} className="px-2 mb-10">
         <View className="items-center mb-4">
           <AppText variant="eyebrow" className="text-muted mb-2 uppercase tracking-widest text-center">
             Recommended Quest For Today
@@ -124,7 +156,7 @@ export default function TodayScreen() {
         </View>
         
         <View className="rounded-[32px] border border-line bg-surface overflow-hidden shadow-sm shadow-charcoal/5">
-          <QuestHero quest={todayQuest} className="rounded-none" />
+          <QuestHero quest={todayQuest} className="rounded-none" variant="recommended" />
           
           {rerollsLeft > 0 && (
             <TouchableOpacity 
@@ -149,7 +181,7 @@ export default function TodayScreen() {
           <ScrollView 
             horizontal 
             showsHorizontalScrollIndicator={false}
-            contentContainerStyle={{ paddingHorizontal: 20, gap: 12 }}
+            contentContainerStyle={{ paddingHorizontal: 8, gap: 12 }}
           >
             {inProgressQuests.map((quest) => (
               <QuestCard key={quest.id} quest={quest} compact />

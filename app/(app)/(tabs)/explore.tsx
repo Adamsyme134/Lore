@@ -40,26 +40,29 @@ export default function Explore() {
   const [quests, setQuests] = useState<Quest[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  const { savedQuestIds } = useExperienceStore();
+  const { savedQuestIds, activeQuests } = useExperienceStore();
   // Fetch real quests from Supabase
   useEffect(() => {
     const fetchQuests = async () => {
       try {
         const client = requireSupabase();
-        const { data: completedData } = await client
+        const { data: activeData } = await client
         .from('user_quests')
         .select('quest_id')
         .eq('user_id', user?.id)
-        .eq('status', 'completed');
+        .eq('status', 'active');
 
-        const completedIds = completedData?.map(c => c.quest_id) || [];
+        const activeIds = new Set([
+          ...(activeData?.map(c => c.quest_id) || []),
+          ...Object.keys(activeQuests)
+        ]);
         const { data, error } = await client.from('quests').select('*').eq('is_active', true).order('created_at', { ascending: false });
         
         if (error) throw error;
 
         if (data) {
           const mappedQuests: Quest[] = data
-          .filter(q => !completedIds.includes(q.id))
+          .filter(q => !activeIds.has(q.id))
           .map(q => ({
             id: q.id,
             slug: q.slug,
@@ -100,7 +103,7 @@ export default function Explore() {
     };
 
     fetchQuests();
-  }, []);
+  }, [activeQuests, user?.id]);
 
   const filteredQuests = useMemo(() => {
     return quests.filter(q => {
@@ -183,7 +186,7 @@ export default function Explore() {
             </ScrollView>
           </Animated.View>
         )}
-        <View className="px-6">
+        <View className="px-2">
           <AppText variant="subtitle" className="mb-4 text-ink/70">
             {searchQuery ? "Search Results" : activeCategory !== "All" ? `${activeCategory} Quests` : "All Quests"}
           </AppText>

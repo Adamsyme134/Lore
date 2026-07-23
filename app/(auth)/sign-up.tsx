@@ -51,8 +51,12 @@ export default function SignUpScreen() {
   }
 
   return (
-    <Screen scroll={false} contentClassName="flex-1 px-5 pb-8">
-      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} className="flex-1 justify-between">
+    <KeyboardAvoidingView
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      keyboardVerticalOffset={Platform.OS === "ios" ? 40 : 0}
+      className="flex-1"
+    >
+      <Screen contentClassName="flex-grow justify-between px-5 pb-8">
         <View className="pt-8">
           <AppText variant="eyebrow">Join Lore</AppText>
           <AppText variant="display" className="mt-4">Start collecting better stories.</AppText>
@@ -107,7 +111,7 @@ export default function SignUpScreen() {
             </Link>
           </Pressable>
         </View>
-      </KeyboardAvoidingView>
-    </Screen>
+      </Screen>
+    </KeyboardAvoidingView>
   );
 }

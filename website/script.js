@@ -284,8 +284,71 @@ function renderQuests(quests) {
     container.innerHTML += cardHtml;
   });
 }
+// --- WAITLIST FORM HANDLER ---
+document.addEventListener('DOMContentLoaded', () => {
+  // Find the form (assuming you only have one form on the page)
+  const waitlistForm = document.querySelector('form');
+  
+  if (waitlistForm) {
+    // Create a success message hidden by default
+    const successMsg = document.createElement('div');
+    successMsg.innerHTML = `<h3 style="color: #F4EFE6; font-family: var(--font-heading, serif); font-size: 24px; text-align: center; margin: 0;">You're on the list.</h3><p style="color: rgba(244, 239, 230, 0.8); font-family: var(--font-body, sans-serif); text-align: center; margin-top: 8px;">We'll be in touch when Lore is ready for you.</p>`;
+    successMsg.style.display = 'none';
+    waitlistForm.parentNode.insertBefore(successMsg, waitlistForm.nextSibling);
 
+    waitlistForm.addEventListener('submit', async (e) => {
+      e.preventDefault(); // STOPS THE DEAD PAGE REDIRECT
+      
+      const emailInput = waitlistForm.querySelector('input[type="email"]');
+      const submitBtn = waitlistForm.querySelector('button');
+      
+      if (!emailInput || !emailInput.value) return;
+
+      const email = emailInput.value;
+
+      // Loading state
+      const originalText = submitBtn.textContent;
+      submitBtn.textContent = 'Joining...';
+      submitBtn.disabled = true;
+      submitBtn.style.opacity = '0.7';
+
+      try {
+        const formEndpoint = 'https://app.loops.so/api/newsletter-form/cmrngedmh02rf0j344xmt5n7m'; 
+
+        // 1. Format the data as a standard URL-encoded form
+        const formData = new URLSearchParams();
+        formData.append('email', email);
+
+        // 2. Send it without the custom headers to bypass the CORS preflight
+        const response = await fetch(formEndpoint, {
+          method: 'POST',
+          body: formData
+        });
+
+        if (!response.ok) {
+          throw new Error('Network response was not ok');
+        }
+
+        // Success! Hide form, show our custom animated message
+        waitlistForm.style.display = 'none';
+        successMsg.style.display = 'block';
+
+      } catch (error) {
+        console.error('Error saving email:', error);
+        submitBtn.textContent = 'Something went wrong. Try again.';
+        submitBtn.disabled = false;
+        submitBtn.style.opacity = '1';
+        
+        // Reset button text after 3 seconds
+        setTimeout(() => {
+          submitBtn.textContent = originalText;
+        }, 3000);
+      }
+    });
+  }
+});
 // Boot up
 renderQuests(previewQuests);
 // Run layout math for the initial grid
 setTimeout(updateLayout, 100);
+

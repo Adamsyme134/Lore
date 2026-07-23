@@ -42,11 +42,15 @@ create table if not exists public.user_quests (
   quest_id uuid not null references public.quests(id) on delete cascade,
   status text not null check (status in ('saved', 'active', 'completed', 'dismissed')),
   invited_by uuid references public.profiles(id) on delete set null,
+  completed_step_indexes integer[] not null default '{}',
   completed_at timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   unique (user_id, quest_id)
 );
+
+alter table public.user_quests
+add column if not exists completed_step_indexes integer[] not null default '{}';
 
 create table if not exists public.lore_entries (
   id uuid primary key default gen_random_uuid(),
@@ -97,6 +101,30 @@ create table if not exists public.friendships (
   unique (user_a, user_b)
 );
 
+create table if not exists public.friend_groups (
+  id uuid primary key default gen_random_uuid(),
+  owner_id uuid not null references public.profiles(id) on delete cascade,
+  name text not null check (char_length(trim(name)) between 1 and 80),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists public.friend_group_members (
+  group_id uuid not null references public.friend_groups(id) on delete cascade,
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  added_by uuid references public.profiles(id) on delete set null,
+  created_at timestamptz not null default now(),
+  primary key (group_id, user_id)
+);
+
+create table if not exists public.friend_group_quests (
+  group_id uuid not null references public.friend_groups(id) on delete cascade,
+  quest_id uuid not null references public.quests(id) on delete cascade,
+  added_by uuid references public.profiles(id) on delete set null,
+  created_at timestamptz not null default now(),
+  primary key (group_id, quest_id)
+);
+
 create table if not exists public.quest_invites (
   id uuid primary key default gen_random_uuid(),
   quest_id uuid not null references public.quests(id) on delete cascade,
@@ -135,6 +163,9 @@ create index if not exists lore_photos_entry_idx on public.lore_photos (entry_id
 create index if not exists friend_requests_addressee_idx on public.friend_requests (addressee_id, status);
 create index if not exists friendships_user_a_idx on public.friendships (user_a);
 create index if not exists friendships_user_b_idx on public.friendships (user_b);
+create index if not exists friend_groups_owner_idx on public.friend_groups (owner_id);
+create index if not exists friend_group_members_user_idx on public.friend_group_members (user_id);
+create index if not exists friend_group_quests_quest_idx on public.friend_group_quests (quest_id);
 create index if not exists points_ledger_user_idx on public.points_ledger (user_id, created_at desc);
 create unique index if not exists points_ledger_user_entry_reason_idx on public.points_ledger (user_id, entry_id, reason) where entry_id is not null;
 
@@ -236,6 +267,44 @@ as $$
   );
 $$;
 
+create or replace function public.is_quest_invite_thread_member(invite_quest_id uuid, invite_sender_id uuid, viewer uuid)
+returns boolean
+language sql
+security definer
+stable
+set search_path = public
+as $$
+  select exists (
+    select 1
+    from public.quest_invites qi
+    where qi.quest_id = invite_quest_id
+      and qi.sender_id = invite_sender_id
+      and qi.status in ('pending', 'accepted')
+      and (qi.sender_id = viewer or qi.receiver_id = viewer)
+  );
+$$;
+
+create or replace function public.is_friend_group_member(target_group_id uuid, viewer uuid)
+returns boolean
+language sql
+security definer
+stable
+set search_path = public
+as $$
+  select exists (
+    select 1
+    from public.friend_groups fg
+    where fg.id = target_group_id
+      and fg.owner_id = viewer
+  )
+  or exists (
+    select 1
+    from public.friend_group_members fgm
+    where fgm.group_id = target_group_id
+      and fgm.user_id = viewer
+  );
+$$;
+
 create or replace function public.accept_friend_request(request_id uuid)
 returns void
 language plpgsql
@@ -322,6 +391,7 @@ drop policy if exists "profiles are visible to authenticated users" on public.pr
 drop policy if exists "users update own profile" on public.profiles;
 drop policy if exists "active quests are visible" on public.quests;
 drop policy if exists "users read own quest states" on public.user_quests;
+drop policy if exists "friends read active quest progress" on public.user_quests;
 drop policy if exists "users insert own quest states" on public.user_quests;
 drop policy if exists "users update own quest states" on public.user_quests;
 drop policy if exists "users and friends read lore entries" on public.lore_entries;
@@ -334,9 +404,18 @@ drop policy if exists "users see related friend requests" on public.friend_reque
 drop policy if exists "users create outgoing friend requests" on public.friend_requests;
 drop policy if exists "request addressee can update request" on public.friend_requests;
 drop policy if exists "users see own friendships" on public.friendships;
+drop policy if exists "group members read groups" on public.friend_groups;
+drop policy if exists "users create owned groups" on public.friend_groups;
+drop policy if exists "owners update groups" on public.friend_groups;
+drop policy if exists "owners delete groups" on public.friend_groups;
+drop policy if exists "group members read group members" on public.friend_group_members;
+drop policy if exists "owners manage group members" on public.friend_group_members;
+drop policy if exists "group members read group quests" on public.friend_group_quests;
+drop policy if exists "owners manage group quests" on public.friend_group_quests;
 drop policy if exists "users see related quest invites" on public.quest_invites;
 drop policy if exists "users invite friends to quests" on public.quest_invites;
 drop policy if exists "receiver updates quest invite" on public.quest_invites;
+drop policy if exists "sender updates own quest invites" on public.quest_invites;
 drop policy if exists "users and friends read reactions" on public.entry_reactions;
 drop policy if exists "users react to visible entries" on public.entry_reactions;
 drop policy if exists "users read own points" on public.points_ledger;
@@ -352,6 +431,9 @@ alter table public.lore_entries enable row level security;
 alter table public.lore_photos enable row level security;
 alter table public.friend_requests enable row level security;
 alter table public.friendships enable row level security;
+alter table public.friend_groups enable row level security;
+alter table public.friend_group_members enable row level security;
+alter table public.friend_group_quests enable row level security;
 alter table public.quest_invites enable row level security;
 alter table public.entry_reactions enable row level security;
 alter table public.points_ledger enable row level security;
@@ -367,6 +449,9 @@ for select to authenticated using (is_active = true);
 
 create policy "users read own quest states" on public.user_quests
 for select to authenticated using (user_id = auth.uid());
+
+create policy "friends read active quest progress" on public.user_quests
+for select to authenticated using (user_id = auth.uid() or public.are_friends(user_id, auth.uid()));
 
 create policy "users insert own quest states" on public.user_quests
 for insert to authenticated with check (user_id = auth.uid());
@@ -410,14 +495,65 @@ for update to authenticated using (addressee_id = auth.uid()) with check (addres
 create policy "users see own friendships" on public.friendships
 for select to authenticated using (user_a = auth.uid() or user_b = auth.uid());
 
+create policy "group members read groups" on public.friend_groups
+for select to authenticated using (owner_id = auth.uid() or public.is_friend_group_member(id, auth.uid()));
+
+create policy "users create owned groups" on public.friend_groups
+for insert to authenticated with check (owner_id = auth.uid());
+
+create policy "owners update groups" on public.friend_groups
+for update to authenticated using (owner_id = auth.uid()) with check (owner_id = auth.uid());
+
+create policy "owners delete groups" on public.friend_groups
+for delete to authenticated using (owner_id = auth.uid());
+
+create policy "group members read group members" on public.friend_group_members
+for select to authenticated using (public.is_friend_group_member(group_id, auth.uid()));
+
+create policy "owners manage group members" on public.friend_group_members
+for all to authenticated using (
+  exists (
+    select 1 from public.friend_groups fg
+    where fg.id = group_id and fg.owner_id = auth.uid()
+  )
+) with check (
+  exists (
+    select 1 from public.friend_groups fg
+    where fg.id = group_id and fg.owner_id = auth.uid()
+  )
+);
+
+create policy "group members read group quests" on public.friend_group_quests
+for select to authenticated using (public.is_friend_group_member(group_id, auth.uid()));
+
+create policy "owners manage group quests" on public.friend_group_quests
+for all to authenticated using (
+  exists (
+    select 1 from public.friend_groups fg
+    where fg.id = group_id and fg.owner_id = auth.uid()
+  )
+) with check (
+  exists (
+    select 1 from public.friend_groups fg
+    where fg.id = group_id and fg.owner_id = auth.uid()
+  )
+);
+
 create policy "users see related quest invites" on public.quest_invites
-for select to authenticated using (sender_id = auth.uid() or receiver_id = auth.uid());
+for select to authenticated using (
+  sender_id = auth.uid()
+  or receiver_id = auth.uid()
+  or public.is_quest_invite_thread_member(quest_id, sender_id, auth.uid())
+);
 
 create policy "users invite friends to quests" on public.quest_invites
 for insert to authenticated with check (sender_id = auth.uid() and public.are_friends(sender_id, receiver_id));
 
 create policy "receiver updates quest invite" on public.quest_invites
 for update to authenticated using (receiver_id = auth.uid()) with check (receiver_id = auth.uid());
+
+create policy "sender updates own quest invites" on public.quest_invites
+for update to authenticated using (sender_id = auth.uid()) with check (sender_id = auth.uid());
 
 create policy "users and friends read reactions" on public.entry_reactions
 for select to authenticated using (

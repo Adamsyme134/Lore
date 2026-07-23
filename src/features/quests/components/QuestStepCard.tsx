@@ -1,17 +1,19 @@
-import { useState, useEffect } from 'react';
-import { View, Pressable, LayoutAnimation, Platform, UIManager } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { useEffect } from 'react';
+import { View, Pressable } from 'react-native';
+import Animated, {
+  FadeIn,
+  FadeOut,
+  LinearTransition,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming
+} from 'react-native-reanimated';
+import { Check, ChevronDown, Lock } from 'lucide-react-native';
 import { AppText } from '../../../shared/components/AppText';
 import { accentClass, type Accent } from '../../../shared/design/tokens';
-import { Button } from '../../../shared/components/Button';
+import { cx } from '../../../shared/utils/cx';
 
-if (
-  Platform.OS === 'android' && 
-  UIManager.setLayoutAnimationEnabledExperimental && 
-  !(globalThis as any)._IS_FABRIC_
-) {
-  UIManager.setLayoutAnimationEnabledExperimental(true);
-}
+
 
 type QuestStepCardProps = {
   stepIndex: number;
@@ -20,65 +22,65 @@ type QuestStepCardProps = {
   isActiveStep: boolean;
   isCompleted: boolean;
   isLocked: boolean;
+  isExpanded: boolean;
   isCompleteDisabled?: boolean;
   accent: Accent;
+  onToggleExpanded: () => void;
   onComplete: () => void;
   children: React.ReactNode;
 };
 
 export function QuestStepCard({ 
-  stepIndex, title, isActiveStep, isCompleted, isLocked, isCompleteDisabled, accent, onComplete, children 
+  stepIndex, title, isActiveStep, isCompleted, isLocked, isExpanded, isCompleteDisabled, accent, onToggleExpanded, onComplete, children 
 }: QuestStepCardProps) {
-  
-  const [isExpanded, setIsExpanded] = useState(isActiveStep && !isCompleted);
+  const chevronRotation = useSharedValue(isExpanded ? 180 : 0);
 
-  // AUTO EXPAND & COLLAPSE EFFECT
   useEffect(() => {
-    if (isActiveStep && !isCompleted) {
-      // Open the card when it becomes the active step
-      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-      setIsExpanded(true);
-    } else if (isCompleted) {
-      // Collapse the card when it gets marked as completed
-      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-      setIsExpanded(false);
-    }
-  }, [isActiveStep, isCompleted]);
+    chevronRotation.value = withTiming(isExpanded ? 180 : 0, { duration: 180 });
+  }, [chevronRotation, isExpanded]);
+
+  const chevronStyle = useAnimatedStyle(() => ({
+    transform: [{ rotate: `${chevronRotation.value}deg` }]
+  }));
 
   const theme = accentClass[accent] || accentClass['orange'];
 
   const toggleExpand = () => {
     if (isLocked) return;
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    setIsExpanded(!isExpanded);
+    onToggleExpanded();
   };
 
   const containerStyle = isActiveStep 
-    ? `bg-surface rounded-[24px] p-5 shadow-sm border border-line mb-4`
-    : `bg-transparent py-4 px-2 border-b border-line/30 mb-2`;
+    ? `bg-surface rounded-[18px] px-4 py-4 border border-line mb-3`
+    : `bg-background rounded-[18px] px-4 py-4 border border-line/60 mb-3 shadow-none`;
 
   return (
-    <View className={`${containerStyle} ${isLocked ? 'opacity-50' : 'opacity-100'}`}>
+    <Animated.View
+      layout={LinearTransition.duration(220)}
+      className={containerStyle}
+    >
       
       {/* Header Row */}
-      <Pressable onPress={toggleExpand} disabled={isLocked} className="flex-row items-center justify-between">
-        <View className="flex-row items-center flex-1">
-          <View className={`h-7 w-7 items-center justify-center rounded-full ${isCompleted ? 'bg-ink' : isActiveStep ? 'bg-ink' : 'border border-line bg-transparent'}`}>
+      <Pressable onPress={toggleExpand} disabled={isLocked} className="min-h-[44px] flex-row items-center justify-between">
+        <View className="flex-1 flex-row items-center">
+          <View className={`h-8 w-8 items-center justify-center rounded-full ${isCompleted ? 'bg-ink' : isActiveStep ? 'border border-ink bg-transparent' : 'border border-line bg-transparent'}`}>
             {isLocked ? (
-               <Ionicons name="lock-closed-outline" size={12} color="var(--color-text)" style={{ opacity: 0.6 }} />
+              <Lock size={13} color="rgba(23, 22, 18, 0.55)" strokeWidth={2.4} />
             ) : isCompleted ? (
-              <AppText className="text-background text-xs font-bold">✓</AppText>
+              <Check size={15} color="#F5F0E7" strokeWidth={3} />
+            ) : isActiveStep ? (
+              <View className="h-2.5 w-2.5 rounded-full bg-ink" />
             ) : (
-              <AppText className={`text-xs font-sansSemi ${isActiveStep ? 'text-background' : 'text-ink'}`}>{stepIndex + 1}</AppText>
+              <AppText className="text-xs font-sansSemi text-ink">{stepIndex + 1}</AppText>
             )}
           </View>
           
-          <View className="ml-3 flex-1">
-            <AppText variant="subtitle" className="text-ink text-base">
-              {title || `Step ${stepIndex + 1}`}
+          <View className="ml-4 flex-1 justify-center">
+            <AppText className={cx("text-[14px] leading-5", isLocked ? "font-sans text-ink/45" : "font-sansSemi text-ink")}>
+              {title}
             </AppText>
             {isLocked && (
-              <AppText className="text-[10px] text-ink/50 mt-1 font-sans uppercase tracking-widest">
+              <AppText className="mt-1 text-[9px] font-sans uppercase tracking-widest text-ink/40">
                 Complete previous step to unlock
               </AppText>
             )}
@@ -86,22 +88,37 @@ export function QuestStepCard({
         </View>
 
         {!isLocked && (
-          <Ionicons name={isExpanded ? "chevron-up" : "chevron-down"} size={18} color="var(--color-text)" style={{ opacity: 0.5 }} />
+          <Animated.View style={chevronStyle} className="ml-3">
+            <ChevronDown size={18} color="rgba(23, 22, 18, 0.5)" strokeWidth={2.2} />
+          </Animated.View>
         )}
       </Pressable>
 
       {/* Expandable Content Body */}
       {isExpanded && !isLocked && (
-        <View className="mt-4">
+        <Animated.View
+          entering={FadeIn.duration(180)}
+          exiting={FadeOut.duration(120)}
+          layout={LinearTransition.duration(220)}
+          className="mt-4"
+        >
           {children}
 
           {isActiveStep && !isCompleted && (
             <View className="mt-5">
-              <Button label="Next step" onPress={onComplete} className={`w-full ${theme.bg}`} disabled={isCompleteDisabled} />
+              <Pressable
+                onPress={onComplete}
+                disabled={isCompleteDisabled}
+                className={cx("min-h-[56px] items-center justify-center rounded-full px-6 py-4", theme.bg, isCompleteDisabled && "opacity-50")}
+              >
+                <AppText variant="caption" className="font-sansBold uppercase tracking-editorial text-ivory">
+                  Next step
+                </AppText>
+              </Pressable>
             </View>
           )}
-        </View>
+        </Animated.View>
       )}
-    </View>
+    </Animated.View>
   );
 }

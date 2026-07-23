@@ -218,9 +218,10 @@ header {
   bottom: 0;
   left: 0;
   right: 0;
-  padding: 20px; 
+  padding: 20px 20px 24px; 
   display: flex;
   flex-direction: column;
+  gap: 10px;
 }
 
 /* mb-3 flex-row flex-wrap gap-2 */
@@ -228,7 +229,7 @@ header {
   display: flex;
   flex-wrap: wrap;
   gap: 8px; 
-  margin-bottom: 12px; 
+  margin-bottom: 2px; 
 }
 
 /* Mapping <Chip tone="light" /> */
@@ -249,14 +250,14 @@ header {
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: rgba(245, 240, 231, 0.8); 
-  margin-bottom: 8px; 
+  margin-bottom: 0; 
 }
 
 /* variant="display" text-ivory */
 .app-quest-title {
   font-family: var(--font-heading); 
   font-size: 26px;
-  line-height: 1.1;
+  line-height: 1.25;
   color: #F5F0E7; /* ivory */
   margin: 0;
 }
@@ -266,12 +267,12 @@ header {
   font-family: var(--font-body);
   font-size: 14px;
   color: rgba(245, 240, 231, 0.8); 
-  margin: 4px 0 0 0; 
+  margin: 0; 
   display: -webkit-box;
   -webkit-line-clamp: 2; /* Forces exactly 2 lines before truncating with ... */
   -webkit-box-orient: vertical;
   overflow: hidden;
-  line-height: 1.4;
+  line-height: 1.45;
 }
 /* --- QUEST STEPS (QuestDetailBlock & QuestStepCard exactly mapped) --- */
 /* --- 3D CAROUSEL LAYOUT ENGINE --- */
@@ -506,7 +507,39 @@ header {
     gap: 24px;
     margin-bottom: 40px;
   }
+/* --- NAVBAR SPACING FIX --- */
+  /* Adds breathing room between the Logo and the text next to it */
+  header, nav, header div {
+    gap: 24px !important; 
+  }
+  
+  header a:first-child {
+    margin-right: 12px !important;
+  }
 
+  /* --- HERO CENTERING FIX --- */
+  /* Strips away rogue desktop margins/padding pushing the text right */
+  h1, 
+  h1 + p, 
+  .hero, 
+  .hero-section {
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    text-align: center !important;
+    width: 100% !important;
+  }
+
+  /* If the text is wrapped in a container, force the container to center its children */
+  main > div:first-child, 
+  .hero-container {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    padding-left: 20px !important;
+    padding-right: 20px !important; /* Restores a healthy mobile edge margin */
+  }
   /* Override the JS absolute positioning */
   .app-quest-wrapper {
     position: relative !important;

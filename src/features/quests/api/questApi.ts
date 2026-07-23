@@ -16,7 +16,7 @@ import type { Accent } from "../../../shared/design/tokens";
 import { useExperienceStore } from "../../app/store/useExperienceStore";
 import { QuestCountry } from "../../../shared/types/domain";
 
-type QuestRow = {
+export type QuestRow = {
   id: string;
   slug: string;
   title: string;
@@ -54,7 +54,7 @@ type QuestRow = {
   recent_avatars?: string[];
 };
 
-function mapQuest(row: QuestRow): Quest {
+export function mapQuest(row: QuestRow): Quest {
   return {
     id: row.id,
     slug: row.slug,
@@ -148,6 +148,105 @@ export function useActivateQuest() {
       void queryClient.invalidateQueries({ queryKey: ["user-quests"] });
       void queryClient.invalidateQueries({ queryKey: ["active-quests"] });
       void queryClient.invalidateQueries({ queryKey: ["quests"] }); // ✨ Force refresh stats
+    }
+  });
+}
+
+export function useQuitQuest() {
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+  const quitQuest = useExperienceStore((state) => state.quitQuest);
+
+  return useMutation({
+    onMutate: (questId) => {
+      quitQuest(questId);
+      queryClient.setQueryData(
+        ["user-quest-state", questId, user?.id],
+        { status: "dismissed", completedStepIndexes: [] }
+      );
+      queryClient.setQueriesData(
+        { queryKey: ["user-quest-state", questId] },
+        { status: "dismissed", completedStepIndexes: [] }
+      );
+    },
+    mutationFn: async (questId: string) => {
+      if (!user || !supabase) return;
+
+      const quitUpdate = await supabase
+        .from("user_quests")
+        .update({ status: "dismissed", completed_step_indexes: [] })
+        .eq("user_id", user.id)
+        .eq("quest_id", questId);
+
+      if (quitUpdate.error) {
+        const fallback = await supabase
+          .from("user_quests")
+          .update({ status: "dismissed" })
+          .eq("user_id", user.id)
+          .eq("quest_id", questId);
+
+        if (fallback.error) throw fallback.error;
+      }
+    },
+    onSuccess: (_data, questId) => {
+      void queryClient.invalidateQueries({ queryKey: ["user-quests"] });
+      void queryClient.invalidateQueries({ queryKey: ["active-quests"] });
+      void queryClient.invalidateQueries({ queryKey: ["user-quest-state", questId] });
+      void queryClient.invalidateQueries({ queryKey: ["group-quest-progress", questId] });
+      void queryClient.invalidateQueries({ queryKey: ["quests"] });
+    }
+  });
+}
+
+export function useQuitAllActiveQuests() {
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+  const quitQuest = useExperienceStore((state) => state.quitQuest);
+  const activeQuests = useExperienceStore((state) => state.activeQuests);
+
+  return useMutation({
+    onMutate: () => {
+      Object.keys(activeQuests).forEach((questId) => quitQuest(questId));
+      queryClient.setQueriesData(
+        { queryKey: ["user-quest-state"] },
+        (current: unknown) => current && typeof current === "object"
+          ? { status: "dismissed", completedStepIndexes: [] }
+          : current
+      );
+      queryClient.setQueryData(
+        ["user-quests-status", user?.id],
+        (current: { active: string[]; completed: string[] } | undefined) => ({
+          active: [],
+          completed: current?.completed ?? []
+        })
+      );
+    },
+    mutationFn: async () => {
+      if (!user || !supabase) return;
+
+      const quitUpdate = await supabase
+        .from("user_quests")
+        .update({ status: "dismissed", completed_step_indexes: [] })
+        .eq("user_id", user.id)
+        .eq("status", "active");
+
+      if (quitUpdate.error) {
+        const fallback = await supabase
+          .from("user_quests")
+          .update({ status: "dismissed" })
+          .eq("user_id", user.id)
+          .eq("status", "active");
+
+        if (fallback.error) throw fallback.error;
+      }
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["user-quests"] });
+      void queryClient.invalidateQueries({ queryKey: ["active-quests"] });
+      void queryClient.invalidateQueries({ queryKey: ["user-quest-state"] });
+      void queryClient.invalidateQueries({ queryKey: ["group-quest-progress"] });
+      void queryClient.invalidateQueries({ queryKey: ["user-quests-status"] });
+      void queryClient.invalidateQueries({ queryKey: ["quests"] });
     }
   });
 }

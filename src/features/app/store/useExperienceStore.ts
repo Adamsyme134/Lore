@@ -33,6 +33,7 @@ type ExperienceState = {
   toggleSavedQuest: (questId: string) => void;
   markQuestComplete: (questId: string) => void;
   activateQuest: (questId: string) => void;
+  quitQuest: (questId: string) => void;
   toggleQuestStep: (questId: string, stepIndex: number) => void;
   addPreviewLoreEntry: (input: AddPreviewLoreInput) => LoreEntry;
   deletePreviewLoreEntry: (entryId: string, questId?: string | null) => void;
@@ -70,6 +71,16 @@ export const useExperienceStore = create<ExperienceState>()(
             [questId]: state.activeQuests[questId] || []
           }
         })),
+
+      quitQuest: (questId) =>
+        set((state) => {
+          const nextActiveQuests = { ...state.activeQuests };
+          delete nextActiveQuests[questId];
+
+          return {
+            activeQuests: nextActiveQuests
+          };
+        }),
 
       toggleQuestStep: (questId, stepIndex) =>
         set((state) => {

@@ -34,14 +34,38 @@ const extractTitleAndText = (stepStr: string) => {
   return { title: "", text: stepStr };
 };
 
+const deriveFallbackTitle = (stepText: string) => {
+  const textOnly = stepText
+    .replace(/\[[A-Z_]+:.*?\]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  const firstThought = textOnly.split(/[.!?\n]/)[0]?.trim();
+  return firstThought ? firstThought.slice(0, 64) : "Quest task";
+};
+
 type QuestDetailBlockProps = {
   quest: Quest;
   checkedSteps?: number[];
   onToggleStep?: (index: number) => void;
   isActive?: boolean;
+  expandedStepIndex?: number | null;
+  onExpandedStepChange?: (index: number | null) => void;
+  onStepLayout?: (index: number, y: number) => void;
+  onStepsListLayout?: (y: number) => void;
+  onBlockLayout?: (y: number) => void;
 };
 
-export function QuestDetailBlock({ quest, checkedSteps = [], onToggleStep, isActive = false }: QuestDetailBlockProps) {
+export function QuestDetailBlock({
+  quest,
+  checkedSteps = [],
+  onToggleStep,
+  isActive = false,
+  expandedStepIndex,
+  onExpandedStepChange,
+  onStepLayout,
+  onStepsListLayout,
+  onBlockLayout
+}: QuestDetailBlockProps) {
   const { getVariable } = useQuestExecution();
   const accent = accentClass[quest.accent] || accentClass['orange']; 
   const isGroup = quest.maxParticipants > 1;
@@ -49,7 +73,7 @@ export function QuestDetailBlock({ quest, checkedSteps = [], onToggleStep, isAct
   const currentActiveStepIndex = isActive ? checkedSteps.length : -1;
   
   return (
-    <View className="mt-4">
+    <View className="mt-4" onLayout={(event) => onBlockLayout?.(event.nativeEvent.layout.y)}>
       <View className="mb-6 flex-row flex-wrap gap-2 px-2">
         {Array.isArray(quest.categories) ? quest.categories.map(cat => <Chip key={cat} label={cat} />) : null}
         {quest.cost ? <Chip label={quest.cost} /> : null}
@@ -62,7 +86,7 @@ export function QuestDetailBlock({ quest, checkedSteps = [], onToggleStep, isAct
         <AppText className="mt-2 text-ink/70">{quest.whyItMatters}</AppText>
       </View>
 
-      <View className="gap-2">
+      <View className="gap-2" onLayout={(event) => onStepsListLayout?.(event.nativeEvent.layout.y)}>
         {quest.steps.map((step, index) => {
           const isCompleted = checkedSteps.includes(index);
           const isActiveStep = index === currentActiveStepIndex && isActive;
@@ -70,6 +94,7 @@ export function QuestDetailBlock({ quest, checkedSteps = [], onToggleStep, isAct
 
           // --- EXTRACT TITLE & RAW TEXT ---
           const { title, text: rawStepText } = extractTitleAndText(step);
+          const stepTitle = title || deriveFallbackTitle(rawStepText);
           const hasChecklist = rawStepText.includes('[CHECKLIST:');
           const isChecklistComplete = getVariable(`step_${index}_checklist_completed`) === true;
           const isCompleteDisabled = hasChecklist && !isChecklistComplete;
@@ -78,82 +103,82 @@ export function QuestDetailBlock({ quest, checkedSteps = [], onToggleStep, isAct
           const isStepValid = getVariable(`step_${index}_valid`) ?? true;
           return (
             
-            <QuestStepCard 
-              key={index} 
-              stepIndex={index}
-              totalSteps={quest.steps.length}
-              isActiveStep={isActiveStep}
-              isCompleted={isCompleted}
-              isLocked={isLocked && !isCompleted}
-              isCompleteDisabled={!isStepValid}
-              accent={quest.accent}
-              onComplete={() => { if (onToggleStep) onToggleStep(index); }}
-    
+            <View
+              key={index}
+              onLayout={(event) => onStepLayout?.(index, event.nativeEvent.layout.y)}
             >
-              <View className="flex-col w-full">
-                
-                {/* --- RENDER TITLE IF IT EXISTS --- */}
-                {title ? (
-                  <AppText className={`font-sansSemi text-lg mb-2 ${isCompleted ? 'text-ink/40' : 'text-ink'}`}>
-                    {title}
-                  </AppText>
-                ) : null}
+              <QuestStepCard 
+                stepIndex={index}
+                totalSteps={quest.steps.length}
+                isActiveStep={isActiveStep}
+                isCompleted={isCompleted}
+                isLocked={isLocked && !isCompleted}
+                isExpanded={expandedStepIndex === index}
+                isCompleteDisabled={!isStepValid}
+                accent={quest.accent}
+                title={stepTitle}
+                onToggleExpanded={() => onExpandedStepChange?.(expandedStepIndex === index ? null : index)}
+                onComplete={() => { if (onToggleStep) onToggleStep(index); }}
+      
+              >
+                <View className="flex-col w-full">
+                  
+                  {(() => {
+                    const blocks: React.ReactNode[] = [];
+                    let currentInline: React.ReactNode[] = [];
 
-                {(() => {
-                  const blocks: React.ReactNode[] = [];
-                  let currentInline: React.ReactNode[] = [];
+                    const flushInline = () => {
+                      if (currentInline.length > 0) {
+                        blocks.push(
+                          <AppText key={`inline-${blocks.length}`} className="font-sans text-base leading-8 text-ink/80">
+                            {currentInline}
+                          </AppText>
+                        );
+                        currentInline = [];
+                      }
+                    };
 
-                  const flushInline = () => {
-                    if (currentInline.length > 0) {
-                      blocks.push(
-                        <AppText key={`inline-${blocks.length}`} className={`leading-8 text-base font-sans ${isCompleted ? 'text-ink/50' : 'text-ink/80'}`}>
-                          {currentInline}
-                        </AppText>
-                      );
-                      currentInline = [];
-                    }
-                  };
+                    parsed.forEach((part, i) => {
+                      if (part.startsWith('[YOUTUBE:')) {
+                        flushInline(); 
+                        const raw = part.slice(9, -1); 
+                        blocks.push(<YouTubeWidget key={`yt-${i}`} config={raw} />);
+                      } else if (part.startsWith("[LOCATION:")) {
+                        flushInline(); 
+                        const raw = part.slice(10, -1);
+                        blocks.push(<LocationWidget key={`loc-${i}`} config={raw as any} accent={accent} />);
+                      } else if (part.startsWith('[RANDOMISER:')) {
+                        flushInline();
+                        const raw = part.slice(12, -1);
+                        blocks.push(<RandomiserWidget key={`rand-${i}`} config={raw as any} accent={quest.accent} />);
+                      } else if (part.startsWith("[LINK:")) {
+                        flushInline();
+                        const raw = part.slice(6, -1);
+                        blocks.push(<LinkWidget key={`link-${i}`} config={raw} />);
+                      } else if (part.startsWith('[CHECKLIST:')) { 
+                        flushInline();
+                        const raw = part.slice(11, -1);
+                        blocks.push(<ChecklistWidget key={`chk-${i}`} config={raw} stepIndex={index} />);
+                      } else if (part.startsWith('[MAP:')) {
+                        flushInline();
+                        const raw = part.slice(5, -1);
+                        blocks.push(<MapWidget key={`map-${i}`} config={raw} />);
+                      } else if (part.startsWith('[CARD_REVEAL:')) {
+                        flushInline();
+                        const raw = part.slice(13, -1);
+                        blocks.push(<CardRevealWidget key={`cardrev-${i}`} config={raw} stepIndex={index} chunkIndex={i} />);
+                      }
+                      else if (part !== "") {
+                        currentInline.push(<AppText key={`text-${i}`} className="text-ink/80">{part}</AppText>);
+                      }
+                    });
 
-                  parsed.forEach((part, i) => {
-                    if (part.startsWith('[YOUTUBE:')) {
-                      flushInline(); 
-                      const raw = part.slice(9, -1); 
-                      blocks.push(<YouTubeWidget key={`yt-${i}`} config={raw} />);
-                    } else if (part.startsWith("[LOCATION:")) {
-                      flushInline(); 
-                      const raw = part.slice(10, -1);
-                      blocks.push(<LocationWidget key={`loc-${i}`} config={raw as any} accent={accent} />);
-                    } else if (part.startsWith('[RANDOMISER:')) {
-                      flushInline();
-                      const raw = part.slice(12, -1);
-                      blocks.push(<RandomiserWidget key={`rand-${i}`} config={raw as any} accent={quest.accent} />);
-                    } else if (part.startsWith("[LINK:")) {
-                      flushInline();
-                      const raw = part.slice(6, -1);
-                      blocks.push(<LinkWidget key={`link-${i}`} config={raw} />);
-                    } else if (part.startsWith('[CHECKLIST:')) { 
-                      flushInline();
-                      const raw = part.slice(11, -1);
-                      blocks.push(<ChecklistWidget key={`chk-${i}`} config={raw} stepIndex={index} />);
-                    } else if (part.startsWith('[MAP:')) {
-                      flushInline();
-                      const raw = part.slice(5, -1);
-                      blocks.push(<MapWidget key={`map-${i}`} config={raw} />);
-                    } else if (part.startsWith('[CARD_REVEAL:')) {
-                      flushInline();
-                      const raw = part.slice(13, -1);
-                      blocks.push(<CardRevealWidget key={`cardrev-${i}`} config={raw} stepIndex={index} chunkIndex={i} />);
-                    }
-                    else if (part !== "") {
-                      currentInline.push(<AppText key={`text-${i}`}>{part}</AppText>);
-                    }
-                  });
-
-                  flushInline(); 
-                  return blocks;
-                })()}
-              </View>
-            </QuestStepCard>
+                    flushInline(); 
+                    return blocks;
+                  })()}
+                </View>
+              </QuestStepCard>
+            </View>
           );
         })}
       </View>
