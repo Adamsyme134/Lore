@@ -3,22 +3,25 @@ import { Pressable, View } from "react-native";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
 import type { Quest } from "../../../shared/types/domain";
 import { AppText } from "../../../shared/components/AppText";
 import { Chip } from "../../../shared/components/Chip";
 type QuestCardProps = {
   quest: Quest;
   compact?: boolean;
+  groupId?: string;
+  onRemove?: () => void;
 };
 
-export function QuestCard({ quest, compact = false }: QuestCardProps) {
+export function QuestCard({ quest, compact = false, groupId, onRemove }: QuestCardProps) {
   const isGroup = quest.maxParticipants > 1;
   const borderClass = isGroup ? 'border-[3px] border-[#2D6A4F]' : 'border border-line/20';
   const posMatch = quest.imagePosition?.match(/(\d+(?:\.\d+)?)%\s+(\d+(?:\.\d+)?)%/);
   const contentPos = posMatch ? { left: `${posMatch[1]}%`, top: `${posMatch[2]}%` } : (quest.imagePosition || 'center');
   return (
     <Pressable
-      onPress={() => router.push({ pathname: "/quest/[id]", params: { id: quest.id } })}
+      onPress={() => router.push({ pathname: "/quest/[id]", params: groupId ? { id: quest.id, groupId } : { id: quest.id } })}
       className={`overflow-hidden rounded-[24px] bg-stone relative ${borderClass}`}
       style={{ height: compact ? 160 : 280, width: compact ? 260 : 'auto' }} // ✨ FIX 1: Width explicitly set for horizontal lists
     >
@@ -74,6 +77,18 @@ export function QuestCard({ quest, compact = false }: QuestCardProps) {
           <AppText className="text-white text-xs font-sansSemi">Group Quest</AppText>
         </View>
       )}
+
+      {onRemove ? (
+        <Pressable
+          onPress={(event) => {
+            event.stopPropagation();
+            onRemove();
+          }}
+          className="absolute left-3 top-3 z-20 h-10 w-10 items-center justify-center rounded-full border border-white/25 bg-black/55"
+        >
+          <Ionicons name="trash-outline" size={18} color="#F6F5F2" />
+        </Pressable>
+      ) : null}
     </Pressable>
   );
 }

@@ -33,6 +33,16 @@ type UserQuestProgressRow = {
   completed_step_indexes?: number[] | null;
 };
 
+type FriendGroupMemberRow = {
+  group_id: string;
+  user_id: string;
+};
+
+type FriendGroupRow = {
+  id: string;
+  owner_id: string;
+};
+
 export type PendingGroupQuestInvite = {
   id: string;
   quest: Quest;
@@ -288,13 +298,105 @@ export function useDeclineGroupQuestInvite() {
   });
 }
 
-export function useGroupQuestProgress(questId?: string) {
+export function useGroupQuestProgress(questId?: string, groupId?: string) {
   const { user, profile } = useAuth();
 
   return useQuery({
-    queryKey: ["group-quest-progress", questId, user?.id],
+    queryKey: ["group-quest-progress", questId, groupId ?? "any-group", user?.id],
     queryFn: async () => {
       if (!questId || !user || !supabase) {
+        return { participants: [] as GroupQuestParticipant[], pendingCount: 0, hasGroup: false };
+      }
+
+      const userMemberships = await supabase
+        .from("friend_group_members")
+        .select("group_id, user_id")
+        .eq("user_id", user.id);
+
+      if (userMemberships.error) throw userMemberships.error;
+
+      const ownedGroups = await supabase
+        .from("friend_groups")
+        .select("id, owner_id")
+        .eq("owner_id", user.id);
+
+      if (ownedGroups.error) throw ownedGroups.error;
+
+      const visibleGroupIds = Array.from(new Set([
+        ...((ownedGroups.data ?? []) as FriendGroupRow[]).map((group) => group.id),
+        ...((userMemberships.data ?? []) as FriendGroupMemberRow[]).map((membership) => membership.group_id)
+      ]));
+
+      const candidateGroupIds = groupId ? [groupId] : visibleGroupIds;
+      const groupQuestLinks = candidateGroupIds.length > 0
+        ? await supabase
+          .from("friend_group_quests")
+          .select("group_id, quest_id")
+          .eq("quest_id", questId)
+          .in("group_id", candidateGroupIds)
+        : { data: [], error: null };
+
+      if (groupQuestLinks.error) throw groupQuestLinks.error;
+
+      const activeGroupIds = Array.from(new Set((groupQuestLinks.data ?? []).map((link: any) => link.group_id as string)));
+
+      if (activeGroupIds.length > 0) {
+        const [groupsResult, membersResult] = await Promise.all([
+          supabase
+            .from("friend_groups")
+            .select("id, owner_id")
+            .in("id", activeGroupIds),
+          supabase
+            .from("friend_group_members")
+            .select("group_id, user_id")
+            .in("group_id", activeGroupIds)
+        ]);
+
+        if (groupsResult.error) throw groupsResult.error;
+        if (membersResult.error) throw membersResult.error;
+
+        const memberIds = Array.from(new Set([
+          ...((groupsResult.data ?? []) as FriendGroupRow[]).map((group) => group.owner_id),
+          ...((membersResult.data ?? []) as FriendGroupMemberRow[]).map((member) => member.user_id)
+        ]));
+
+        const profilesResult = memberIds.length > 0
+          ? await supabase
+            .from("profiles")
+            .select("id, handle, full_name, avatar_url, home_city, points_total")
+            .in("id", memberIds)
+          : { data: [], error: null };
+
+        if (profilesResult.error) throw profilesResult.error;
+
+        const profileById = new Map<string, Profile>();
+        if (profile) profileById.set(user.id, profile);
+        ((profilesResult.data ?? []) as ProfileJoin[]).forEach((profileRow) => {
+          profileById.set(profileRow.id, mapProfile(profileRow));
+        });
+
+        const progressRows = await fetchUserQuestProgress(questId, memberIds);
+        const progressByUser = new Map(progressRows.map((row) => [row.user_id, row]));
+
+        return {
+          participants: memberIds.map((memberId) => {
+            const participantProfile = profileById.get(memberId);
+            return {
+              userId: memberId,
+              fullName: participantProfile?.fullName ?? "Explorer",
+              handle: participantProfile?.handle ?? "friend",
+              avatarUrl: participantProfile?.avatarUrl,
+              status: "accepted",
+              completedStepIndexes: progressByUser.get(memberId)?.completed_step_indexes ?? [],
+              isCurrentUser: memberId === user.id
+            } satisfies GroupQuestParticipant;
+          }),
+          pendingCount: 0,
+          hasGroup: true
+        };
+      }
+
+      if (groupId) {
         return { participants: [] as GroupQuestParticipant[], pendingCount: 0, hasGroup: false };
       }
 

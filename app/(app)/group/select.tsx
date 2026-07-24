@@ -11,8 +11,10 @@ import { Button } from "../../../src/shared/components/Button";
 import { useQuest } from "../../../src/features/quests/api/questApi";
 import { useCreateGroupQuestInvites } from "../../../src/features/quests/api/groupQuestApi";
 import { useFriendsList } from "../../../src/features/social/api/socialApi";
+import { useThemeColors } from "../../../src/shared/design/useThemeColors";
 
 export default function GroupSelectScreen() {
+  const colors = useThemeColors();
   const { questId } = useLocalSearchParams<{ questId: string }>();
   const { data: quest } = useQuest(questId);
   const { data: friends = [], isLoading } = useFriendsList();
@@ -71,16 +73,16 @@ export default function GroupSelectScreen() {
     <Screen>
       <TopBar showBack title="Group Quest" />
       <View className="px-5 pt-4 pb-8">
-        <AppText variant="display" className="text-ink">Who is joining you?</AppText>
-        <AppText className="mt-4 text-ink/70">
+        <AppText variant="display">Who is joining you?</AppText>
+        <AppText className="mt-4 text-muted">
           {helperText}
         </AppText>
 
         {quest ? (
           <View className="mt-5 rounded-[24px] border border-line bg-surface p-4">
-            <AppText variant="eyebrow" className="text-ink/50">Quest</AppText>
-            <AppText variant="subtitle" className="mt-1 text-ink">{quest.title}</AppText>
-            <AppText variant="caption" className="mt-2 text-ink/60">
+            <AppText variant="eyebrow">Quest</AppText>
+            <AppText variant="subtitle" className="mt-1">{quest.title}</AppText>
+            <AppText variant="caption" className="mt-2 text-muted">
               {quest.length} · {quest.difficulty} · {quest.cost}
             </AppText>
           </View>
@@ -89,13 +91,13 @@ export default function GroupSelectScreen() {
         <View className="mt-6">
           <View className="mb-3 flex-row items-center justify-between">
             <AppText variant="subtitle">Friends</AppText>
-            <AppText variant="caption" className="font-sansSemi text-ink/60">
+            <AppText variant="caption" className="font-sansSemi text-muted">
               {selectedCount} selected
             </AppText>
           </View>
 
           {isLoading ? (
-            <ActivityIndicator className="py-10" color="#2c2a25" />
+            <ActivityIndicator className="py-10" color={colors.accent} />
           ) : friends.length > 0 ? (
             <View className="rounded-[28px] border border-line bg-surface overflow-hidden">
               {friends.map((friend, index) => {
@@ -117,10 +119,10 @@ export default function GroupSelectScreen() {
                     )}
                     <View className="ml-4 flex-1">
                       <AppText className="font-sansSemi text-[16px]" numberOfLines={1}>{friend.fullName}</AppText>
-                      <AppText variant="caption" className="text-ink/60">@{friend.handle}</AppText>
+                      <AppText variant="caption" className="text-muted">@{friend.handle}</AppText>
                     </View>
-                    <View className={`h-8 w-8 items-center justify-center rounded-full border ${isSelected ? "border-forest bg-forest" : "border-line bg-background"}`}>
-                      {isSelected ? <Ionicons name="checkmark" size={18} color="white" /> : null}
+                    <View className={`h-8 w-8 items-center justify-center rounded-full border ${isSelected ? "border-accent bg-accent" : "border-line bg-background"}`}>
+                      {isSelected ? <Ionicons name="checkmark" size={18} color={colors.accentText} /> : null}
                     </View>
                   </Pressable>
                 );
@@ -129,7 +131,7 @@ export default function GroupSelectScreen() {
           ) : (
             <View className="rounded-[28px] border border-dashed border-line bg-surface p-6">
               <AppText variant="subtitle" className="text-center text-ink">No friends yet</AppText>
-              <AppText className="mt-2 text-center text-ink/60">
+              <AppText className="mt-2 text-center text-muted">
                 Add friends first, then come back to start group quests together.
               </AppText>
               <Button label="Find friends" variant="secondary" className="mt-5" onPress={() => router.push("/(app)/(tabs)/friends")} />

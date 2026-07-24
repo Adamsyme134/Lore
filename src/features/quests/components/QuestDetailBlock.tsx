@@ -83,7 +83,7 @@ export function QuestDetailBlock({
 
       <View className="px-2 mb-6">
         <AppText variant="subtitle" className={accent.text}>Why do it?</AppText>
-        <AppText className="mt-2 text-ink/70">{quest.whyItMatters}</AppText>
+        <AppText className="mt-2 text-muted">{quest.whyItMatters}</AppText>
       </View>
 
       <View className="gap-2" onLayout={(event) => onStepsListLayout?.(event.nativeEvent.layout.y)}>
@@ -130,7 +130,7 @@ export function QuestDetailBlock({
                     const flushInline = () => {
                       if (currentInline.length > 0) {
                         blocks.push(
-                          <AppText key={`inline-${blocks.length}`} className="font-sans text-base leading-8 text-ink/80">
+                          <AppText key={`inline-${blocks.length}`} className="font-sans text-base leading-8 text-muted">
                             {currentInline}
                           </AppText>
                         );
@@ -169,7 +169,7 @@ export function QuestDetailBlock({
                         blocks.push(<CardRevealWidget key={`cardrev-${i}`} config={raw} stepIndex={index} chunkIndex={i} />);
                       }
                       else if (part !== "") {
-                        currentInline.push(<AppText key={`text-${i}`} className="text-ink/80">{part}</AppText>);
+                        currentInline.push(<AppText key={`text-${i}`} className="text-muted">{part}</AppText>);
                       }
                     });
 

@@ -3,8 +3,10 @@ import React, { useState } from 'react';
 import { View, Platform, Pressable, Linking } from 'react-native';
 import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import { AppText } from '../../../../shared/components/AppText';
+import { useThemeColors } from '../../../../shared/design/useThemeColors';
 
 export function MapWidget({ config }: { config: string }) {
+  const colors = useThemeColors();
   const [selectedPin, setSelectedPin] = useState<any>(null);
 
   // Parse config (e.g. title=Pub Crawl&pins=51.5,-0.12,Pub 1|51.6,-0.13,Pub 2)
@@ -76,14 +78,14 @@ export function MapWidget({ config }: { config: string }) {
       
       {/* Floating Detail Card */}
       {selectedPin && (
-        <View className="absolute bottom-4 left-4 right-4 bg-white p-4 rounded-xl shadow-lg border border-line">
-          <AppText variant="subtitle" className="text-ink">{selectedPin.title}</AppText>
+        <View className="absolute bottom-4 left-4 right-4 bg-surface p-4 rounded-xl shadow-lg border border-line">
+          <AppText variant="subtitle">{selectedPin.title}</AppText>
           <View className="flex-row gap-3 mt-3">
-            <Pressable onPress={() => openInExternalMaps(selectedPin)} className="bg-ink px-4 py-2 rounded-full flex-1 items-center">
-              <AppText className="text-ivory font-sansSemi text-xs">Open in Maps ↗</AppText>
+            <Pressable onPress={() => openInExternalMaps(selectedPin)} className="bg-accent px-4 py-2 rounded-full flex-1 items-center">
+              <AppText className="text-ivory dark:text-accentText font-sansSemi text-xs">Open in Maps ↗</AppText>
             </Pressable>
             <Pressable onPress={() => setSelectedPin(null)} className="bg-stone px-4 py-2 rounded-full items-center border border-line">
-              <AppText className="text-ink font-sansSemi text-xs">Close</AppText>
+              <AppText className="font-sansSemi text-xs" style={{ color: colors.text }}>Close</AppText>
             </Pressable>
           </View>
         </View>

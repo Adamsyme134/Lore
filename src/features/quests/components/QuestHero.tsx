@@ -6,6 +6,7 @@ import { router } from "expo-router";
 import { Ionicons } from '@expo/vector-icons';
 import type { Quest } from "../../../shared/types/domain";
 import { AppText } from "../../../shared/components/AppText";
+import { useThemeColors } from "../../../shared/design/useThemeColors";
 
 type QuestHeroProps = {
   quest: Quest;
@@ -17,6 +18,7 @@ type QuestHeroProps = {
 };
 
 export function QuestHero({ quest, className, variant = "full", onPressOverride, isSaved, onSavePress }: QuestHeroProps) {
+  const colors = useThemeColors();
   const posMatch = quest.imagePosition?.match(/(\d+(?:\.\d+)?)%\s+(\d+(?:\.\d+)?)%/);
   const contentPos = posMatch ? { left: `${posMatch[1]}%`, top: `${posMatch[2]}%` } : (quest.imagePosition || 'center');
   const isRecommended = variant === "recommended";
@@ -105,21 +107,21 @@ export function QuestHero({ quest, className, variant = "full", onPressOverride,
             <>
               {/* TITLE & BOOKMARK ROW */}
               <View className="flex-row justify-between items-start mb-5">
-                <AppText variant="display" className="text-ink dark:text-ivory text-3xl leading-[42px] flex-1 mr-4">
+                <AppText variant="display" className="text-3xl leading-[42px] flex-1 mr-4">
                   {quest.title}
                 </AppText>
                 
                 {onSavePress && (
                   <Pressable 
                     onPress={onSavePress} 
-                    className={`w-11 h-11 rounded-full items-center justify-center border ${isSaved ? 'bg-ink border-ink' : 'bg-surface border-line'}`}
+                    className={`w-11 h-11 rounded-full items-center justify-center border ${isSaved ? 'bg-accent border-accent' : 'bg-surface border-line'}`}
                   >
-                    <Ionicons name={isSaved ? "bookmark" : "bookmark-outline"} size={20} color={isSaved ? "var(--color-background)" : "var(--color-text)"} />
+                    <Ionicons name={isSaved ? "bookmark" : "bookmark-outline"} size={20} color={isSaved ? colors.accentText : colors.text} />
                   </Pressable>
                 )}
               </View>
               
-              <AppText className="text-ink/80 dark:text-ivory/80 text-[15px] leading-6 mb-6">
+              <AppText className="text-[15px] leading-6 mb-6">
                 {quest.description}
               </AppText>
             </>
@@ -128,33 +130,33 @@ export function QuestHero({ quest, className, variant = "full", onPressOverride,
           {/* The 4 Set Info Sections */}
           <View className={`flex-row justify-between items-start py-4 border-t border-b border-line ${isRecommended ? "" : "mb-6"}`}>
             <View className="flex-1 items-center border-r border-line/50">
-              <Ionicons name="time-outline" size={18} color="var(--color-text)" />
-              <AppText className="text-[9px] font-sansSemi mt-2 text-ink/50 dark:text-ivory/50 uppercase tracking-widest">Time</AppText>
-              <AppText className="text-xs text-ink dark:text-ivory mt-1 font-sans text-center">{quest.length || '2-3 hrs'}</AppText>
+              <Ionicons name="time-outline" size={18} color={colors.text} />
+              <AppText className="text-[9px] font-sansSemi mt-2 text-tertiary uppercase tracking-widest">Time</AppText>
+              <AppText className="text-xs text-ink mt-1 font-sans text-center">{quest.length || '2-3 hrs'}</AppText>
             </View>
             <View className="flex-1 items-center border-r border-line/50">
-              <Ionicons name="stats-chart-outline" size={18} color="var(--color-text)" />
-              <AppText className="text-[9px] font-sansSemi mt-2 text-ink/50 dark:text-ivory/50 uppercase tracking-widest">Difficulty</AppText>
-              <AppText className="text-xs text-ink dark:text-ivory mt-1 font-sans text-center">{quest.difficulty || 'Easy'}</AppText>
+              <Ionicons name="stats-chart-outline" size={18} color={colors.text} />
+              <AppText className="text-[9px] font-sansSemi mt-2 text-tertiary uppercase tracking-widest">Difficulty</AppText>
+              <AppText className="text-xs text-ink mt-1 font-sans text-center">{quest.difficulty || 'Easy'}</AppText>
             </View>
             <View className="flex-1 items-center border-r border-line/50 px-1">
-              <Ionicons name="location-outline" size={18} color="var(--color-text)" />
-              <AppText className="text-[9px] font-sansSemi mt-2 text-ink/50 dark:text-ivory/50 uppercase tracking-widest">Location</AppText>
-              <AppText className="text-xs text-ink dark:text-ivory mt-1 font-sans text-center truncate" numberOfLines={1}>{quest.locationHint || 'Anywhere'}</AppText>
+              <Ionicons name="location-outline" size={18} color={colors.text} />
+              <AppText className="text-[9px] font-sansSemi mt-2 text-tertiary uppercase tracking-widest">Location</AppText>
+              <AppText className="text-xs text-ink mt-1 font-sans text-center truncate" numberOfLines={1}>{quest.locationHint || 'Anywhere'}</AppText>
             </View>
             <View className="flex-1 items-center">
-              <Ionicons name="cash-outline" size={18} color="var(--color-text)" />
-              <AppText className="text-[9px] font-sansSemi mt-2 text-ink/50 dark:text-ivory/50 uppercase tracking-widest">Cost</AppText>
-              <AppText className="text-xs text-ink dark:text-ivory mt-1 font-sans text-center">{quest.cost || '£-££'}</AppText>
+              <Ionicons name="cash-outline" size={18} color={colors.text} />
+              <AppText className="text-[9px] font-sansSemi mt-2 text-tertiary uppercase tracking-widest">Cost</AppText>
+              <AppText className="text-xs text-ink mt-1 font-sans text-center">{quest.cost || '£-££'}</AppText>
             </View>
           </View>
 
           {!isRecommended && (
             <View className="mb-4">
-              <AppText className="text-[10px] font-sansSemi text-ink/50 dark:text-ivory/50 uppercase tracking-widest mb-2">
+              <AppText className="text-[10px] font-sansSemi text-tertiary uppercase tracking-widest mb-2">
                 Why this quest?
               </AppText>
-              <AppText className="text-ink/80 dark:text-ivory/80 text-sm leading-relaxed">
+              <AppText className="text-sm leading-relaxed">
                 {quest.whyItMatters || quest.description}
               </AppText>
             </View>

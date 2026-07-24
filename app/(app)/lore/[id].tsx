@@ -15,11 +15,15 @@ import { MapPreview } from "../../../src/features/map/components/MapPreview";
 import { accentClass } from "../../../src/shared/design/tokens";
 import { useLoreEntry, useDeleteLoreEntry } from "../../../src/features/lore/api/loreApi";
 import { LoreCard } from "../../../src/features/lore/components/LoreCard";
+import { useAuth } from "../../../src/features/auth/AuthProvider";
 import * as MediaLibrary from "expo-media-library/legacy";
+import { useThemeColors } from "../../../src/shared/design/useThemeColors";
 
 export default function LoreDetailScreen() {
+  const colors = useThemeColors();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { data: entry } = useLoreEntry(id);
+  const { user } = useAuth();
   const deleteMutation = useDeleteLoreEntry();
 
   const [isModalVisible, setModalVisible] = useState(false);
@@ -110,6 +114,7 @@ export default function LoreDetailScreen() {
   }
 
   const accent = accentClass[entry.accent];
+  const isOwnEntry = entry.userId === user?.id;
 
   return (
     <Screen contentClassName="px-0 pb-36">
@@ -143,7 +148,7 @@ export default function LoreDetailScreen() {
         <View className="mt-6 rounded-card border border-line bg-surface p-6">
           <AppText variant="eyebrow" className={accent.text}>{entry.questTitle}</AppText>
           <AppText variant="subtitle" className="mt-4">What happened</AppText>
-          <AppText className="mt-3 text-ink/70">{entry.journal}</AppText>
+          <AppText className="mt-3 text-muted">{entry.journal}</AppText>
           {entry.people.length > 0 ? (
             <AppText variant="caption" className="mt-5 font-sansSemi text-ink">
               People: {entry.people.join(", ")}
@@ -165,11 +170,13 @@ export default function LoreDetailScreen() {
         <View className="mt-6">
           <MapPreview location={entry.location} latitude={entry.latitude} longitude={entry.longitude} />
         </View>
-        <View className="mt-12 mb-6">
-          <Pressable onPress={handleDelete} className="py-4 items-center border border-red-500/30 rounded-2xl bg-red-500/5">
-            <AppText className="text-red-500 font-sansSemi">Delete Lore Entry</AppText>
-          </Pressable>
-        </View>
+        {isOwnEntry ? (
+          <View className="mt-12 mb-6">
+            <Pressable onPress={handleDelete} className="py-4 items-center border border-red-500/30 rounded-2xl bg-red-500/5">
+              <AppText className="text-red-500 font-sansSemi">Delete Lore Entry</AppText>
+            </Pressable>
+          </View>
+        ) : null}
       </View>
 
 
@@ -202,11 +209,11 @@ export default function LoreDetailScreen() {
             </View>
 
             <View className="mt-8 flex-row gap-6">
-              <Pressable onPress={handleDownload} className="h-16 w-16 bg-white rounded-full items-center justify-center">
-                <Ionicons name="download-outline" size={28} color="#1C1A17" />
+              <Pressable onPress={handleDownload} className="h-16 w-16 bg-accent rounded-full items-center justify-center">
+                <Ionicons name="download-outline" size={28} color={colors.accentText} />
               </Pressable>
-              <Pressable onPress={handleShare} className="h-16 w-16 bg-white rounded-full items-center justify-center">
-                <Ionicons name="share-outline" size={28} color="#1C1A17" />
+              <Pressable onPress={handleShare} className="h-16 w-16 bg-accent rounded-full items-center justify-center">
+                <Ionicons name="share-outline" size={28} color={colors.accentText} />
               </Pressable>
             </View>
           </ScrollView>

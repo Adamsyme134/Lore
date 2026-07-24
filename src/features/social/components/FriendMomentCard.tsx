@@ -17,11 +17,11 @@ export function FriendMomentCard({ moment }: FriendMomentCardProps) {
       <View className="p-5">
         <View className="mb-2 flex-row items-center justify-between">
           <AppText variant="eyebrow" className={accent.text}>{moment.name}</AppText>
-          <AppText variant="caption">{moment.location}</AppText>
+          <AppText variant="caption" className="text-tertiary">{moment.location}</AppText>
         </View>
         <AppText variant="subtitle">{moment.title}</AppText>
         <View className="mt-4 rounded-3xl bg-background px-4 py-3">
-          <AppText className="text-ink/70">“{moment.reaction}”</AppText>
+          <AppText className="text-muted">“{moment.reaction}”</AppText>
         </View>
       </View>
     </View>

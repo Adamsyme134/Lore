@@ -5,9 +5,11 @@ import { Screen } from "../../src/shared/components/Screen";
 import { AppText } from "../../src/shared/components/AppText";
 import { Button } from "../../src/shared/components/Button";
 import { useAuth } from "../../src/features/auth/AuthProvider";
+import { useThemeColors } from "../../src/shared/design/useThemeColors";
 
 export default function SignInScreen() {
   const { signInWithEmail} = useAuth();
+  const colors = useThemeColors();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -42,7 +44,7 @@ export default function SignInScreen() {
             autoComplete="email"
             keyboardType="email-address"
             placeholder="Email"
-            placeholderTextColor="#787267"
+            placeholderTextColor={colors.textTertiary}
             value={email}
             onChangeText={setEmail}
             className="mt-5 rounded-3xl border border-line bg-background px-5 py-4 font-sans text-[15px] text-ink"
@@ -52,7 +54,7 @@ export default function SignInScreen() {
             autoCapitalize="none"
             secureTextEntry
             placeholder="Password"
-            placeholderTextColor="#787267"
+            placeholderTextColor={colors.textTertiary}
             value={password}
             onChangeText={setPassword}
             className="mt-3 rounded-3xl border border-line bg-background px-5 py-4 font-sans text-[15px] text-ink"

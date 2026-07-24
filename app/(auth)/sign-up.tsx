@@ -5,10 +5,12 @@ import { Screen } from "../../src/shared/components/Screen";
 import { AppText } from "../../src/shared/components/AppText";
 import { Button } from "../../src/shared/components/Button";
 import { useAuth } from "../../src/features/auth/AuthProvider";
+import { useThemeColors } from "../../src/shared/design/useThemeColors";
 
 export default function SignUpScreen() {
   const router = useRouter();
   const { signUpWithEmail } = useAuth();
+  const colors = useThemeColors();
   const [fullName, setFullName] = useState("");
   const [handle, setHandle] = useState("");
   const [email, setEmail] = useState("");
@@ -69,7 +71,7 @@ export default function SignUpScreen() {
           <AppText variant="subtitle">Create account</AppText>
           <TextInput
             placeholder="Full name"
-            placeholderTextColor="#787267"
+            placeholderTextColor={colors.textTertiary}
             value={fullName}
             onChangeText={setFullName}
             className="mt-5 rounded-3xl border border-line bg-background px-5 py-4 font-sans text-[15px] text-ink"
@@ -77,7 +79,7 @@ export default function SignUpScreen() {
           <TextInput
             autoCapitalize="none"
             placeholder="Handle"
-            placeholderTextColor="#787267"
+            placeholderTextColor={colors.textTertiary}
             value={handle}
             onChangeText={setHandle}
             className="mt-3 rounded-3xl border border-line bg-background px-5 py-4 font-sans text-[15px] text-ink"
@@ -87,7 +89,7 @@ export default function SignUpScreen() {
             autoComplete="email"
             keyboardType="email-address"
             placeholder="Email"
-            placeholderTextColor="#787267"
+            placeholderTextColor={colors.textTertiary}
             value={email}
             onChangeText={setEmail}
             className="mt-3 rounded-3xl border border-line bg-background px-5 py-4 font-sans text-[15px] text-ink"
@@ -96,7 +98,7 @@ export default function SignUpScreen() {
             autoCapitalize="none"
             secureTextEntry
             placeholder="Password"
-            placeholderTextColor="#787267"
+            placeholderTextColor={colors.textTertiary}
             value={password}
             onChangeText={setPassword}
             className="mt-3 rounded-3xl border border-line bg-background px-5 py-4 font-sans text-[15px] text-ink"

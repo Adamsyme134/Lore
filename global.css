@@ -5,35 +5,51 @@
 @layer base {
   :root {
     /* LIGHT MODE */
-    --color-background: #F5F0E7; /* ivory */
-    --color-surface: #EFE6D8;    /* cream */
-    --color-surface-alt: #D3C7B5; /* stone */
+    --color-background: 245 240 231; /* ivory */
+    --color-background-secondary: 239 230 216; /* cream */
+    --color-surface: 239 230 216;    /* cream */
+    --color-surface-alt: 211 199 181; /* stone */
+    --color-surface-elevated: 211 199 181; /* stone */
+    --color-ui-secondary: 221 211 194; /* line */
     
-    --color-text: #171612;       /* ink */
-    --color-text-muted: #787267; /* muted */
+    --color-text: 23 22 18;       /* ink */
+    --color-text-muted: 120 114 103; /* muted */
+    --color-text-tertiary: 120 114 103; /* muted */
+    --color-text-disabled: 163 158 147; /* soft muted */
     
-    --color-border: #DDD3C2;     /* line */
+    --color-border: 221 211 194;     /* line */
+    --color-accent: 195 154 102;
+    --color-accent-text: 92 97 78;
     
-    /* Accents (Keep these vibrant in both, or slightly tweak for contrast) */
-    --color-forest: #284D3A;
-    --color-navy: #1F3446;
-    --color-orange: #A5542A;
-    --color-burgundy: #6C2638;
-    --color-gold: #B88A44;
+    --color-forest: 40 77 58;
+    --color-navy: 31 52 70;
+    --color-orange: 165 84 42;
+    --color-burgundy: 108 38 56;
+    --color-gold: 184 138 68;
   }
 
   .dark {
     /* DARK MODE */
-    --color-background: #171612; /* ink */
-    --color-surface: #20201E;    /* charcoal */
-    --color-surface-alt: #2A2A28; /* slightly lighter charcoal for depth */
+    --color-background: 7 20 18;
+    --color-background-secondary: 17 36 33;
+    --color-surface: 24 51 49;
+    --color-surface-alt: 34 67 65;
+    --color-surface-elevated: 34 67 65;
+    --color-ui-secondary: 65 79 74;
     
-    --color-text: #F5F0E7;       /* ivory */
-    --color-text-muted: #A39E93; /* lighter muted text for dark mode */
+    --color-text: 243 240 235;
+    --color-text-muted: 176 180 177;
+    --color-text-tertiary: 144 150 146;
+    --color-text-disabled: 118 123 116;
     
-    --color-border: #3A3834;     /* dark line */
+    --color-border: 65 79 74;
+    --color-accent: 195 154 102;
+    --color-accent-text: 92 97 78;
 
-    /* Accents can typically remain the same if they pass contrast checks, 
-       but you can lighten them slightly here later if they feel too dark */
+    --color-forest: 195 154 102;
+    --color-navy: 195 154 102;
+    --color-orange: 195 154 102;
+    --color-burgundy: 195 154 102;
+    --color-gold: 195 154 102;
   }
 }

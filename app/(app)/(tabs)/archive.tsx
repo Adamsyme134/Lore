@@ -31,7 +31,7 @@ export default function ArchiveScreen() {
           <View className="flex-1">
             <AppText variant="eyebrow">This life, collected</AppText>
             <AppText variant="subtitle" className="mt-1">{loreEntries.length} entries captured</AppText>
-            <AppText className="mt-2 text-ink/65">Points are a quiet measure of experiences completed, not a score to compare.</AppText>
+            <AppText className="mt-2 text-muted">Points are a quiet measure of experiences completed, not a score to compare.</AppText>
           </View>
           <PointsPill points={totalPoints} />
         </View>

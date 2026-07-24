@@ -20,11 +20,13 @@ import {
 } from "@expo-google-fonts/playfair-display";
 import { queryClient } from "../src/lib/queryClient";
 import { AuthProvider } from "../src/features/auth/AuthProvider";
+import { useThemeStore } from "../src/features/app/store/useThemeStore";
 
 void SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
   const { setColorScheme } = useColorScheme();
+  const themePreference = useThemeStore((state) => state.themePreference);
   const [fontsLoaded] = useFonts({
     Inter_400Regular,
     Inter_500Medium,
@@ -35,8 +37,8 @@ export default function RootLayout() {
   });
 
   useEffect(() => {
-    setColorScheme("light");
-  }, [setColorScheme]);
+    setColorScheme(themePreference);
+  }, [setColorScheme, themePreference]);
 
   useEffect(() => {
     if (fontsLoaded) {

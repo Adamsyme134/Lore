@@ -25,11 +25,11 @@ export function LoreEntryCard({ entry, featured = false }: LoreEntryCardProps) {
             <AppText className="mt-2">{entry.excerpt}</AppText>
             <View className="mt-4 flex-row items-center justify-between">
               {entry.people.length > 0 ? (
-                <AppText variant="caption" className="font-sansSemi text-ink">
+                <AppText variant="caption" className="font-sansSemi text-muted">
                   With {entry.people.join(", ")}
                 </AppText>
               ) : <View />}
-              <AppText variant="caption" className="font-sansSemi text-ink">+{entry.pointsAwarded} LP</AppText>
+              <AppText variant="caption" className="font-sansSemi text-accent">+{entry.pointsAwarded} LP</AppText>
             </View>
           </View>
         </View>

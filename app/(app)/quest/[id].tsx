@@ -15,6 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { QuestExecutionProvider } from "../../../src/features/quests/context/QuestExecutionContext";
 import { QuestHero } from "../../../src/features/quests/components/QuestHero";
 import { useAddFriendGroupQuest, useCreateFriendGroup, useFriendGroups, useFriendsList } from "../../../src/features/social/api/socialApi";
+import { useThemeColors } from "../../../src/shared/design/useThemeColors";
 
 function SegmentedProgressBar({ completed, total }: { completed: number; total: number }) {
   const safeTotal = Math.max(total, 1);
@@ -24,7 +25,7 @@ function SegmentedProgressBar({ completed, total }: { completed: number; total: 
     <View className="flex-row gap-1">
       {Array.from({ length: safeTotal }).map((_, index) => (
         <View key={index} className="h-[4px] flex-1 overflow-hidden rounded-full bg-line">
-          <View className={`h-full ${index < safeCompleted ? "bg-ink dark:bg-ivory" : "bg-transparent"}`} />
+          <View className={`h-full ${index < safeCompleted ? "bg-accent" : "bg-transparent"}`} />
         </View>
       ))}
     </View>
@@ -56,7 +57,8 @@ function notify(message: string) {
 
 export default function QuestDetailScreen() {
   const router = useRouter();
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const colors = useThemeColors();
+  const { id, groupId } = useLocalSearchParams<{ id: string; groupId?: string }>();
   const { data: quest } = useQuest(id);
   const { savedQuestIds, activeQuests, toggleQuestStep } = useExperienceStore();
   const saveQuest = useSaveQuest();
@@ -78,7 +80,7 @@ export default function QuestDetailScreen() {
   const detailBlockYRef = useRef(0);
   const stepsListYRef = useRef(0);
   const stepYRefs = useRef<Record<number, number>>({});
-  const groupProgress = useGroupQuestProgress(quest?.id);
+  const groupProgress = useGroupQuestProgress(quest?.id, groupId);
   const userQuestState = useUserQuestState(quest?.id);
   
   // Fire exactly once when the quest ID is resolved and opened
@@ -121,7 +123,7 @@ export default function QuestDetailScreen() {
       <Screen contentClassName="px-0">
         <View style={{ paddingTop: Math.max(insets.top, 20) }} className="px-5 pb-4">
           <Pressable onPress={() => router.back()} className="h-10 w-10 items-center justify-center rounded-full bg-surface">
-            <Ionicons name="arrow-back" size={20} color="var(--color-text)" />
+            <Ionicons name="arrow-back" size={20} color={colors.text} />
           </Pressable>
         </View>
         <AppText variant="title" className="px-5">Quest not found.</AppText>
@@ -304,18 +306,18 @@ export default function QuestDetailScreen() {
               <View className="border-b border-line/50 bg-background px-5 py-4 shadow-sm">
                 <Pressable onPress={() => setIsProgressExpanded((value) => !value)} className="flex-row items-center justify-between">
                   <View>
-                    <AppText className="text-[10px] font-sansSemi text-ink dark:text-ivory uppercase tracking-widest">Quest Progress</AppText>
+                    <AppText className="text-[10px] font-sansSemi text-ink uppercase tracking-widest">Quest Progress</AppText>
                     {isGroupQuest ? (
-                      <AppText variant="caption" className="mt-1 text-ink/55 dark:text-ivory/55">
+                      <AppText variant="caption" className="mt-1 text-tertiary">
                         {acceptedParticipantCount} joined{groupProgress.data?.pendingCount ? ` · ${groupProgress.data.pendingCount} pending` : ""}
                       </AppText>
                     ) : null}
                   </View>
                   <View className="flex-row items-center">
-                    <AppText className="mr-2 text-[10px] font-sansSemi text-ink/60 dark:text-ivory/60 uppercase tracking-widest">
+                    <AppText className="mr-2 text-[10px] font-sansSemi text-tertiary uppercase tracking-widest">
                       {checkedSteps.length} of {quest.steps.length}
                     </AppText>
-                    <AppText className="text-base text-ink/60 dark:text-ivory/60">{isProgressExpanded ? "^" : "v"}</AppText>
+                    <AppText className="text-base text-tertiary">{isProgressExpanded ? "^" : "v"}</AppText>
                   </View>
                 </Pressable>
 
@@ -336,25 +338,32 @@ export default function QuestDetailScreen() {
                     {visibleParticipants.length > 0 ? (
                       visibleParticipants.map((participant) => {
                         const completedSteps = participant.completedStepIndexes.filter((stepIndex) => stepIndex < quest.steps.length).length;
+                        const ParticipantRow = participant.isCurrentUser ? View : Pressable;
                         return (
-                          <View key={participant.userId} className="flex-row items-center">
+                          <ParticipantRow
+                            key={participant.userId}
+                            className="flex-row items-center"
+                            {...(!participant.isCurrentUser
+                              ? { onPress: () => router.push({ pathname: "/friend/[id]", params: { id: participant.userId } }) }
+                              : {})}
+                          >
                             <Avatar participant={participant} />
                             <View className="ml-3 flex-1">
                               <View className="mb-2 flex-row items-center justify-between">
-                                <AppText className="font-sansSemi text-[13px] text-ink dark:text-ivory" numberOfLines={1}>
+                                <AppText className="font-sansSemi text-[13px] text-ink" numberOfLines={1}>
                                   {participant.isCurrentUser ? "You" : participant.fullName}
                                 </AppText>
-                                <AppText variant="caption" className="text-ink/50 dark:text-ivory/50">
+                                <AppText variant="caption" className="text-tertiary">
                                   {completedSteps}/{quest.steps.length}
                                 </AppText>
                               </View>
                               <SegmentedProgressBar completed={completedSteps} total={quest.steps.length} />
                             </View>
-                          </View>
+                          </ParticipantRow>
                         );
                       })
                     ) : (
-                      <AppText variant="caption" className="text-ink/60 dark:text-ivory/60">
+                      <AppText variant="caption" className="text-muted">
                         Invite friends to turn this into a shared quest.
                       </AppText>
                     )}
@@ -363,7 +372,7 @@ export default function QuestDetailScreen() {
 
                 {isProgressExpanded && !isGroupQuest ? (
                   <View className="mt-2">
-                    <AppText className="text-[10px] font-sansSemi text-ink/60 dark:text-ivory/60 uppercase tracking-widest">
+                    <AppText className="text-[10px] font-sansSemi text-tertiary uppercase tracking-widest">
                       {checkedSteps.length} of {quest.steps.length} Completed
                     </AppText>
                   </View>
@@ -411,7 +420,7 @@ export default function QuestDetailScreen() {
                   <>
                     <Button label={activateQuest.isPending ? "Starting..." : "Start quest"} onPress={() => activateQuest.mutate(quest.id)} className="flex-1" />
                     <Pressable onPress={() => setIsAddToGroupOpen(true)} className="h-[56px] w-[56px] items-center justify-center rounded-[20px] border border-line bg-surface">
-                      <Ionicons name="people" size={24} color="var(--color-text)" />
+                      <Ionicons name="people" size={24} color={colors.text} />
                     </Pressable>
                   </>
                 )
@@ -433,7 +442,7 @@ export default function QuestDetailScreen() {
                   )}
                   {quest.minParticipants <= 1 ? (
                     <Pressable onPress={() => setIsAddToGroupOpen(true)} className="h-[56px] w-[56px] items-center justify-center rounded-[20px] border border-line bg-surface">
-                      <Ionicons name="people" size={24} color="var(--color-text)" />
+                      <Ionicons name="people" size={24} color={colors.text} />
                     </Pressable>
                   ) : null}
                 </>
@@ -451,7 +460,7 @@ export default function QuestDetailScreen() {
                   <View className="mb-4 flex-row items-center justify-between">
                     <AppText variant="subtitle">Add to group</AppText>
                     <Pressable onPress={() => setIsAddToGroupOpen(false)} className="h-9 w-9 items-center justify-center rounded-full border border-line bg-background">
-                      <Ionicons name="close" size={18} color="var(--color-text)" />
+                      <Ionicons name="close" size={18} color={colors.text} />
                     </Pressable>
                   </View>
 
@@ -469,11 +478,11 @@ export default function QuestDetailScreen() {
                             <View className="flex-row items-center justify-between">
                               <View className="flex-1 pr-3">
                                 <AppText className="font-sansSemi text-[14px] text-ink" numberOfLines={1}>{group.name}</AppText>
-                                <AppText variant="caption" className="text-ink/50">
+                                <AppText variant="caption" className="text-tertiary">
                                   {group.members.length} member{group.members.length === 1 ? "" : "s"} · {group.quests.length} quest{group.quests.length === 1 ? "" : "s"}
                                 </AppText>
                               </View>
-                              <AppText className="text-[12px] text-ink/50">{hasQuest ? "Added" : "Add"}</AppText>
+                              <AppText className="text-[12px] text-tertiary">{hasQuest ? "Added" : "Add"}</AppText>
                             </View>
                           </Pressable>
                         );
@@ -485,7 +494,7 @@ export default function QuestDetailScreen() {
                     value={newQuestGroupName}
                     onChangeText={setNewQuestGroupName}
                     placeholder="Optional group name"
-                    placeholderTextColor="#787267"
+                    placeholderTextColor={colors.textTertiary}
                     className="rounded-2xl border border-line bg-background px-4 py-3 font-sans text-[15px] text-ink"
                   />
 
@@ -497,19 +506,19 @@ export default function QuestDetailScreen() {
                           <Pressable
                             key={friend.id}
                             onPress={() => handleToggleQuestGroupMember(friend.id)}
-                            className={`rounded-[16px] border px-4 py-3 ${isSelected ? "border-ink bg-ink" : "border-line bg-background"}`}
+                            className={`rounded-[16px] border px-4 py-3 ${isSelected ? "border-accent bg-accent" : "border-line bg-background"}`}
                           >
                             <View className="flex-row items-center justify-between">
-                              <AppText className={`font-sansSemi text-[14px] ${isSelected ? "text-ivory" : "text-ink"}`}>
+                              <AppText className={`font-sansSemi text-[14px] ${isSelected ? "text-accentText" : "text-ink"}`}>
                                 {friend.fullName}
                               </AppText>
-                              {isSelected ? <Ionicons name="checkmark" size={18} color="#F7F1E6" /> : null}
+                              {isSelected ? <Ionicons name="checkmark" size={18} color={colors.accentText} /> : null}
                             </View>
                           </Pressable>
                         );
                       })
                     ) : (
-                      <AppText className="text-ink/55">Add friends first, then gather them into a group.</AppText>
+                      <AppText className="text-muted">Add friends first, then gather them into a group.</AppText>
                     )}
                   </View>
 

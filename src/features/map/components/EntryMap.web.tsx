@@ -12,10 +12,10 @@ type EntryMapProps = {
 export function EntryMap(props: EntryMapProps) {
   return (
     <View className="flex-1 w-full items-center justify-center bg-stone">
-      <AppText variant="subtitle" className="text-ink/40">
+      <AppText variant="subtitle" className="text-tertiary">
         📍 Full Screen Map
       </AppText>
-      <AppText variant="caption" className="text-ink/30 mt-1">
+      <AppText variant="caption" className="text-disabled mt-1">
         (Native maps are disabled in the web builder)
       </AppText>
     </View>

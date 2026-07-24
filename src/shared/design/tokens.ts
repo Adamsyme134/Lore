@@ -6,11 +6,41 @@ export const palette = {
   ink: "#171612",
   muted: "#787267",
   line: "#DDD3C2",
+  accent: "#C39A66",
+  accentText: "#5C614E",
   forest: "#284D3A",
   navy: "#1F3446",
   orange: "#A5542A",
   burgundy: "#6C2638",
   gold: "#B88A44"
+} as const;
+
+export const darkPalette = {
+  background: "#071412",
+  secondaryBackground: "#112421",
+  surface: "#183331",
+  elevated: "#224341",
+  secondaryUi: "#414F4A",
+  text: "#F3F0EB",
+  textSecondary: "#B0B4B1",
+  textTertiary: "#909692",
+  textDisabled: "#767B74",
+  accent: "#C39A66",
+  accentText: "#5C614E"
+} as const;
+
+export const lightThemeColors = {
+  background: "#F5F0E7",
+  secondaryBackground: "#EFE6D8",
+  surface: "#EFE6D8",
+  elevated: "#D3C7B5",
+  secondaryUi: "#DDD3C2",
+  text: "#171612",
+  textSecondary: "#787267",
+  textTertiary: "#787267",
+  textDisabled: "#A39E93",
+  accent: "#C39A66",
+  accentText: "#5C614E"
 } as const;
 
 export type Accent = "forest" | "navy" | "orange" | "burgundy" | "gold";

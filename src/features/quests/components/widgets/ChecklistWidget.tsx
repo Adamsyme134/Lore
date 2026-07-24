@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { AppText } from '../../../../shared/components/AppText';
 import { useQuestExecution } from '../../context/QuestExecutionContext';
 import { Ionicons } from '@expo/vector-icons';
+import { useThemeColors } from '../../../../shared/design/useThemeColors';
 
 // Helper to parse config strings like "items=A,B&isRequired=true"
 const parseConfig = (str: string) => {
@@ -21,6 +22,7 @@ const parseConfig = (str: string) => {
 
 export function ChecklistWidget({ config, stepIndex }: { config: string, stepIndex: number }) {
   const { setVariable, getVariable } = useQuestExecution();
+  const colors = useThemeColors();
   
   // Parse the configuration safely handling legacy formats
   const isLegacy = !config.includes('=');
@@ -56,16 +58,16 @@ export function ChecklistWidget({ config, stepIndex }: { config: string, stepInd
   return (
     <View className="my-2 w-full">
       {isRequired && (
-        <AppText className="text-xs text-ink/50 mb-2 uppercase font-sansSemi tracking-wider">
+        <AppText className="text-xs text-tertiary mb-2 uppercase font-sansSemi tracking-wider">
           Required to complete step
         </AppText>
       )}
       {items.map((item, i) => (
         <Pressable key={i} onPress={() => toggle(i)} className="flex-row items-center py-2">
-          <View className={`w-6 h-6 rounded-md border items-center justify-center mr-3 ${checked[i] ? 'bg-ink border-ink' : 'border-line bg-white'}`}>
-            {checked[i] && <Ionicons name="checkmark" size={16} color="white" />}
+          <View className={`w-6 h-6 rounded-md border items-center justify-center mr-3 ${checked[i] ? 'bg-accent border-accent' : 'border-line bg-surface'}`}>
+            {checked[i] && <Ionicons name="checkmark" size={16} color={colors.accentText} />}
           </View>
-          <AppText className={`text-base ${checked[i] ? 'text-ink/40 line-through' : 'text-ink'}`}>
+          <AppText className={`text-base ${checked[i] ? 'text-disabled line-through' : 'text-ink'}`}>
             {item}
           </AppText>
         </Pressable>

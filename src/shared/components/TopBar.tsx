@@ -19,12 +19,12 @@ export function TopBar({ title = "Lore", showBack = false, rightLabel, showProfi
     <View className="mb-4 flex-row items-center justify-between px-5 pt-2">
       <View className="w-16">
         {showBack ? (
-          <Pressable onPress={() => router.back()} className="h-11 w-11 items-center justify-center rounded-full bg-surface">
+          <Pressable onPress={() => router.back()} className="h-11 w-11 items-center justify-center rounded-full bg-surface active:bg-elevated">
             <AppText variant="subtitle">‹</AppText>
           </Pressable>
         ) : null}
       </View>
-      <AppText variant="eyebrow" className="text-ink">{title}</AppText>
+      <AppText variant="eyebrow">{title}</AppText>
       <View className="w-16 items-end justify-center">
         {showProfile && profile ? (
           <Pressable onPress={() => router.push("/profile")} className="h-9 w-9 items-center justify-center rounded-full bg-burgundy">

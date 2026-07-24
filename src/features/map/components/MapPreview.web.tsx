@@ -12,10 +12,10 @@ type MapPreviewProps = {
 export function MapPreview(props: MapPreviewProps) {
   return (
     <View className="h-48 w-full items-center justify-center rounded-[24px] bg-stone border border-line overflow-hidden">
-      <AppText variant="subtitle" className="text-ink/40">
+      <AppText variant="subtitle" className="text-tertiary">
         📍 Map Preview
       </AppText>
-      <AppText variant="caption" className="text-ink/30 mt-1">
+      <AppText variant="caption" className="text-disabled mt-1">
         (Native maps are hidden in the web builder)
       </AppText>
     </View>

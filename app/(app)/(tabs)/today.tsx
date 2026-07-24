@@ -14,8 +14,10 @@ import { useExperienceStore } from "../../../src/features/app/store/useExperienc
 import { router } from "expo-router";
 import { useQuery } from "@tanstack/react-query"; // ✨ Added useQuery
 import { requireSupabase } from "../../../src/lib/supabase";
+import { useThemeColors } from "../../../src/shared/design/useThemeColors";
 
 export default function TodayScreen() {
+  const colors = useThemeColors();
   const { data: quests = [], isLoading: isLoadingQuests, refetch: refetchQuests } = useQuests();
   const { data: friendMoments = [], refetch: refetchFriendMoments } = useFriendMoments(); // ✨ Get actual friends
   const { profile, user } = useAuth();
@@ -90,7 +92,7 @@ export default function TodayScreen() {
   if (isLoadingQuests && quests.length === 0) {
     return (
       <Screen contentClassName="flex-1 items-center justify-center">
-        <ActivityIndicator color="#2c2a25" />
+        <ActivityIndicator color={colors.accent} />
       </Screen>
     );
   }
@@ -103,11 +105,11 @@ export default function TodayScreen() {
           <RefreshControl
             refreshing={isRefreshing}
             onRefresh={handleRefresh}
-            tintColor="#2c2a25"
+            tintColor={colors.accent}
           />
         }
       >
-        <AppText variant="title" className="mt-8 text-center text-ink/60">No quests available.</AppText>
+        <AppText variant="title" className="mt-8 text-center text-muted">No quests available.</AppText>
       </Screen>
     );
   }
@@ -119,7 +121,7 @@ export default function TodayScreen() {
         <RefreshControl
           refreshing={isRefreshing}
           onRefresh={handleRefresh}
-          tintColor="#2c2a25"
+          tintColor={colors.accent}
         />
       }
     >
@@ -130,7 +132,7 @@ export default function TodayScreen() {
           <AppText variant="body" className="font-sansBold text-ink">{currentLevel}</AppText>
           <View className="flex-1 h-3 rounded-full bg-line overflow-hidden">
             <View 
-              className="h-full bg-ink rounded-full" 
+              className="h-full bg-accent rounded-full" 
               style={{ width: `${progressToNextLevel * 100}%` }} 
             />
           </View>

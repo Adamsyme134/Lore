@@ -3,6 +3,7 @@ import { View, Pressable, Animated, StyleSheet } from 'react-native';
 import { Image } from 'expo-image';
 import { AppText } from '../../../../../src/shared/components/AppText';
 import { useQuestExecution } from '../../context/QuestExecutionContext';
+import { useThemeColors } from '../../../../shared/design/useThemeColors';
 
 const parseConfig = (str: string) => {
   const obj: Record<string, string> = {};
@@ -19,6 +20,7 @@ const parseConfig = (str: string) => {
 
 // --- 1. SHARED CARD UI ---
 function Card({ entry, isRevealed, isCompleted, onReveal, onToggleComplete }: any) {
+  const colors = useThemeColors();
   const flipAnim = useRef(new Animated.Value(isRevealed ? 1 : 0)).current;
 
   useEffect(() => {
@@ -39,9 +41,9 @@ function Card({ entry, isRevealed, isCompleted, onReveal, onToggleComplete }: an
     outputRange: ['180deg', '360deg'],
   });
 
-  const bgColor = entry?.bgColor || '#F5F4F0'; 
-  const textColor = entry?.bgColor && entry.bgColor !== '#FFFFFF' && entry.bgColor !== '#F5F4F0' ? '#FFFFFF' : '#1C1A17';
-  const borderColor = textColor === '#FFFFFF' ? 'rgba(255,255,255,0.5)' : 'rgba(28,26,23,0.3)';
+  const bgColor = entry?.bgColor || colors.surface; 
+  const textColor = entry?.bgColor && entry.bgColor !== '#FFFFFF' && entry.bgColor !== '#F5F4F0' ? '#FFFFFF' : colors.text;
+  const borderColor = textColor === '#FFFFFF' ? 'rgba(255,255,255,0.5)' : colors.secondaryUi;
 
   return (
     <Pressable 
@@ -58,16 +60,16 @@ function Card({ entry, isRevealed, isCompleted, onReveal, onToggleComplete }: an
       <Animated.View
         style={{ 
           position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
-          backgroundColor: '#1C1A17',
+          backgroundColor: colors.elevated,
           borderRadius: 16,
-          borderWidth: 1, borderColor: 'rgba(28,26,23,0.1)',
+          borderWidth: 1, borderColor: colors.secondaryUi,
           alignItems: 'center', justifyContent: 'center',
           backfaceVisibility: 'hidden',
           // ✨ Put perspective back in the transform array where RN wants it
           transform: [{ perspective: 1000 }, { rotateY: frontInterpolate }] 
         }}
       >
-        <AppText className="text-white text-xs font-sansSemi text-center px-2">Tap to reveal</AppText>
+        <AppText className="text-ink text-xs font-sansSemi text-center px-2">Tap to reveal</AppText>
       </Animated.View>
 
       {/* BACK (Revealed State) */}
@@ -76,7 +78,7 @@ function Card({ entry, isRevealed, isCompleted, onReveal, onToggleComplete }: an
           position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
           backgroundColor: bgColor,
           borderRadius: 16,
-          borderWidth: 1, borderColor: 'rgba(28,26,23,0.1)',
+          borderWidth: 1, borderColor: colors.secondaryUi,
           overflow: 'hidden',
           backfaceVisibility: 'hidden',
           // ✨ Put perspective back in the transform array where RN wants it

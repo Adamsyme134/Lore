@@ -5,6 +5,7 @@ import { AppText } from "../../../../shared/components/AppText";
 import { Accent, accentClass } from "../../../../shared/design/tokens";
 import { RandomiserConfig } from "../../../../shared/types/domain";
 import { useQuestExecution } from "../../context/QuestExecutionContext";
+import { useThemeColors } from "../../../../shared/design/useThemeColors";
 import { View } from "react-native";
 type Props = {
   config: RandomiserConfig;
@@ -21,6 +22,7 @@ const parseQueryConfig = (str: string) => {
 
 export function RandomiserWidget({ config, accent }: Props) {
   const {variables, setVariable, getVariable } = useQuestExecution();
+  const colors = useThemeColors();
   
   const [isSpinning, setIsSpinning] = useState(false);
   const [displayIndex, setDisplayIndex] = useState<number | null>(null);
@@ -182,7 +184,7 @@ const isWaiting = React.useMemo(() => {
         <AppText className="font-sansSemi text-[14px] opacity-0 h-0">{longestOption}</AppText>
         
         <View className="absolute inset-0 justify-center items-center">
-          <AppText className={`font-sansSemi text-[14px] ${isWaiting ? 'text-ink/60' : 'text-white'}`}>
+          <AppText className={`font-sansSemi text-[14px] ${isWaiting ? 'text-muted' : 'text-ivory dark:text-accentText'}`}>
             {isWaiting ? "🔒 Locked" : displayText}
           </AppText>
         </View>

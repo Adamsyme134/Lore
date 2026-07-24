@@ -11,6 +11,7 @@ import Animated, {
 import { Check, ChevronDown, Lock } from 'lucide-react-native';
 import { AppText } from '../../../shared/components/AppText';
 import { accentClass, type Accent } from '../../../shared/design/tokens';
+import { useThemeColors } from '../../../shared/design/useThemeColors';
 import { cx } from '../../../shared/utils/cx';
 
 
@@ -33,6 +34,7 @@ type QuestStepCardProps = {
 export function QuestStepCard({ 
   stepIndex, title, isActiveStep, isCompleted, isLocked, isExpanded, isCompleteDisabled, accent, onToggleExpanded, onComplete, children 
 }: QuestStepCardProps) {
+  const colors = useThemeColors();
   const chevronRotation = useSharedValue(isExpanded ? 180 : 0);
 
   useEffect(() => {
@@ -51,7 +53,7 @@ export function QuestStepCard({
   };
 
   const containerStyle = isActiveStep 
-    ? `bg-surface rounded-[18px] px-4 py-4 border border-line mb-3`
+    ? `bg-surface rounded-[18px] px-4 py-4 border border-line mb-6`
     : `bg-background rounded-[18px] px-4 py-4 border border-line/60 mb-3 shadow-none`;
 
   return (
@@ -63,24 +65,24 @@ export function QuestStepCard({
       {/* Header Row */}
       <Pressable onPress={toggleExpand} disabled={isLocked} className="min-h-[44px] flex-row items-center justify-between">
         <View className="flex-1 flex-row items-center">
-          <View className={`h-8 w-8 items-center justify-center rounded-full ${isCompleted ? 'bg-ink' : isActiveStep ? 'border border-ink bg-transparent' : 'border border-line bg-transparent'}`}>
+          <View className={`h-8 w-8 items-center justify-center rounded-full ${isCompleted ? 'bg-accent' : isActiveStep ? 'border border-accent bg-transparent' : 'border border-line bg-transparent'}`}>
             {isLocked ? (
-              <Lock size={13} color="rgba(23, 22, 18, 0.55)" strokeWidth={2.4} />
+              <Lock size={13} color={colors.textSecondary} strokeWidth={2.4} />
             ) : isCompleted ? (
-              <Check size={15} color="#F5F0E7" strokeWidth={3} />
+              <Check size={15} color={colors.accentText} strokeWidth={3} />
             ) : isActiveStep ? (
-              <View className="h-2.5 w-2.5 rounded-full bg-ink" />
+              <View className="h-2.5 w-2.5 rounded-full bg-accent" />
             ) : (
               <AppText className="text-xs font-sansSemi text-ink">{stepIndex + 1}</AppText>
             )}
           </View>
           
           <View className="ml-4 flex-1 justify-center">
-            <AppText className={cx("text-[14px] leading-5", isLocked ? "font-sans text-ink/45" : "font-sansSemi text-ink")}>
+            <AppText className={cx("text-[14px] leading-5", isLocked ? "font-sans text-muted" : "font-sansSemi text-ink")}>
               {title}
             </AppText>
             {isLocked && (
-              <AppText className="mt-1 text-[9px] font-sans uppercase tracking-widest text-ink/40">
+              <AppText className="mt-1 text-[9px] font-sans uppercase tracking-widest text-tertiary">
                 Complete previous step to unlock
               </AppText>
             )}
@@ -89,7 +91,7 @@ export function QuestStepCard({
 
         {!isLocked && (
           <Animated.View style={chevronStyle} className="ml-3">
-            <ChevronDown size={18} color="rgba(23, 22, 18, 0.5)" strokeWidth={2.2} />
+            <ChevronDown size={18} color={colors.textTertiary} strokeWidth={2.2} />
           </Animated.View>
         )}
       </Pressable>
@@ -111,7 +113,7 @@ export function QuestStepCard({
                 disabled={isCompleteDisabled}
                 className={cx("min-h-[56px] items-center justify-center rounded-full px-6 py-4", theme.bg, isCompleteDisabled && "opacity-50")}
               >
-                <AppText variant="caption" className="font-sansBold uppercase tracking-editorial text-ivory">
+                <AppText variant="caption" className="font-sansBold uppercase tracking-editorial" style={{ color: colors.isDark ? colors.accentText : "#FFFFFF" }}>
                   Next step
                 </AppText>
               </Pressable>

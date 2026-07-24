@@ -7,6 +7,7 @@ import type { Accent } from "../../../shared/design/tokens";
 
 type LoreEntryRow = {
   id: string;
+  user_id: string;
   title: string;
   journal: string;
   location_name: string;
@@ -51,6 +52,7 @@ function mapLoreEntry(row: LoreEntryRow): LoreEntry {
 
   return {
     id: row.id,
+    userId: row.user_id,
     title: row.title,
     date: formatEntryDate(row.occurred_at),
     occurredAt: row.occurred_at,
@@ -75,7 +77,7 @@ async function fetchLoreEntriesFromSupabase(userId: string): Promise<LoreEntry[]
   const client = requireSupabase();
   const { data, error } = await client
     .from("lore_entries")
-    .select("id, title, journal, location_name, latitude, longitude, mood, occurred_at, cover_photo_url, points_awarded, quest_id, quests(title, accent), lore_photos(id, public_url, storage_path, width, height)")
+    .select("id, user_id, title, journal, location_name, latitude, longitude, mood, occurred_at, cover_photo_url, points_awarded, quest_id, quests(title, accent), lore_photos(id, public_url, storage_path, width, height)")
     .eq('user_id', userId)
     .order("occurred_at", { ascending: false });
 
@@ -84,6 +86,18 @@ async function fetchLoreEntriesFromSupabase(userId: string): Promise<LoreEntry[]
   }
 
   return (data ?? []).map((row) => mapLoreEntry(row as unknown as LoreEntryRow));
+}
+
+async function fetchLoreEntryByIdFromSupabase(id: string): Promise<LoreEntry | null> {
+  const client = requireSupabase();
+  const { data, error } = await client
+    .from("lore_entries")
+    .select("id, user_id, title, journal, location_name, latitude, longitude, mood, occurred_at, cover_photo_url, points_awarded, quest_id, quests(title, accent), lore_photos(id, public_url, storage_path, width, height)")
+    .eq("id", id)
+    .maybeSingle();
+
+  if (error) throw error;
+  return data ? mapLoreEntry(data as unknown as LoreEntryRow) : null;
 }
 
 export function useLoreEntries() {
@@ -106,14 +120,34 @@ export function useLoreEntries() {
   });
 }
 
-export function useLoreEntry(id?: string) {
-  const query = useLoreEntries();
+export function useLoreEntriesForUser(userId?: string) {
+  const { isBackendReady } = useAuth();
+  const previewLoreEntries = useExperienceStore((state) => state.previewLoreEntries);
 
-  return {
-    ...query,
-    // ✨ ADDED: Optional chaining (?.) because data might be undefined while loading now
-    data: query.data?.find((entry) => entry.id === id) ?? null
-  };
+  return useQuery({
+    queryKey: ["lore-entries", isBackendReady ? "remote" : "preview", userId],
+    queryFn: () => {
+      if (!isBackendReady) return Promise.resolve(previewLoreEntries.filter((entry) => !userId || entry.userId === userId));
+      if (userId) return fetchLoreEntriesFromSupabase(userId);
+      return Promise.resolve([]);
+    },
+    enabled: !isBackendReady || !!userId
+  });
+}
+
+export function useLoreEntry(id?: string) {
+  const { isBackendReady } = useAuth();
+  const previewLoreEntries = useExperienceStore((state) => state.previewLoreEntries);
+
+  return useQuery({
+    queryKey: ["lore-entry", isBackendReady ? "remote" : "preview", id],
+    queryFn: () => {
+      if (!id) return Promise.resolve(null);
+      if (!isBackendReady) return Promise.resolve(previewLoreEntries.find((entry) => entry.id === id) ?? null);
+      return fetchLoreEntryByIdFromSupabase(id);
+    },
+    enabled: !!id
+  });
 }
 
 async function uploadLorePhoto(userId: string, entryId: string, asset: NewLoreEntryInput["photoAssets"][number], index: number) {
@@ -239,12 +273,13 @@ export function useCreateLoreEntry() {
     },
     onSuccess: async () => {
       await Promise.all([
-    queryClient.invalidateQueries({ queryKey: ["lore-entries"] }),
+        queryClient.invalidateQueries({ queryKey: ["lore-entries"] }),
         queryClient.invalidateQueries({ queryKey: ["points"] }),
+        queryClient.invalidateQueries({ queryKey: ["friend-group-leaderboard"] }),
         queryClient.invalidateQueries({ queryKey: ["active-quests"] }),
         queryClient.invalidateQueries({ queryKey: ["user-quests"] }),
         queryClient.invalidateQueries({ queryKey: ["user-quests-status"] })
-  ]);
+      ]);
       await refreshProfile();
     }
   });
@@ -278,6 +313,7 @@ export function useDeleteLoreEntry() {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["lore-entries"] }),
         queryClient.invalidateQueries({ queryKey: ["points"] }),
+        queryClient.invalidateQueries({ queryKey: ["friend-group-leaderboard"] }),
         queryClient.invalidateQueries({ queryKey: ["active-quests"] }),
         queryClient.invalidateQueries({ queryKey: ["user-quests"] }),
         queryClient.invalidateQueries({ queryKey: ["user-quests-status"] })

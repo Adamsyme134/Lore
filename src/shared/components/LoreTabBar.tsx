@@ -32,7 +32,7 @@ export function LoreTabBar({ state, navigation }: LoreTabBarProps) {
   const visibleRoutes = state.routes.filter(route => route.name !== 'map');
 
   return (
-    <View className="absolute bottom-6 left-5 right-5 rounded-full border border-line bg-background px-2 py-2 shadow-lg shadow-charcoal/10">
+    <View className="absolute bottom-6 left-5 right-5 rounded-full border border-line bg-surface px-2 py-2 shadow-lg shadow-charcoal/10">
       <View className="flex-row items-center justify-between">
         {visibleRoutes.map((route, index) => {
           // adjust active index check since we filtered routes
@@ -50,8 +50,8 @@ export function LoreTabBar({ state, navigation }: LoreTabBarProps) {
           return (
             <Pressable key={route.key} onPress={onPress} className="flex-1 overflow-hidden rounded-full">
               {({ pressed }) => (
-                <View className={focused ? "items-center rounded-full bg-ink px-2 py-3" : pressed ? "items-center rounded-full bg-surface px-2 py-3" : "items-center rounded-full px-2 py-3"}>
-                  <AppText variant="caption" className={focused ? "font-sansSemi text-ivory" : "font-sansSemi text-muted"}>
+                <View className={focused ? "items-center rounded-full bg-accent px-2 py-3" : pressed ? "items-center rounded-full bg-elevated px-2 py-3" : "items-center rounded-full px-2 py-3"}>
+                  <AppText variant="caption" className={focused ? "font-sansSemi text-accentText" : "font-sansSemi text-muted"}>
                     {label}
                   </AppText>
                 </View>

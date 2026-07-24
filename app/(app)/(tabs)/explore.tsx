@@ -21,6 +21,7 @@ import type {
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { requireSupabase } from "../../../src/lib/supabase";
 import { useExperienceStore } from "../../../src/features/app/store/useExperienceStore";
+import { useThemeColors } from "../../../src/shared/design/useThemeColors";
 
 const CATEGORIES: (QuestCategory | "All" | "Saved")[] = ["All", "Saved", "Adventure", "Skill", "Culture", "Food & Drink", "Wellness", "Social"];
 const COSTS: (QuestCost | "All")[] = ["All", "Free", "£", "££", "£££"]; // ✨ FIX 2
@@ -29,6 +30,7 @@ const LENGTHS: (QuestLength | "All")[] = ["All", "A few hours", "Full day", "Mul
 export default function Explore() {
   const router = useRouter(); // ✨ NEW
   const { user } = useAuth();
+  const colors = useThemeColors();
   const [searchQuery, setSearchQuery] = useState("");
   const [activeCategory, setActiveCategory] = useState<QuestCategory | "All" | "Saved">("All");
   
@@ -130,12 +132,12 @@ export default function Explore() {
         <View className="px-6 pt-6 mb-6">
           <AppText variant="display" className="mb-6">Explore</AppText>
           <View className="flex-row gap-3">
-            <View className="flex-1 flex-row items-center bg-white border border-line rounded-full px-5 py-3 shadow-sm">
-              <AppText className="text-ink/40 mr-3">🔍</AppText>
+            <View className="flex-1 flex-row items-center bg-surface border border-line rounded-full px-5 py-3 shadow-sm">
+              <AppText className="mr-3 text-tertiary">🔍</AppText>
               <TextInput
                 className="flex-1 font-sans text-ink"
                 placeholder="Search quests..."
-                placeholderTextColor="#9ca3af" 
+                placeholderTextColor={colors.textTertiary} 
                 value={searchQuery}
                 onChangeText={setSearchQuery}
               />
@@ -143,9 +145,9 @@ export default function Explore() {
             {/* ✨ FIX 2: Filter Toggle Button */}
             <Pressable 
               onPress={() => setShowFilters(!showFilters)}
-              className={`h-12 w-12 items-center justify-center rounded-full border shadow-sm ${showFilters ? 'bg-ink border-ink' : 'bg-white border-line'}`}
+              className={`h-12 w-12 items-center justify-center rounded-full border shadow-sm ${showFilters ? 'bg-accent border-accent' : 'bg-surface border-line'}`}
             >
-              <Ionicons name="options" size={20} color={showFilters ? '#F6F5F2' : '#1C1A17'} />
+              <Ionicons name="options" size={20} color={showFilters ? colors.accentText : colors.text} />
             </Pressable>
           </View>
         </View>
@@ -154,8 +156,8 @@ export default function Explore() {
           {CATEGORIES.map(cat => {
             const isActive = activeCategory === cat;
             return (
-              <Pressable key={cat} onPress={() => setActiveCategory(cat)} className={`px-5 py-2.5 rounded-full border ${isActive ? 'bg-ink border-ink' : 'bg-transparent border-line'}`}>
-                <AppText className={isActive ? 'text-ivory font-sansSemi' : 'text-ink'}>{cat}</AppText>
+              <Pressable key={cat} onPress={() => setActiveCategory(cat)} className={`px-5 py-2.5 rounded-full border ${isActive ? 'bg-accent border-accent' : 'bg-transparent border-line'}`}>
+                <AppText className={isActive ? 'text-accentText font-sansSemi' : 'text-ink'}>{cat}</AppText>
               </Pressable>
             );
           })}
@@ -168,8 +170,8 @@ export default function Explore() {
               {COSTS.map(cost => {
                 const isActive = activeCost === cost;
                 return (
-                  <Pressable key={cost} onPress={() => setActiveCost(cost)} className={`px-4 py-1.5 rounded-full border ${isActive ? 'bg-stone border-ink' : 'bg-transparent border-line/40'}`}>
-                    <AppText variant="caption" className={isActive ? 'text-ink font-sansSemi' : 'text-ink/60'}>{cost}</AppText>
+                  <Pressable key={cost} onPress={() => setActiveCost(cost)} className={`px-4 py-1.5 rounded-full border ${isActive ? 'bg-elevated border-accent' : 'bg-transparent border-line/40'}`}>
+                    <AppText variant="caption" className={isActive ? 'text-ink font-sansSemi' : 'text-muted'}>{cost}</AppText>
                   </Pressable>
                 );
               })}
@@ -178,8 +180,8 @@ export default function Explore() {
               {LENGTHS.map(len => {
                 const isActive = activeLength === len;
                 return (
-                  <Pressable key={len} onPress={() => setActiveLength(len)} className={`px-4 py-1.5 rounded-full border ${isActive ? 'bg-stone border-ink' : 'bg-transparent border-line/40'}`}>
-                    <AppText variant="caption" className={isActive ? 'text-ink font-sansSemi' : 'text-ink/60'}>{len}</AppText>
+                  <Pressable key={len} onPress={() => setActiveLength(len)} className={`px-4 py-1.5 rounded-full border ${isActive ? 'bg-elevated border-accent' : 'bg-transparent border-line/40'}`}>
+                    <AppText variant="caption" className={isActive ? 'text-ink font-sansSemi' : 'text-muted'}>{len}</AppText>
                   </Pressable>
                 );
               })}
@@ -187,17 +189,17 @@ export default function Explore() {
           </Animated.View>
         )}
         <View className="px-2">
-          <AppText variant="subtitle" className="mb-4 text-ink/70">
+          <AppText variant="subtitle" className="mb-4">
             {searchQuery ? "Search Results" : activeCategory !== "All" ? `${activeCategory} Quests` : "All Quests"}
           </AppText>
           
           {isLoading ? (
              <View className="py-12 items-center justify-center">
-                <ActivityIndicator size="large" color="#1C1A17" />
+                <ActivityIndicator size="large" color={colors.accent} />
              </View>
           ) : filteredQuests.length === 0 ? (
             <View className="items-center justify-center py-12 border border-dashed border-line rounded-card">
-              <AppText className="text-ink/50 text-center">No quests found.</AppText>
+              <AppText className="text-muted text-center">No quests found.</AppText>
             </View>
           ) : (
             <View className="gap-4">

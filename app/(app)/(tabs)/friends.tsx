@@ -1,6 +1,6 @@
 // app/(app)/(tabs)/friends.tsx
-import { useMemo, useState } from "react";
-import { Alert, Platform, TextInput, View, ActivityIndicator, Share, TouchableOpacity, Pressable } from "react-native";
+import { useState } from "react";
+import { Alert, Modal, Platform, TextInput, View, ActivityIndicator, Share, TouchableOpacity, Pressable } from "react-native";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
@@ -9,7 +9,6 @@ import { AppText } from "../../../src/shared/components/AppText";
 import { SectionHeader } from "../../../src/shared/components/SectionHeader";
 import { FriendMomentCard } from "../../../src/features/social/components/FriendMomentCard";
 import { Button } from "../../../src/shared/components/Button";
-import { QuestCard } from "../../../src/features/quests/components/QuestCard";
 import { 
   useFriendMoments, 
   useSendFriendRequest, 
@@ -18,15 +17,9 @@ import {
   usePendingRequests,
   useAcceptFriendRequest,
   useDeclineFriendRequest,
-  useAddFriendGroupMember,
   useCreateFriendGroup,
-  useFriendGroupLeaderboard,
   useFriendGroups,
-  useRemoveFriendGroupMember,
-  useRemoveFriendGroupQuest,
-  useRenameFriendGroup,
-  type FriendGroup,
-  type LeaderboardFilter
+  type FriendGroup
 } from "../../../src/features/social/api/socialApi";
 import {
   useAcceptGroupQuestInvite,
@@ -34,14 +27,8 @@ import {
   usePendingGroupQuestInvites
 } from "../../../src/features/quests/api/groupQuestApi";
 import { useRouter } from "expo-router";
-import { useAuth } from "../../../src/features/auth/AuthProvider";
 import type { Profile } from "../../../src/shared/types/domain";
-
-const leaderboardFilters: { label: string; value: LeaderboardFilter }[] = [
-  { label: "All time", value: "all_time" },
-  { label: "Year", value: "year" },
-  { label: "Month", value: "month" }
-];
+import { useThemeColors } from "../../../src/shared/design/useThemeColors";
 
 function notify(message: string) {
   if (Platform.OS === "web") {
@@ -118,173 +105,36 @@ function MemberAvatarRow({
   );
 }
 
-function GroupCard({
-  group,
-  friends,
-  currentUserId
-}: {
-  group: FriendGroup;
-  friends: Profile[];
-  currentUserId?: string;
-}) {
+function GroupCard({ group }: { group: FriendGroup }) {
   const router = useRouter();
-  const isOwner = group.ownerId === currentUserId;
-  const [isExpanded, setIsExpanded] = useState(false);
-  const [isMemberManagerOpen, setIsMemberManagerOpen] = useState(false);
-  const [leaderboardFilter, setLeaderboardFilter] = useState<LeaderboardFilter>("all_time");
-  const [renameValue, setRenameValue] = useState(group.name);
-  const renameGroup = useRenameFriendGroup();
-  const addMember = useAddFriendGroupMember();
-  const removeMember = useRemoveFriendGroupMember();
-  const removeQuest = useRemoveFriendGroupQuest();
-  const { data: leaderboard = [], isLoading: isLoadingLeaderboard } = useFriendGroupLeaderboard(group, leaderboardFilter);
-  const memberIds = useMemo(() => new Set(group.members.map((member) => member.id)), [group.members]);
-  const availableFriends = friends.filter((friend) => !memberIds.has(friend.id));
+  const bannerImageUrl = group.bannerImageUrl ?? undefined;
+  const hasBanner = !!bannerImageUrl;
 
   return (
-    <View className="rounded-[22px] border border-line bg-surface p-4">
-      <Pressable onPress={() => setIsExpanded((current) => !current)}>
-        <View className="flex-1 pr-3">
-          <AppText variant="title">{group.name}</AppText>
-          <AppText variant="caption" className="mt-2 text-ink/55">
-            {formatGroupMeta(group)}
-          </AppText>
-          <MemberAvatarRow members={group.members} />
-        </View>
-      </Pressable>
-
-      {isExpanded ? (
-        <View className="mt-5 border-t border-line pt-4">
-          {isOwner ? (
-            <TextInput
-              value={renameValue}
-              onChangeText={setRenameValue}
-              onEndEditing={() => {
-                if (renameValue.trim() && renameValue.trim() !== group.name) {
-                  renameGroup.mutate({ groupId: group.id, name: renameValue });
-                }
-              }}
-              className="border-b border-line pb-2 font-serif text-[24px] leading-8 text-ink"
-              placeholder="Group name"
-              placeholderTextColor="#787267"
-            />
-          ) : null}
-
-          <MemberAvatarRow members={group.members} onPress={() => setIsMemberManagerOpen((current) => !current)} />
-
-          {isMemberManagerOpen ? (
-            <View className="mt-4 gap-2">
-              {group.members.map((member) => (
-                <View key={member.id} className="flex-row items-center justify-between">
-                  <View className="flex-row items-center">
-                    <MemberAvatar member={member} />
-                    <View className="ml-3">
-                      <AppText className={member.id === currentUserId ? "font-sansSemi text-ink" : "text-ink/75"}>
-                        {member.id === currentUserId ? "You" : member.fullName}
-                      </AppText>
-                      <AppText variant="caption" className="text-ink/50">@{member.handle}</AppText>
-                    </View>
-                  </View>
-                  {isOwner && member.id !== group.ownerId ? (
-                    <TouchableOpacity onPress={() => removeMember.mutate({ groupId: group.id, userId: member.id })}>
-                      <AppText className="font-sansSemi text-[12px] text-ink/45">Remove</AppText>
-                    </TouchableOpacity>
-                  ) : null}
-                </View>
-              ))}
-
-              {isOwner && availableFriends.length > 0 ? (
-                <View className="mt-3 flex-row flex-wrap gap-2">
-                  {availableFriends.map((friend) => (
-                    <TouchableOpacity
-                      key={friend.id}
-                      onPress={() => addMember.mutate({ groupId: group.id, userId: friend.id })}
-                      className="rounded-full border border-line bg-background px-3 py-2"
-                    >
-                      <AppText className="font-sansSemi text-[12px] text-ink">+ {friend.fullName}</AppText>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              ) : null}
-            </View>
-          ) : null}
-
-          <View className="mt-6">
-            <View className="flex-row rounded-full border border-line bg-background p-1">
-              {leaderboardFilters.map((filter) => (
-                <TouchableOpacity
-                  key={filter.value}
-                  onPress={() => setLeaderboardFilter(filter.value)}
-                  className={`flex-1 items-center rounded-full py-2 ${leaderboardFilter === filter.value ? "bg-ink" : "bg-transparent"}`}
-                >
-                  <AppText className={`font-sansSemi text-[11px] ${leaderboardFilter === filter.value ? "text-ivory" : "text-ink/60"}`}>
-                    {filter.label}
-                  </AppText>
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            <View className="mt-4 gap-3">
-              {isLoadingLeaderboard ? (
-                <ActivityIndicator color="#2c2a25" />
-              ) : leaderboard.length > 0 ? (
-                leaderboard.map((member, index) => (
-                  <View key={member.id} className="flex-row items-center">
-                    <AppText className="w-7 font-serif text-[20px] text-ink/40">{index + 1}</AppText>
-                    <MemberAvatar member={member} />
-                    <View className="ml-3 flex-1">
-                      <AppText className="font-sansSemi text-[14px] text-ink">{member.fullName}</AppText>
-                      <AppText variant="caption" className="text-ink/50">@{member.handle}</AppText>
-                    </View>
-                    <AppText className="font-sansSemi text-[13px] text-burgundy">{member.points} pts</AppText>
-                  </View>
-                ))
-              ) : (
-                <AppText className="text-ink/55">No lore points yet.</AppText>
-              )}
-            </View>
-          </View>
-
-          <View className="mt-6 border-t border-line pt-4">
-            <AppText variant="eyebrow" className="mb-3">Group quests</AppText>
-            <View className="gap-4">
-              {group.quests.length > 0 ? (
-                group.quests.map((quest) => (
-                  <View key={quest.id}>
-                    <QuestCard quest={quest} />
-                    {isOwner ? (
-                      <TouchableOpacity
-                        onPress={() => removeQuest.mutate({ groupId: group.id, questId: quest.id })}
-                        className="mt-2 self-end rounded-full border border-line bg-background px-3 py-2"
-                      >
-                        <AppText className="font-sansSemi text-[12px] text-ink/45">Remove</AppText>
-                      </TouchableOpacity>
-                    ) : null}
-                  </View>
-                ))
-              ) : (
-                <AppText className="text-ink/55">No quests added yet.</AppText>
-              )}
-            </View>
-
-            {isOwner ? (
-              <Button
-                label="Add another quest"
-                variant="secondary"
-                className="mt-4"
-                onPress={() => router.push("/(app)/(tabs)/explore")}
-              />
-            ) : null}
-          </View>
-        </View>
+    <Pressable
+      onPress={() => router.push({ pathname: "/group/[id]", params: { id: group.id } })}
+      className="overflow-hidden rounded-[22px] border border-line bg-surface p-4"
+    >
+      {hasBanner ? (
+        <>
+          <Image source={{ uri: bannerImageUrl }} className="absolute inset-0 h-full w-full bg-stone" contentFit="cover" />
+          <View className="absolute inset-0 bg-black/35" />
+        </>
       ) : null}
-    </View>
+      <View className="flex-1 pr-3">
+        <AppText variant="title" className={hasBanner ? "text-ivory" : undefined}>{group.name}</AppText>
+        <AppText variant="caption" className={`mt-2 ${hasBanner ? "text-ivory/75" : "text-muted"}`}>
+          {formatGroupMeta(group)}
+        </AppText>
+        <MemberAvatarRow members={group.members} />
+      </View>
+    </Pressable>
   );
 }
 
 export default function FriendsScreen() {
   const router = useRouter();
-  const { user } = useAuth();
+  const colors = useThemeColors();
   const { data: friendMoments } = useFriendMoments();
   const { data: friends, isLoading: isLoadingFriends } = useFriendsList();
   const { data: groupQuestInvites } = usePendingGroupQuestInvites();
@@ -305,6 +155,7 @@ export default function FriendsScreen() {
   const [newGroupName, setNewGroupName] = useState("");
   const [newGroupMemberIds, setNewGroupMemberIds] = useState<Set<string>>(new Set());
   const [isCreateGroupOpen, setIsCreateGroupOpen] = useState(false);
+  const [isGroupCreatedOpen, setIsGroupCreatedOpen] = useState(false);
 
   const handleShareAppInvite = async () => {
     try {
@@ -345,7 +196,7 @@ export default function FriendsScreen() {
           setNewGroupName("");
           setNewGroupMemberIds(new Set());
           setIsCreateGroupOpen(false);
-          notify("Group created.");
+          setIsGroupCreatedOpen(true);
         },
         onError: (error) => {
           console.error("Could not create friend group", error);
@@ -384,9 +235,9 @@ export default function FriendsScreen() {
 
                 <View className="border-t border-line p-4">
                   <View className="mb-4 flex-row justify-between">
-                    <AppText variant="caption" className="font-sansSemi text-ink/60">{invite.quest.length}</AppText>
-                    <AppText variant="caption" className="font-sansSemi text-ink/60">{invite.quest.difficulty}</AppText>
-                    <AppText variant="caption" className="font-sansSemi text-ink/60">{invite.quest.cost}</AppText>
+                    <AppText variant="caption" className="font-sansSemi text-muted">{invite.quest.length}</AppText>
+                    <AppText variant="caption" className="font-sansSemi text-muted">{invite.quest.difficulty}</AppText>
+                    <AppText variant="caption" className="font-sansSemi text-muted">{invite.quest.cost}</AppText>
                   </View>
                   <View className="flex-row gap-3">
                     <TouchableOpacity
@@ -409,7 +260,7 @@ export default function FriendsScreen() {
                       className="flex-1 items-center rounded-full bg-forest py-3"
                       disabled={acceptGroupQuest.isPending}
                     >
-                      <AppText variant="caption" className="font-sansBold uppercase tracking-editorial text-ivory">
+                      <AppText variant="caption" className="font-sansBold uppercase tracking-editorial text-background dark:text-accentText">
                         Join
                       </AppText>
                     </TouchableOpacity>
@@ -436,7 +287,7 @@ export default function FriendsScreen() {
                    </View>
                    <View className="ml-3 flex-1">
                      <AppText className="font-sansSemi" numberOfLines={1}>{req.requester.full_name}</AppText>
-                     <AppText variant="caption" className="text-ink/60">@{req.requester.handle}</AppText>
+                     <AppText variant="caption" className="text-muted">@{req.requester.handle}</AppText>
                    </View>
                 </View>
                 <View className="flex-row items-center">
@@ -450,7 +301,7 @@ export default function FriendsScreen() {
                     onPress={() => acceptRequest.mutate(req.id)}
                     className="ml-2 rounded-full bg-forest px-4 py-2"
                   >
-                    <AppText className="font-sansSemi text-ivory text-[14px]">Accept</AppText>
+                    <AppText className="font-sansSemi text-background dark:text-accentText text-[14px]">Accept</AppText>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -470,7 +321,7 @@ export default function FriendsScreen() {
               className="ml-3 h-9 w-9 items-center justify-center rounded-full border border-line bg-surface"
               activeOpacity={0.8}
             >
-              <Ionicons name={isCreateGroupOpen ? "close" : "add"} size={20} color="#1C1A17" />
+              <Ionicons name={isCreateGroupOpen ? "close" : "add"} size={20} color={colors.text} />
             </TouchableOpacity>
           </View>
         </View>
@@ -482,7 +333,7 @@ export default function FriendsScreen() {
               value={newGroupName}
               onChangeText={setNewGroupName}
               placeholder="Sunday walkers, film people..."
-              placeholderTextColor="#787267"
+              placeholderTextColor={colors.textTertiary}
               className="mt-4 rounded-2xl border border-line bg-background px-4 py-3 font-sans text-[15px] text-ink"
             />
 
@@ -494,9 +345,9 @@ export default function FriendsScreen() {
                     <TouchableOpacity
                       key={friend.id}
                       onPress={() => handleToggleNewGroupMember(friend.id)}
-                      className={`rounded-full border px-3 py-2 ${isSelected ? "border-ink bg-ink" : "border-line bg-background"}`}
+                      className={`rounded-full border px-3 py-2 ${isSelected ? "border-accent bg-accent" : "border-line bg-background"}`}
                     >
-                      <AppText className={`font-sansSemi text-[12px] ${isSelected ? "text-ivory" : "text-ink"}`}>
+                      <AppText className={`font-sansSemi text-[12px] ${isSelected ? "text-accentText" : "text-ink"}`}>
                         {friend.fullName}
                       </AppText>
                     </TouchableOpacity>
@@ -504,7 +355,7 @@ export default function FriendsScreen() {
                 })}
               </View>
             ) : (
-              <AppText className="mt-3 text-ink/55">Add friends first, then gather them into groups.</AppText>
+              <AppText className="mt-3 text-muted">Add friends first, then gather them into groups.</AppText>
             )}
 
             <Button
@@ -517,20 +368,18 @@ export default function FriendsScreen() {
         ) : null}
 
         {isLoadingGroups ? (
-          <ActivityIndicator className="mt-5" color="#2c2a25" />
+          <ActivityIndicator className="mt-5" color={colors.accent} />
         ) : friendGroups && friendGroups.length > 0 ? (
           <View className="mt-5 gap-4">
             {friendGroups.map((group) => (
               <GroupCard
                 key={group.id}
                 group={group}
-                friends={friends ?? []}
-                currentUserId={user?.id}
               />
             ))}
           </View>
         ) : (
-          <AppText className="mt-4 text-ink/55">
+          <AppText className="mt-4 text-muted">
             No groups yet. Make one for the people you actually do things with.
           </AppText>
         )}
@@ -552,7 +401,7 @@ export default function FriendsScreen() {
         <TextInput
           autoCapitalize="none"
           placeholder="Search by name or @handle..."
-          placeholderTextColor="#787267"
+          placeholderTextColor={colors.textTertiary}
           value={searchQuery}
           onChangeText={setSearchQuery}
           className="rounded-3xl border border-line bg-background px-5 py-4 font-sans text-[15px] text-ink"
@@ -561,7 +410,7 @@ export default function FriendsScreen() {
         {searchQuery.length >= 2 && (
           <View className="mt-4 space-y-3">
             {isSearching ? (
-               <ActivityIndicator className="py-2" color="#2c2a25" />
+               <ActivityIndicator className="py-2" color={colors.accent} />
             ) : searchResults && searchResults.length > 0 ? (
               searchResults.map(user => {
                 const isSent = sentRequests.has(user.id);
@@ -569,14 +418,14 @@ export default function FriendsScreen() {
                   <View key={user.id} className="flex-row items-center justify-between border-b border-line pb-3">
                     <View className="flex-1 pr-4">
                       <AppText className="font-sansSemi" numberOfLines={1}>{user.fullName}</AppText>
-                      <AppText variant="caption" className="text-ink/60">@{user.handle}</AppText>
+                      <AppText variant="caption" className="text-muted">@{user.handle}</AppText>
                     </View>
                     <TouchableOpacity
                       onPress={() => !isSent && handleSendRequest(user.id)}
                       className={`rounded-full px-4 py-2 ${isSent ? 'bg-line' : 'bg-forest'}`}
                       disabled={isSent}
                     >
-                      <AppText className={`font-sansSemi text-[14px] ${isSent ? 'text-ink' : 'text-ivory'}`}>
+                      <AppText className={`font-sansSemi text-[14px] ${isSent ? 'text-ink' : 'text-background dark:text-accentText'}`}>
                         {isSent ? 'Sent' : 'Add'}
                       </AppText>
                     </TouchableOpacity>
@@ -584,7 +433,7 @@ export default function FriendsScreen() {
                 );
               })
             ) : (
-              <AppText className="text-ink/60 text-center py-2">No explorers found.</AppText>
+              <AppText className="text-muted text-center py-2">No explorers found.</AppText>
             )}
           </View>
         )}
@@ -594,11 +443,16 @@ export default function FriendsScreen() {
       <SectionHeader eyebrow="Your Circle" title="Active Explorers" />
       
       {isLoadingFriends ? (
-        <ActivityIndicator className="mt-4" color="#2c2a25" />
+        <ActivityIndicator className="mt-4" color={colors.accent} />
       ) : friends && friends.length > 0 ? (
         <View className="mb-8 mt-2 space-y-4">
           {friends.map(friend => (
-            <View key={friend.id} className="flex-row items-center border-b border-line pb-4 pt-2">
+            <TouchableOpacity
+              key={friend.id}
+              onPress={() => router.push({ pathname: "/friend/[id]", params: { id: friend.id } })}
+              className="flex-row items-center border-b border-line pb-4 pt-2"
+              activeOpacity={0.78}
+            >
               <View className="h-12 w-12 items-center justify-center rounded-full bg-orange">
                 <AppText className="font-sansSemi text-ivory text-lg">
                   {friend.fullName.charAt(0).toUpperCase()}
@@ -606,16 +460,16 @@ export default function FriendsScreen() {
               </View>
               <View className="ml-4 flex-1">
                 <AppText className="font-sansSemi text-[17px]">{friend.fullName}</AppText>
-                <AppText variant="caption" className="text-ink/60">@{friend.handle}</AppText>
+                <AppText variant="caption" className="text-muted">@{friend.handle}</AppText>
               </View>
               <AppText variant="caption" className="font-sansSemi text-burgundy">
                 {friend.pointsTotal} pts
               </AppText>
-            </View>
+            </TouchableOpacity>
           ))}
         </View>
       ) : (
-        <AppText className="mb-8 mt-2 text-ink/60">Your circle is currently empty.</AppText>
+        <AppText className="mb-8 mt-2 text-muted">Your circle is currently empty.</AppText>
       )}
 
       {/* FRIEND LORE */}
@@ -629,6 +483,18 @@ export default function FriendsScreen() {
     ))}
   </>
 )}
+      <Modal visible={isGroupCreatedOpen} transparent animationType="fade" onRequestClose={() => setIsGroupCreatedOpen(false)}>
+        <View className="flex-1 items-center justify-center bg-black/30 px-8">
+          <View className="w-full rounded-[28px] border border-line bg-surface p-6">
+            <View className="mb-4 h-11 w-11 items-center justify-center rounded-full bg-accent">
+              <Ionicons name="checkmark" size={22} color={colors.accentText} />
+            </View>
+            <AppText variant="subtitle">Group created</AppText>
+            <AppText className="mt-2 text-muted">Your new circle is ready.</AppText>
+            <Button label="Done" className="mt-5" onPress={() => setIsGroupCreatedOpen(false)} />
+          </View>
+        </View>
+      </Modal>
     </Screen>
   );
 }

@@ -35,6 +35,7 @@ type FriendGroupRow = {
   id: string;
   owner_id: string;
   name: string;
+  banner_image_url?: string | null;
   created_at: string;
 };
 
@@ -48,12 +49,24 @@ type FriendGroupQuestRow = {
   quest_id: string;
 };
 
+type FriendGroupLeaderboardPointRow = {
+  user_id: string;
+  points: number;
+};
+
+type UserQuestRow = {
+  quest_id: string;
+  completed_step_indexes: number[] | null;
+  quests: QuestRow | null;
+};
+
 export type LeaderboardFilter = "all_time" | "year" | "month";
 
 export type FriendGroup = {
   id: string;
   ownerId: string;
   name: string;
+  bannerImageUrl?: string | null;
   members: Profile[];
   quests: Quest[];
   createdAt: string;
@@ -91,6 +104,30 @@ function formatSupabaseError(error: { message?: string; code?: string; details?:
     error.details,
     error.hint
   ].filter(Boolean).join("\n");
+}
+
+async function uploadFriendGroupBanner(
+  userId: string,
+  groupId: string,
+  asset: { uri: string; mimeType?: string | null }
+) {
+  const client = requireSupabase();
+  const extension = asset.uri.split(".").pop()?.split("?")[0]?.toLowerCase() || "jpg";
+  const contentType = asset.mimeType ?? `image/${extension === "jpg" ? "jpeg" : extension}`;
+  const storagePath = `${userId}/friend-groups/${groupId}/${Date.now()}.${extension}`;
+  const arrayBuffer = await fetch(asset.uri).then((response) => response.arrayBuffer());
+
+  const { error } = await client.storage
+    .from("lore-photos")
+    .upload(storagePath, arrayBuffer, {
+      contentType,
+      upsert: false
+    });
+
+  if (error) throw error;
+
+  const { data } = client.storage.from("lore-photos").getPublicUrl(storagePath);
+  return data.publicUrl;
 }
 
 async function fetchFriendMomentsFromSupabase(userId?: string) {
@@ -287,13 +324,62 @@ export function useFriendsList() {
   });
 }
 
+export function useFriendProfile(userId?: string) {
+  return useQuery({
+    queryKey: ["friend-profile", userId],
+    queryFn: async () => {
+      if (!supabase || !userId) return null;
+
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("id, handle, full_name, avatar_url, home_city, points_total")
+        .eq("id", userId)
+        .maybeSingle();
+
+      if (error) throw error;
+      return data ? mapProfile(data as ProfileRow) : null;
+    },
+    enabled: !!userId && !!supabase
+  });
+}
+
+export function useFriendInProgressQuests(userId?: string) {
+  return useQuery({
+    queryKey: ["friend-in-progress-quests", userId],
+    queryFn: async () => {
+      if (!supabase || !userId) return [];
+
+      const { data, error } = await supabase
+        .from("user_quests")
+        .select("quest_id, completed_step_indexes, quests(*)")
+        .eq("user_id", userId)
+        .eq("status", "active")
+        .order("updated_at", { ascending: false });
+
+      if (error) throw error;
+
+      return ((data ?? []) as unknown as UserQuestRow[])
+        .map((row) => row.quests ? mapQuest(row.quests) : null)
+        .filter((quest): quest is Quest => !!quest);
+    },
+    enabled: !!userId && !!supabase
+  });
+}
+
 async function fetchFriendGroups(userId: string) {
   if (!supabase) return [];
 
-  const ownedGroups = await supabase
+  let ownedGroups: any = await supabase
     .from("friend_groups")
-    .select("id, owner_id, name, created_at")
+    .select("id, owner_id, name, banner_image_url, created_at")
     .eq("owner_id", userId);
+
+  if (ownedGroups.error) {
+    ownedGroups = await supabase
+      .from("friend_groups")
+      .select("id, owner_id, name, created_at")
+      .eq("owner_id", userId);
+  }
 
   const memberships = await supabase
     .from("friend_group_members")
@@ -304,16 +390,16 @@ async function fetchFriendGroups(userId: string) {
   if (memberships.error) throw memberships.error;
 
   const groupIds = Array.from(new Set([
-    ...(ownedGroups.data ?? []).map((group) => group.id),
+    ...((ownedGroups.data ?? []) as FriendGroupRow[]).map((group) => group.id),
     ...(memberships.data ?? []).map((membership) => membership.group_id)
   ]));
 
   if (groupIds.length === 0) return [];
 
-  const [groupsResult, membersResult, groupQuestsResult] = await Promise.all([
+  let [groupsResult, membersResult, groupQuestsResult]: any[] = await Promise.all([
     supabase
       .from("friend_groups")
-      .select("id, owner_id, name, created_at")
+      .select("id, owner_id, name, banner_image_url, created_at")
       .in("id", groupIds),
     supabase
       .from("friend_group_members")
@@ -325,6 +411,13 @@ async function fetchFriendGroups(userId: string) {
       .in("group_id", groupIds)
   ]);
 
+  if (groupsResult.error) {
+    groupsResult = await supabase
+      .from("friend_groups")
+      .select("id, owner_id, name, created_at")
+      .in("id", groupIds);
+  }
+
   if (groupsResult.error) throw groupsResult.error;
   if (membersResult.error) throw membersResult.error;
   if (groupQuestsResult.error) throw groupQuestsResult.error;
@@ -332,7 +425,11 @@ async function fetchFriendGroups(userId: string) {
   const groups = (groupsResult.data ?? []) as FriendGroupRow[];
   const members = (membersResult.data ?? []) as FriendGroupMemberRow[];
   const groupQuests = (groupQuestsResult.data ?? []) as FriendGroupQuestRow[];
-  const memberIds = Array.from(new Set(members.map((member) => member.user_id)));
+  const ownerIds = groups.map((group) => group.owner_id);
+  const memberIds = Array.from(new Set([
+    ...members.map((member) => member.user_id),
+    ...ownerIds
+  ]));
   const questIds = Array.from(new Set(groupQuests.map((quest) => quest.quest_id)));
 
   const profilesResult = memberIds.length > 0
@@ -360,8 +457,13 @@ async function fetchFriendGroups(userId: string) {
     id: group.id,
     ownerId: group.owner_id,
     name: group.name,
+    bannerImageUrl: group.banner_image_url ?? null,
     createdAt: group.created_at,
-    members: members
+    members: [
+      ...members.filter((member) => member.group_id === group.id),
+      { group_id: group.id, user_id: group.owner_id } satisfies FriendGroupMemberRow
+    ]
+      .filter((member, index, allMembers) => allMembers.findIndex((item) => item.user_id === member.user_id) === index)
       .filter((member) => member.group_id === group.id)
       .map((member) => profilesById.get(member.user_id))
       .filter((member): member is Profile => !!member),
@@ -376,7 +478,7 @@ export function useFriendGroups() {
   const { user, isBackendReady } = useAuth();
 
   return useQuery({
-    queryKey: ["friend-groups", user?.id],
+    queryKey: ["friend-groups", isBackendReady ? "remote" : "preview", user?.id],
     queryFn: () => (isBackendReady && user?.id ? fetchFriendGroups(user.id) : Promise.resolve([])),
     enabled: !!user
   });
@@ -422,12 +524,32 @@ export function useRenameFriendGroup() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ groupId, name }: { groupId: string; name: string }) => {
+    mutationFn: async ({
+      groupId,
+      name,
+      bannerImageUrl,
+      bannerAsset
+    }: {
+      groupId: string;
+      name: string;
+      bannerImageUrl?: string | null;
+      bannerAsset?: { uri: string; mimeType?: string | null };
+    }) => {
       if (!user) throw new Error("Sign in before renaming a group.");
       const client = requireSupabase();
+      const updates: { name: string; banner_image_url?: string | null } = {
+        name: name.trim() || "Untitled circle"
+      };
+
+      if (bannerAsset) {
+        updates.banner_image_url = await uploadFriendGroupBanner(user.id, groupId, bannerAsset);
+      } else if (bannerImageUrl !== undefined) {
+        updates.banner_image_url = bannerImageUrl?.trim() || null;
+      }
+
       const { error } = await client
         .from("friend_groups")
-        .update({ name: name.trim() || "Untitled circle" })
+        .update(updates)
         .eq("id", groupId)
         .eq("owner_id", user.id);
 
@@ -487,11 +609,14 @@ export function useAddFriendGroupQuest() {
     mutationFn: async ({ groupId, questId }: { groupId: string; questId: string }) => {
       if (!user) throw new Error("Sign in before adding a quest.");
       const client = requireSupabase();
-      const { error } = await client
-        .from("friend_group_quests")
-        .insert({ group_id: groupId, quest_id: questId, added_by: user.id });
+      const rpcResult = await client.rpc("add_friend_group_quest", {
+        target_group_id: groupId,
+        target_quest_id: questId
+      });
 
-      if (error && error.code !== "23505") throw new Error(formatSupabaseError(error));
+      if (!rpcResult.error) return;
+
+      throw new Error(formatSupabaseError(rpcResult.error));
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["friend-groups"] });
@@ -505,6 +630,13 @@ export function useRemoveFriendGroupQuest() {
   return useMutation({
     mutationFn: async ({ groupId, questId }: { groupId: string; questId: string }) => {
       const client = requireSupabase();
+      const rpcResult = await client.rpc("remove_friend_group_quest", {
+        target_group_id: groupId,
+        target_quest_id: questId
+      });
+
+      if (!rpcResult.error) return;
+
       const { error } = await client
         .from("friend_group_quests")
         .delete()
@@ -513,7 +645,72 @@ export function useRemoveFriendGroupQuest() {
 
       if (error) throw new Error(formatSupabaseError(error));
     },
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
+      queryClient.setQueriesData<FriendGroup[]>(
+        { queryKey: ["friend-groups"] },
+        (current) => current?.map((group) => (
+          group.id === variables.groupId
+            ? { ...group, quests: group.quests.filter((quest) => quest.id !== variables.questId) }
+            : group
+        )) ?? current
+      );
+      void queryClient.invalidateQueries({ queryKey: ["friend-groups"] });
+      void queryClient.invalidateQueries({ queryKey: ["group-quest-progress", variables.questId] });
+    }
+  });
+}
+
+export function useDeleteFriendGroup() {
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (groupId: string) => {
+      if (!user) throw new Error("Sign in before deleting a group.");
+      const client = requireSupabase();
+      const { error } = await client
+        .from("friend_groups")
+        .delete()
+        .eq("id", groupId)
+        .eq("owner_id", user.id);
+
+      if (error) throw new Error(formatSupabaseError(error));
+    },
+    onSuccess: (_data, groupId) => {
+      queryClient.setQueriesData<FriendGroup[]>(
+        { queryKey: ["friend-groups"] },
+        (current) => current?.filter((group) => group.id !== groupId) ?? current
+      );
+      void queryClient.invalidateQueries({ queryKey: ["friend-groups"] });
+    }
+  });
+}
+
+export function useLeaveFriendGroup() {
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (groupId: string) => {
+      if (!user) throw new Error("Sign in before leaving a group.");
+      const client = requireSupabase();
+      const { data, error } = await client
+        .from("friend_group_members")
+        .delete()
+        .eq("group_id", groupId)
+        .eq("user_id", user.id)
+        .select("group_id");
+
+      if (error || (data?.length ?? 0) === 0) {
+        const { error: rpcError } = await client.rpc("leave_friend_group", { target_group_id: groupId });
+        if (rpcError) throw new Error(formatSupabaseError(rpcError));
+      }
+    },
+    onSuccess: (_data, groupId) => {
+      queryClient.setQueriesData<FriendGroup[]>(
+        { queryKey: ["friend-groups"] },
+        (current) => current?.filter((group) => group.id !== groupId) ?? current
+      );
       void queryClient.invalidateQueries({ queryKey: ["friend-groups"] });
     }
   });
@@ -542,13 +739,34 @@ export function useFriendGroupLeaderboard(group?: FriendGroup, filter: Leaderboa
     queryFn: async () => {
       if (!group) return [];
 
-      if (filter === "all_time" || !supabase) {
+      if (!supabase) {
         return [...group.members]
           .map((member) => ({ ...member, points: member.pointsTotal }))
           .sort((a, b) => b.points - a.points);
       }
 
       if (memberIds.length === 0) return [];
+
+      const ledgerResult = await supabase.rpc("friend_group_leaderboard_points", {
+        target_group_id: group.id,
+        period_filter: filter
+      });
+
+      if (!ledgerResult.error) {
+        const pointsByUser = new Map(
+          ((ledgerResult.data ?? []) as FriendGroupLeaderboardPointRow[]).map((row) => [row.user_id, row.points ?? 0])
+        );
+
+        return group.members
+          .map((member) => ({ ...member, points: pointsByUser.get(member.id) ?? 0 }))
+          .sort((a, b) => b.points - a.points);
+      }
+
+      if (filter === "all_time") {
+        return [...group.members]
+          .map((member) => ({ ...member, points: member.pointsTotal }))
+          .sort((a, b) => b.points - a.points);
+      }
 
       const query = supabase
         .from("lore_entries")

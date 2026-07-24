@@ -124,6 +124,7 @@ export type LorePhoto = {
 
 export type LoreEntry = {
   id: string;
+  userId?: string;
   title: string;
   date: string;
   occurredAt: string;

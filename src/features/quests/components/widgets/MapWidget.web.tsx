@@ -19,11 +19,11 @@ export function MapWidget({ config }: { config: string }) {
   return (
     <View className="w-full my-3 rounded-xl border border-line bg-stone items-center justify-center relative" style={{ height: 350 }}>
       <AppText className="text-4xl mb-2">🗺️</AppText>
-      <AppText variant="subtitle" className="text-ink">{parsed.title || 'Interactive Map'}</AppText>
-      <AppText className="text-ink/60 text-sm mt-1">{pins.length} pinned location(s)</AppText>
+      <AppText variant="subtitle">{parsed.title || 'Interactive Map'}</AppText>
+      <AppText className="text-muted text-sm mt-1">{pins.length} pinned location(s)</AppText>
       
-      <View className="absolute bottom-4 px-4 py-2 bg-white rounded-full border border-line shadow-sm">
-        <AppText className="text-ink/40 text-[10px] font-sansSemi uppercase">Native Map Hidden on Web Builder</AppText>
+      <View className="absolute bottom-4 px-4 py-2 bg-surface rounded-full border border-line shadow-sm">
+        <AppText className="text-tertiary text-[10px] font-sansSemi uppercase">Native Map Hidden on Web Builder</AppText>
       </View>
     </View>
   );

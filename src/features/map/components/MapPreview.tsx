@@ -53,7 +53,7 @@ export function MapPreview({ location, latitude, longitude, entries }: MapPrevie
       </View>
       <View className="p-5">
         <AppText variant="eyebrow">Map</AppText>
-        <AppText className="mt-2 text-ink/70">
+        <AppText className="mt-2 text-muted">
           {hasSingleMarker || markers.length > 0
             ? "Completed quests become a quiet atlas of places that mattered."
             : "Add a location when completing a quest to place this memory on your map."}

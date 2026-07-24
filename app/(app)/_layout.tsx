@@ -1,9 +1,11 @@
 import { Stack, Redirect } from "expo-router";
 import { useAuth } from "../../src/features/auth/AuthProvider";
 import { View, ActivityIndicator } from "react-native";
+import { useThemeColors } from "../../src/shared/design/useThemeColors";
 
 export default function AppLayout() {
   const { session, isLoading } = useAuth();
+  const colors = useThemeColors();
 
   return (
     <>
@@ -11,7 +13,7 @@ export default function AppLayout() {
       <Stack screenOptions={{ headerShown: false }} />
       {isLoading ? (
         <View className="absolute inset-0 items-center justify-center bg-surface">
-          <ActivityIndicator size="large" color="#1C1A17" />
+          <ActivityIndicator size="large" color={colors.accent} />
         </View>
       ) : null}
     </>

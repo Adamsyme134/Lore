@@ -5,6 +5,7 @@ import * as Location from 'expo-location';
 import { AppText } from "../../../../shared/components/AppText";
 import { LocationWidgetConfig } from "../../../../shared/types/domain";
 import { useQuestExecution } from "../../context/QuestExecutionContext";
+import { useThemeColors } from "../../../../shared/design/useThemeColors";
 
 type Props = {
   config: LocationWidgetConfig;
@@ -22,6 +23,7 @@ const parseQueryConfig = (str: string) => {
 
 export function LocationWidget({ config, accent }: Props) {
   const { variables, setVariable, getVariable } = useQuestExecution();
+  const colors = useThemeColors();
   
   const [isLoading, setIsLoading] = useState(false);
   const [isFound, setIsFound] = useState(false);
@@ -283,9 +285,9 @@ const response = await fetch(
         
         <View className="absolute inset-0 justify-center items-center">
           {isLoading ? (
-            <ActivityIndicator size="small" color="#fff" />
+            <ActivityIndicator size="small" color={colors.accentText} />
           ) : (
-            <AppText className={`font-sansSemi text-[14px] ${isFound || isWaiting ? 'text-ink/60' : 'text-white'}`}>
+            <AppText className={`font-sansSemi text-[14px] ${isFound || isWaiting ? 'text-muted' : 'text-ivory dark:text-accentText'}`}>
               {isWaiting ? `🔒 Locked` : isFound ? `📍 Found ${count}` : `📍 Find ${label}`}
             </AppText>
           )}

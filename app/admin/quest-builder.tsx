@@ -7,6 +7,7 @@ import { QuestHero } from "../../src/features/quests/components/QuestHero";
 import { QuestCard } from "../../src/features/quests/components/QuestCard";
 import { YouTubeWidget } from "../../src/features/quests/components/widgets/YouTubeWidget";
 import { CardRevealWidget } from "../../src/features/quests/components/widgets/CardRevealWidget";
+import { searchLocations, type LocationSearchResult } from "../../src/features/location/api/locationSearchApi";
 import type { 
   Quest, 
   QuestCategory, 
@@ -142,19 +143,24 @@ const extractExposedVariables = (steps: string[]): string[] => {
 };
 function LocationAutocomplete({ label, value, onSelect }: { label: string, value: string, onSelect: (val: string) => void }) {
   const [query, setQuery] = useState(value);
-  const [results, setResults] = useState<any[]>([]);
+  const [results, setResults] = useState<LocationSearchResult[]>([]);
   const [isOpen, setIsOpen] = useState(false);
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const locationRequestId = useRef(0);
   useEffect(() => {
     setQuery(value);
   }, [value]);
 
-  const fetchLocation = async (text: string) => {
+  useEffect(() => {
+    return () => {
+      if (debounceTimer.current) clearTimeout(debounceTimer.current);
+    };
+  }, []);
+
+  const fetchLocation = async (text: string, requestId: number) => {
     try {
-      const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(text)}&limit=5`, {
-        headers: { 'User-Agent': 'LoreApp/1.0' }
-      });
-      const data = await res.json();
+      const data = await searchLocations(text, 5);
+      if (requestId !== locationRequestId.current) return;
       setResults(data);
       setIsOpen(data.length > 0);
     } catch (e) {
@@ -164,6 +170,7 @@ function LocationAutocomplete({ label, value, onSelect }: { label: string, value
 
   const search = (text: string) => {
     setQuery(text);
+    const requestId = ++locationRequestId.current;
     
     // ✨ Clear existing timer if user types again quickly
     if (debounceTimer.current) clearTimeout(debounceTimer.current);
@@ -176,7 +183,7 @@ function LocationAutocomplete({ label, value, onSelect }: { label: string, value
 
     // ✨ Only fetch after 500ms of inactivity
     debounceTimer.current = setTimeout(() => {
-      fetchLocation(text);
+      fetchLocation(text, requestId);
     }, 500);
   };
 
@@ -184,31 +191,26 @@ function LocationAutocomplete({ label, value, onSelect }: { label: string, value
     <View className="mb-6 relative z-[100]">
       {label ? <AppText variant="subtitle" className="mb-2 text-xs">{label}</AppText> : null}
       <TextInput
-        className="bg-white border border-line rounded-lg p-3 font-sans text-ink"
+        className="bg-surface border border-line rounded-lg p-3 font-sans text-ink"
         placeholder="Search city, region, or country..."
         value={query}
         onChangeText={search} // ✨ Debounced search
       />
       {isOpen && results.length > 0 && (
-        <View className="absolute top-full mt-1 left-0 right-0 bg-white border border-line rounded-lg shadow-lg z-[100] max-h-48 overflow-hidden">
+        <View className="absolute top-full mt-1 left-0 right-0 bg-surface border border-line rounded-lg shadow-lg z-[100] max-h-48 overflow-hidden">
           <ScrollView nestedScrollEnabled>
             {results.map((item, i) => {
-              const nameParts = item.display_name.split(', ');
-              const shortName = nameParts.length > 2 
-                ? `${nameParts[0]}, ${nameParts[nameParts.length - 1]}` 
-                : item.display_name;
-                
               return (
                 <Pressable
-                  key={i}
+                  key={item.id || i}
                   onPress={() => {
-                    onSelect(shortName);
-                    setQuery(shortName);
+                    onSelect(item.name);
+                    setQuery(item.name);
                     setIsOpen(false);
                   }}
                   className="p-3 border-b border-line/50 hover:bg-stone"
                 >
-                  <AppText className="text-ink font-sans text-sm">{shortName}</AppText>
+                  <AppText className="text-ink font-sans text-sm">{item.name}</AppText>
                 </Pressable>
               );
             })}
@@ -223,12 +225,12 @@ function Dropdown({ label, value, options, onSelect }: { label: string, value: s
   return (
     <View className="flex-1 relative z-50 mb-6">
       {label ? <AppText variant="subtitle" className="mb-2 text-xs">{label}</AppText> : null}
-      <Pressable onPress={() => setIsOpen(!isOpen)} className="bg-white border border-line rounded-lg p-3 flex-row justify-between items-center">
+      <Pressable onPress={() => setIsOpen(!isOpen)} className="bg-surface border border-line rounded-lg p-3 flex-row justify-between items-center">
         <AppText className="text-ink font-sans">{value || 'Select an option'}</AppText>
         <AppText className="text-ink/50 text-xs">▼</AppText>
       </Pressable>
       {isOpen && (
-        <View className="absolute top-full mt-1 left-0 right-0 bg-white border border-line rounded-lg shadow-lg z-[100] max-h-48 overflow-hidden">
+        <View className="absolute top-full mt-1 left-0 right-0 bg-surface border border-line rounded-lg shadow-lg z-[100] max-h-48 overflow-hidden">
           <ScrollView nestedScrollEnabled>
             {options.map((opt) => (
               <Pressable key={opt} onPress={() => { onSelect(opt); setIsOpen(false); }} className="p-3 border-b border-line/50 hover:bg-stone">
@@ -246,12 +248,12 @@ function ToggleGroup({ label, options, selected, onSelect }: { label: string, op
   return (
     <View className="mb-4">
       {label ? <AppText variant="subtitle" className="mb-2 text-xs">{label}</AppText> : null}
-      <View className="flex-row rounded-lg border border-line overflow-hidden bg-white">
+      <View className="flex-row rounded-lg border border-line overflow-hidden bg-surface">
         {options.map((opt) => {
           const isActive = selected === opt;
           return (
-            <Pressable key={opt} onPress={() => onSelect(opt)} className={`flex-1 p-2 items-center justify-center ${isActive ? 'bg-ink' : 'bg-transparent'}`}>
-              <AppText className={isActive ? 'text-ivory font-sansSemi text-xs' : 'text-ink text-xs'}>{opt}</AppText>
+            <Pressable key={opt} onPress={() => onSelect(opt)} className={`flex-1 p-2 items-center justify-center ${isActive ? 'bg-accent' : 'bg-transparent'}`}>
+              <AppText className={isActive ? 'text-accentText font-sansSemi text-xs' : 'text-ink text-xs'}>{opt}</AppText>
             </Pressable>
           );
         })}
@@ -279,9 +281,9 @@ function MultiToggleGroup({ label, options, selected, onSelect }: { label: strin
             <Pressable 
               key={opt} 
               onPress={() => toggle(opt)} 
-              className={`px-4 py-2 rounded-full border ${isActive ? 'bg-ink border-ink' : 'bg-white border-line shadow-sm'}`}
+              className={`px-4 py-2 rounded-full border ${isActive ? 'bg-accent border-accent' : 'bg-surface border-line shadow-sm'}`}
             >
-              <AppText className={isActive ? 'text-ivory font-sansSemi' : 'text-ink'}>{opt}</AppText>
+              <AppText className={isActive ? 'text-accentText font-sansSemi' : 'text-ink'}>{opt}</AppText>
             </Pressable>
           );
         })}
@@ -550,19 +552,19 @@ export default function QuestBuilderAdmin() {
       <View className="flex-1 bg-surface p-10">
         <View className="flex-row justify-between items-center mb-10">
           <AppText variant="display">Quest Library</AppText>
-          <Pressable onPress={() => { setQuest(createBlankQuest()); setView('editor'); setPreviewMode('hero'); setActiveTab('basic'); }} className="bg-ink px-6 py-3 rounded-full">
-            <AppText className="text-ivory font-sansSemi">+ Create New Quest</AppText>
+          <Pressable onPress={() => { setQuest(createBlankQuest()); setView('editor'); setPreviewMode('hero'); setActiveTab('basic'); }} className="bg-accent px-6 py-3 rounded-full">
+            <AppText className="text-accentText font-sansSemi">+ Create New Quest</AppText>
           </Pressable>
         </View>
 
-        <TextInput className="bg-white border border-line rounded-lg p-4 mb-6 font-sans text-ink max-w-md" placeholder="Search quests..." value={searchQuery} onChangeText={setSearchQuery} />
+        <TextInput className="bg-surface border border-line rounded-lg p-4 mb-6 font-sans text-ink max-w-md" placeholder="Search quests..." value={searchQuery} onChangeText={setSearchQuery} />
 
         <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mb-8 max-h-12" contentContainerStyle={{ gap: 8 }}>
           {CATEGORIES.map(cat => {
             const isActive = activeCategory === cat;
             return (
-              <Pressable key={cat} onPress={() => setActiveCategory(cat)} className={`px-5 py-2.5 rounded-full border ${isActive ? 'bg-ink border-ink' : 'bg-white border-line shadow-sm'}`}>
-                <AppText className={isActive ? 'text-ivory font-sansSemi' : 'text-ink'}>{cat}</AppText>
+              <Pressable key={cat} onPress={() => setActiveCategory(cat)} className={`px-5 py-2.5 rounded-full border ${isActive ? 'bg-accent border-accent' : 'bg-surface border-line shadow-sm'}`}>
+                <AppText className={isActive ? 'text-accentText font-sansSemi' : 'text-ink'}>{cat}</AppText>
               </Pressable>
             );
           })}
@@ -580,7 +582,7 @@ export default function QuestBuilderAdmin() {
                   <QuestCard quest={q} />
                   
                   {/* ✨ NEW ADMIN ANALYTICS ROW */}
-                  <View className="mt-3 mb-2 bg-white border border-line rounded-xl p-3 flex-row justify-between shadow-sm">
+                  <View className="mt-3 mb-2 bg-surface border border-line rounded-xl p-3 flex-row justify-between shadow-sm">
                     <View className="items-center flex-1 border-r border-line/50">
                       <AppText className="text-[9px] text-ink/50 uppercase tracking-widest font-sansSemi mb-1">Views</AppText>
                       <AppText className="text-ink font-sansSemi text-sm">{q.stats?.views || 0}</AppText>
@@ -614,7 +616,7 @@ export default function QuestBuilderAdmin() {
       {/* --- LEFT PANEL: Base Configuration --- */}
       {leftPanelVisible && (
       <View className="w-1/3 border-r border-line bg-surface flex-1 max-w-[500px]">
-        <View className="p-6 border-b border-line flex-row justify-between items-center bg-white">
+        <View className="p-6 border-b border-line flex-row justify-between items-center bg-surface">
           <Pressable onPress={() => setView('grid')} className="px-4 py-2 bg-stone rounded-md"><AppText className="text-ink">← Back</AppText></Pressable>
           <View className="flex-row gap-3">
             {!quest.id.startsWith('draft-') && (
@@ -626,7 +628,7 @@ export default function QuestBuilderAdmin() {
 
         <View className="flex-row border-b border-line bg-stone">
           {(['basic', 'tags', 'metadata'] as const).map(tab => (
-            <Pressable key={tab} onPress={() => setActiveTab(tab)} className={`flex-1 p-4 items-center ${activeTab === tab ? 'bg-white border-b-2 border-orange' : ''}`}>
+            <Pressable key={tab} onPress={() => setActiveTab(tab)} className={`flex-1 p-4 items-center ${activeTab === tab ? 'bg-surface border-b-2 border-orange' : ''}`}>
               <AppText className={activeTab === tab ? 'text-ink font-sansSemi' : 'text-ink/50 capitalize'}>{tab} Info</AppText>
             </Pressable>
           ))}
@@ -635,10 +637,10 @@ export default function QuestBuilderAdmin() {
         <ScrollView className="flex-1 p-8" contentContainerStyle={{ paddingBottom: 100 }}>
           {activeTab === 'basic' && (
             <View>
-              <AppText variant="subtitle" className="mb-2">Title</AppText><TextInput className="bg-white border border-line rounded-lg p-4 mb-6 font-sans text-ink" value={quest.title} onChangeText={(txt) => updateField("title", txt)} />
-              <AppText variant="subtitle" className="mb-2">Kicker (Eyebrow)</AppText><TextInput className="bg-white border border-line rounded-lg p-4 mb-6 font-sans text-ink" value={quest.kicker} onChangeText={(txt) => updateField("kicker", txt)} />
-              <AppText variant="subtitle" className="mb-2">Description</AppText><TextInput className="bg-white border border-line rounded-lg p-4 mb-6 font-sans text-ink" multiline numberOfLines={3} value={quest.description} onChangeText={(txt) => updateField("description", txt)} />
-              <AppText variant="subtitle" className="mb-2">Image URL</AppText><TextInput className="bg-white border border-line rounded-lg p-4 mb-6 font-sans text-ink" value={quest.imageUrl} onChangeText={(txt) => updateField("imageUrl", txt)} />
+              <AppText variant="subtitle" className="mb-2">Title</AppText><TextInput className="bg-surface border border-line rounded-lg p-4 mb-6 font-sans text-ink" value={quest.title} onChangeText={(txt) => updateField("title", txt)} />
+              <AppText variant="subtitle" className="mb-2">Kicker (Eyebrow)</AppText><TextInput className="bg-surface border border-line rounded-lg p-4 mb-6 font-sans text-ink" value={quest.kicker} onChangeText={(txt) => updateField("kicker", txt)} />
+              <AppText variant="subtitle" className="mb-2">Description</AppText><TextInput className="bg-surface border border-line rounded-lg p-4 mb-6 font-sans text-ink" multiline numberOfLines={3} value={quest.description} onChangeText={(txt) => updateField("description", txt)} />
+              <AppText variant="subtitle" className="mb-2">Image URL</AppText><TextInput className="bg-surface border border-line rounded-lg p-4 mb-6 font-sans text-ink" value={quest.imageUrl} onChangeText={(txt) => updateField("imageUrl", txt)} />
               <DraggableImageCrop imageUrl={quest.imageUrl} value={quest.imagePosition || "50% 50%"} onChange={(val) => updateField("imagePosition", val)} />
             
               
@@ -657,7 +659,7 @@ export default function QuestBuilderAdmin() {
                         </View>
                       )}
                       <TextInput
-                        className="bg-white border border-line rounded-lg p-2 font-sans text-xs text-ink"
+                        className="bg-surface border border-line rounded-lg p-2 font-sans text-xs text-ink"
                         placeholder={`URL ${i + 1}`}
                         value={url || ''}
                         onChangeText={(txt) => {
@@ -679,14 +681,14 @@ export default function QuestBuilderAdmin() {
               <ToggleGroup label="Solo or Group?" options={["Solo", "Group"]} selected={quest.maxParticipants > 1 ? "Group" : "Solo"} onSelect={(val) => { if (val === 'Solo') updateField("maxParticipants", 1); if (val === 'Group') updateField("maxParticipants", 5); }} />
               {quest.maxParticipants > 1 && (
                 <View className="flex-row gap-4 mb-6 bg-stone p-4 rounded-lg">
-                  <View className="flex-1"><AppText className="text-xs mb-1">Min Size</AppText><TextInput className="bg-white border border-line rounded p-2" value={quest.minParticipants.toString()} keyboardType="number-pad" onChangeText={(txt) => updateField("minParticipants", parseInt(txt) || 2)} /></View>
-                  <View className="flex-1"><AppText className="text-xs mb-1">Max Size</AppText><TextInput className="bg-white border border-line rounded p-2" value={quest.maxParticipants.toString()} keyboardType="number-pad" onChangeText={(txt) => updateField("maxParticipants", parseInt(txt) || 5)} /></View>
+                  <View className="flex-1"><AppText className="text-xs mb-1">Min Size</AppText><TextInput className="bg-surface border border-line rounded p-2" value={quest.minParticipants.toString()} keyboardType="number-pad" onChangeText={(txt) => updateField("minParticipants", parseInt(txt) || 2)} /></View>
+                  <View className="flex-1"><AppText className="text-xs mb-1">Max Size</AppText><TextInput className="bg-surface border border-line rounded p-2" value={quest.maxParticipants.toString()} keyboardType="number-pad" onChangeText={(txt) => updateField("maxParticipants", parseInt(txt) || 5)} /></View>
                 </View>
               )}
               <View className="z-40 mb-2"><MultiToggleGroup label="Categories" options={["Adventure", "Skill", "Culture", "Food & Drink", "Wellness", "Social"]} selected={quest.categories} onSelect={(val) => updateField("categories", val)} /></View>
               <View className="mb-6 z-40"><Dropdown label="Cost" value={quest.cost} options={["Free", "£", "££", "£££"]} onSelect={(val) => updateField("cost", val)} /></View>
               <View className="flex-row gap-4 z-30"><Dropdown label="Length" value={quest.length} options={["A few hours", "Full day", "Multi-day", "Long-term"]} onSelect={(val) => updateField("length", val)} /><Dropdown label="Difficulty" value={quest.difficulty} options={["Easy", "Medium", "Challenging"]} onSelect={(val) => updateField("difficulty", val)} /></View>
-              <View className="flex-row gap-4 z-20"><View className="flex-1 mb-6"><AppText variant="subtitle" className="mb-2">Points Awarded</AppText><TextInput className="bg-white border border-line rounded-lg p-4 font-sans text-ink" value={quest.pointsValue.toString()} keyboardType="number-pad" onChangeText={(txt) => updateField("pointsValue", parseInt(txt) || 10)} /></View><View className="flex-1" /></View>
+              <View className="flex-row gap-4 z-20"><View className="flex-1 mb-6"><AppText variant="subtitle" className="mb-2">Points Awarded</AppText><TextInput className="bg-surface border border-line rounded-lg p-4 font-sans text-ink" value={quest.pointsValue.toString()} keyboardType="number-pad" onChangeText={(txt) => updateField("pointsValue", parseInt(txt) || 10)} /></View><View className="flex-1" /></View>
             </View>
           )}
 
@@ -714,11 +716,11 @@ export default function QuestBuilderAdmin() {
       {/* --- RIGHT PANEL: WIDE INLINE EDITOR --- */}
       <View className="flex-1 bg-stone items-center justify-center p-4">
         
-        <View className="absolute top-10 flex-row bg-white rounded-full p-1 border border-line shadow-sm z-50">
-          <Pressable onPress={() => setPreviewMode('hero')} className={`px-6 py-2 rounded-full ${previewMode === 'hero' ? 'bg-ink' : 'bg-transparent'}`}><AppText className={previewMode === 'hero' ? 'text-ivory' : 'text-ink/60'}>Card Preview</AppText></Pressable>
-          <Pressable onPress={() => setPreviewMode('details')} className={`px-6 py-2 rounded-full ${previewMode === 'details' ? 'bg-ink' : 'bg-transparent'}`}><AppText className={previewMode === 'details' ? 'text-ivory' : 'text-ink/60'}>Details Editor</AppText></Pressable>
+        <View className="absolute top-10 flex-row bg-surface rounded-full p-1 border border-line shadow-sm z-50">
+          <Pressable onPress={() => setPreviewMode('hero')} className={`px-6 py-2 rounded-full ${previewMode === 'hero' ? 'bg-accent' : 'bg-transparent'}`}><AppText className={previewMode === 'hero' ? 'text-accentText' : 'text-ink/60'}>Card Preview</AppText></Pressable>
+          <Pressable onPress={() => setPreviewMode('details')} className={`px-6 py-2 rounded-full ${previewMode === 'details' ? 'bg-accent' : 'bg-transparent'}`}><AppText className={previewMode === 'details' ? 'text-accentText' : 'text-ink/60'}>Details Editor</AppText></Pressable>
         </View>
-        <View className="absolute top-10 left-4 bg-white rounded-full p-2 border border-line shadow-sm z-50">
+        <View className="absolute top-10 left-4 bg-surface rounded-full p-2 border border-line shadow-sm z-50">
           <Pressable onPress={() => setLeftPanelVisible(!leftPanelVisible)}>
             <AppText className="font-sansSemi text-ink/70 px-2">{leftPanelVisible ? '◀ Hide Settings' : '▶ Show Settings'}</AppText>
           </Pressable>
@@ -760,7 +762,7 @@ export default function QuestBuilderAdmin() {
 
               <AppText variant="subtitle" className="mb-2 text-ink/60">Why do it?</AppText>
               <TextInput
-                className="bg-white/40 border border-transparent hover:border-line/30 focus:bg-white focus:border-line focus:shadow-sm rounded-xl p-4 mb-6 font-sans text-ink text-base"
+                className="bg-surface/40 border border-transparent hover:border-line/30 focus:bg-surface focus:border-line focus:shadow-sm rounded-xl p-4 mb-6 font-sans text-ink text-base"
                 multiline scrollEnabled={false} value={quest.whyItMatters} onChangeText={(txt) => updateField("whyItMatters", txt)}
               />
 
@@ -794,7 +796,7 @@ export default function QuestBuilderAdmin() {
                           <Pressable onPress={() => { if (index < quest.steps.length - 1) { const n = [...quest.steps]; [n[index+1], n[index]] = [n[index], n[index+1]]; updateField('steps', n); } }}><AppText className="text-[10px]">▼</AppText></Pressable>
                         </View>
                         {/* ✨ NEW: OPTIONAL TITLE FIELD ✨ */}
-                        <View className="flex-1 ml-2 bg-white/40 border border-transparent focus:bg-white focus:border-line focus:shadow-sm rounded-xl px-4 py-3 z-50">
+                        <View className="flex-1 ml-2 bg-surface/40 border border-transparent focus:bg-surface focus:border-line focus:shadow-sm rounded-xl px-4 py-3 z-50">
                         <TextInput
                           className="font-sansSemi text-ink text-sm mb-1 outline-none"
                           style={{ opacity: title ? 1 : 0.4 }}
@@ -830,7 +832,7 @@ export default function QuestBuilderAdmin() {
                                     <View pointerEvents="none">
                                       <YouTubeWidget config={widgetConfig} />
                                     </View>
-                                    <View className="absolute top-3 right-3 bg-white px-3 py-1.5 rounded-full shadow flex-row items-center border border-line opacity-70 group-hover:opacity-100 z-10">
+                                    <View className="absolute top-3 right-3 bg-surface px-3 py-1.5 rounded-full shadow flex-row items-center border border-line opacity-70 group-hover:opacity-100 z-10">
                                         <AppText className="text-xs font-sansSemi mr-1">✏️ Edit Video</AppText>
                                     </View>
                                   </Pressable>
@@ -848,7 +850,7 @@ export default function QuestBuilderAdmin() {
                                     <Pressable 
                                       key={chunkIndex} 
                                       onPress={() => setActiveWidgetConfig({ stepIndex: index, chunkIndex, type: widgetType, config: widgetConfig })}
-                                      className="flex-row items-center px-2 py-0.5 rounded-md border border-line bg-white active:bg-stone shadow-sm mx-1 inline-flex"
+                                      className="flex-row items-center px-2 py-0.5 rounded-md border border-line bg-surface active:bg-stone shadow-sm mx-1 inline-flex"
                                       style={{ alignSelf: 'flex-start', transform: [{ translateY: 2 }] }}
                                     >
                                       <AppText className="font-sansSemi text-ink text-sm">{c.title || 'Link'}</AppText>
@@ -896,14 +898,14 @@ export default function QuestBuilderAdmin() {
                                   <Pressable 
                                     key={chunkIndex} 
                                     onPress={() => setActiveWidgetConfig({ stepIndex: index, chunkIndex, type: widgetType, config: widgetConfig })}
-                                    className="w-full my-3 rounded-xl p-4 flex-col group shadow-sm border border-line bg-white relative"
+                                    className="w-full my-3 rounded-xl p-4 flex-col group shadow-sm border border-line bg-surface relative"
                                   >
                                     {items.length === 0 ? (
                                       <AppText className="text-ink/50 italic py-2">Empty checklist...</AppText>
                                     ) : (
                                       items.map((item, i) => (
                                         <View key={i} className="flex-row items-center py-2 pointer-events-none">
-                                          <View className="w-6 h-6 rounded-md border border-line bg-white mr-3" />
+                                          <View className="w-6 h-6 rounded-md border border-line bg-surface mr-3" />
                                           <AppText className="text-base text-ink">{item}</AppText>
                                         </View>
                                       ))
@@ -931,7 +933,7 @@ export default function QuestBuilderAdmin() {
                                         <AppText className="text-ink/60 text-xs">{pinsCount} pinned location(s)</AppText>
                                       </View>
                                     </View>
-                                    <View className="absolute top-3 right-3 bg-white px-3 py-1.5 rounded-full border border-line opacity-70 group-hover:opacity-100 z-10">
+                                    <View className="absolute top-3 right-3 bg-surface px-3 py-1.5 rounded-full border border-line opacity-70 group-hover:opacity-100 z-10">
                                       <AppText className="text-xs font-sansSemi">✏️ Edit Map</AppText>
                                     </View>
                                   </Pressable>
@@ -948,7 +950,7 @@ export default function QuestBuilderAdmin() {
                                     <View pointerEvents="none">
                                       <CardRevealWidget config={widgetConfig} stepIndex={index} chunkIndex={chunkIndex} isBuilder={true} />
                                     </View>
-                                    <View className="absolute top-0 right-0 bg-white px-3 py-1.5 rounded-full shadow flex-row items-center border border-line opacity-70 group-hover:opacity-100 z-10">
+                                    <View className="absolute top-0 right-0 bg-surface px-3 py-1.5 rounded-full shadow flex-row items-center border border-line opacity-70 group-hover:opacity-100 z-10">
                                       <AppText className="text-xs font-sansSemi">✏️ Edit Cards</AppText>
                                     </View>
                                   </Pressable>
@@ -1158,7 +1160,7 @@ export default function QuestBuilderAdmin() {
 
                                 {/* SLASH MENU */}
                                 {slashMenu.visible && slashMenu.stepIndex === index && slashMenu.chunkIndex === chunkIndex && (
-                                  <View className="absolute left-0 top-full mt-2 bg-white rounded-xl border border-line shadow-lg w-72 z-50 overflow-hidden">
+                                  <View className="absolute left-0 top-full mt-2 bg-surface rounded-xl border border-line shadow-lg w-72 z-50 overflow-hidden">
                                     {matchingWidgets.map(widget => (
                                       <Pressable
                                         key={widget.id}
@@ -1249,7 +1251,7 @@ updateField('steps', newSteps);
                                   />
                                 ) : (
                                   <TextInput
-                                    className="bg-white p-3 mb-4 rounded-lg border border-line font-sans text-sm outline-none"
+                                    className="bg-surface p-3 mb-4 rounded-lg border border-line font-sans text-sm outline-none"
                                     placeholder="E.g. Pizza, Burgers, Sushi"
                                     value={options}
                                     onChangeText={(txt) => modifyRandConfig('options', txt)}
@@ -1265,7 +1267,7 @@ updateField('steps', newSteps);
                                 
                                 {isExposed && (
                                   <TextInput
-                                    className="bg-white p-3 rounded-lg border border-line font-sans text-sm outline-none"
+                                    className="bg-surface p-3 rounded-lg border border-line font-sans text-sm outline-none"
                                     placeholder="Variable Name (e.g. $randomChoice_1)"
                                     value={variableName}
                                     onChangeText={(txt) => modifyRandConfig('variableName', txt)}
@@ -1315,7 +1317,7 @@ updateField('steps', newSteps);
                                   />
                                 ) : (
                                   <TextInput
-                                    className="bg-white p-3 mb-4 rounded-lg border border-line font-sans text-sm outline-none"
+                                    className="bg-surface p-3 mb-4 rounded-lg border border-line font-sans text-sm outline-none"
                                     placeholder="Search string (e.g. Cafe)"
                                     value={q}
                                     onChangeText={(txt) => modifyLocConfig('q', txt)}
@@ -1326,14 +1328,14 @@ updateField('steps', newSteps);
                                 
                                 {center === 'fixed' && (
                                   <View className="flex-row gap-3 mb-4">
-                                    <TextInput className="flex-1 bg-white p-3 rounded-lg border border-line font-sans text-sm" placeholder="Latitude" value={lat} onChangeText={(txt) => modifyLocConfig('lat', txt)} keyboardType="numeric" />
-                                    <TextInput className="flex-1 bg-white p-3 rounded-lg border border-line font-sans text-sm" placeholder="Longitude" value={lng} onChangeText={(txt) => modifyLocConfig('lng', txt)} keyboardType="numeric" />
+                                    <TextInput className="flex-1 bg-surface p-3 rounded-lg border border-line font-sans text-sm" placeholder="Latitude" value={lat} onChangeText={(txt) => modifyLocConfig('lat', txt)} keyboardType="numeric" />
+                                    <TextInput className="flex-1 bg-surface p-3 rounded-lg border border-line font-sans text-sm" placeholder="Longitude" value={lng} onChangeText={(txt) => modifyLocConfig('lng', txt)} keyboardType="numeric" />
                                   </View>
                                 )}
 
                                 <AppText variant="subtitle" className="mb-2 text-xs mt-2">Search Radius (Meters)</AppText>
                                 <TextInput
-                                  className="bg-white p-3 mb-4 rounded-lg border border-line font-sans text-sm outline-none w-1/2"
+                                  className="bg-surface p-3 mb-4 rounded-lg border border-line font-sans text-sm outline-none w-1/2"
                                   placeholder="E.g. 500"
                                   value={rad}
                                   keyboardType="number-pad"
@@ -1345,7 +1347,7 @@ updateField('steps', newSteps);
                                 
                                 {isExposed && (
                                   <TextInput
-                                    className="bg-white p-3 rounded-lg border border-line font-sans text-sm outline-none"
+                                    className="bg-surface p-3 rounded-lg border border-line font-sans text-sm outline-none"
                                     placeholder="Variable Name (e.g. $found_locations)"
                                     value={variableName}
                                     onChangeText={(txt) => modifyLocConfig('variableName', txt)}
@@ -1389,7 +1391,7 @@ updateField('steps', newSteps);
                               <View className="flex-col gap-2">
                                 <AppText className="text-xs mb-1">Paste Raw YouTube Embed Code</AppText>
                                 <TextInput
-                                  className="bg-white p-3 mb-2 rounded-lg border border-line font-sans text-sm outline-none"
+                                  className="bg-surface p-3 mb-2 rounded-lg border border-line font-sans text-sm outline-none"
                                   placeholder='<iframe width="560" height="315" src="..." ...></iframe>'
                                   value={currentCfg.rawEmbed || ''}
                                   onChangeText={modifyConfig}
@@ -1439,14 +1441,14 @@ updateField('steps', newSteps);
 
                                 <AppText className="text-xs mb-1">Destination URL</AppText>
                                 <TextInput
-                                  className="bg-white p-3 mb-2 rounded-lg border border-line font-sans text-sm outline-none"
+                                  className="bg-surface p-3 mb-2 rounded-lg border border-line font-sans text-sm outline-none"
                                   placeholder="https://..."
                                   value={currentCfg.url || ''}
                                   onChangeText={(txt) => modifyConfig('url', txt)}
                                 />
                                 <AppText className="text-xs mb-1">Display Title</AppText>
                                 <TextInput
-                                  className="bg-white p-3 mb-2 rounded-lg border border-line font-sans text-sm outline-none"
+                                  className="bg-surface p-3 mb-2 rounded-lg border border-line font-sans text-sm outline-none"
                                   placeholder="e.g. Read the Menu"
                                   value={currentCfg.title || ''}
                                   onChangeText={(txt) => modifyConfig('title', txt)}
@@ -1456,21 +1458,21 @@ updateField('steps', newSteps);
                                   <>
                                     <AppText className="text-xs mb-1">Description (Optional)</AppText>
                                     <TextInput
-                                      className="bg-white p-3 mb-2 rounded-lg border border-line font-sans text-sm outline-none"
+                                      className="bg-surface p-3 mb-2 rounded-lg border border-line font-sans text-sm outline-none"
                                       placeholder="e.g. Vegan options available"
                                       value={currentCfg.desc || ''}
                                       onChangeText={(txt) => modifyConfig('desc', txt)}
                                     />
                                     <AppText className="text-xs mb-1 mt-2">Background Image URL (Optional)</AppText>
                                     <TextInput
-                                      className="bg-white p-3 mb-2 rounded-lg border border-line font-sans text-sm outline-none"
+                                      className="bg-surface p-3 mb-2 rounded-lg border border-line font-sans text-sm outline-none"
                                       placeholder="https://..."
                                       value={currentCfg.bgImage || ''}
                                       onChangeText={(txt) => modifyConfig('bgImage', txt)}
                                     />
                                     <AppText className="text-xs mb-1 mt-2">Text Color (Hex/Name, Optional)</AppText>
                                     <TextInput
-                                      className="bg-white p-3 mb-2 rounded-lg border border-line font-sans text-sm outline-none"
+                                      className="bg-surface p-3 mb-2 rounded-lg border border-line font-sans text-sm outline-none"
                                       placeholder="e.g. #FFFFFF"
                                       value={currentCfg.textColor || ''}
                                       onChangeText={(txt) => modifyConfig('textColor', txt)}
@@ -1511,7 +1513,7 @@ updateField('steps', newSteps);
                                 />
                                 <AppText className="text-xs mb-1">Checklist Items (Comma separated)</AppText>
                                 <TextInput
-                                  className="bg-white p-3 mb-2 rounded-lg border border-line font-sans text-sm outline-none"
+                                  className="bg-surface p-3 mb-2 rounded-lg border border-line font-sans text-sm outline-none"
                                   placeholder="E.g. Pack water, Check map"
                                   value={decodeURIComponent(items)}
                                   onChangeText={(txt) => modifyConfig('items', txt)}
@@ -1558,7 +1560,7 @@ updateField('steps', newSteps);
                               <View className="flex-col gap-2 w-full">
                                 <AppText className="text-xs mb-1">Map Title</AppText>
                                 <TextInput
-                                  className="bg-white p-3 mb-2 rounded-lg border border-line font-sans text-sm outline-none"
+                                  className="bg-surface p-3 mb-2 rounded-lg border border-line font-sans text-sm outline-none"
                                   placeholder="E.g. Route Overview"
                                   value={currentCfg.title || ''}
                                   onChangeText={(txt) => modifyConfig('title', txt)}
@@ -1574,7 +1576,7 @@ updateField('steps', newSteps);
                                     const [lat, lng, ...titleParts] = pinStr.split(',');
                                     const pinTitle = titleParts.join(',');
                                     return (
-                                      <View key={i} className="flex-col gap-1 mb-3 p-3 bg-white rounded-lg border border-line">
+                                      <View key={i} className="flex-col gap-1 mb-3 p-3 bg-surface rounded-lg border border-line">
                                         <View className="flex-row justify-between items-center mb-1">
                                           <AppText className="text-[10px] text-ink/50 uppercase font-sansSemi">Pin {i+1}</AppText>
                                           <Pressable onPress={() => removePin(i)}><AppText className="text-red-500 text-[10px] font-sansSemi">Remove</AppText></Pressable>
@@ -1644,7 +1646,7 @@ updateField('steps', newSteps);
                               <View className="flex-col gap-2 w-full">
                                 <AppText className="text-xs mb-1">Number of Cards on Screen</AppText>
                                 <TextInput
-                                  className="bg-white p-3 mb-2 rounded-lg border border-line font-sans text-sm outline-none"
+                                  className="bg-surface p-3 mb-2 rounded-lg border border-line font-sans text-sm outline-none"
                                   value={cardCount}
                                   keyboardType="number-pad"
                                   onChangeText={(txt) => modifyConfig('cardCount', txt)}
@@ -1657,7 +1659,7 @@ updateField('steps', newSteps);
 
                                 <ScrollView className="max-h-[300px] w-full" nestedScrollEnabled>
                                   {entries.map((entry, i) => (
-                                    <View key={i} className="flex-col gap-1 mb-3 p-3 bg-white rounded-lg border border-line">
+                                    <View key={i} className="flex-col gap-1 mb-3 p-3 bg-surface rounded-lg border border-line">
                                       <View className="flex-row justify-between items-center mb-2">
                                         <AppText className="text-[10px] text-ink/50 uppercase font-sansSemi">Entry {i+1}</AppText>
                                         <Pressable onPress={() => removeEntry(i)}><AppText className="text-red-500 text-[10px] font-sansSemi">Remove</AppText></Pressable>
@@ -1686,7 +1688,7 @@ updateField('steps', newSteps);
               <View className="my-8 h-px bg-line" />
               <AppText variant="subtitle" className="mb-2 text-ink/60">Journal Prompt</AppText>
               <TextInput
-                className="bg-white/40 border border-transparent hover:border-line/30 focus:bg-white focus:border-line focus:shadow-sm rounded-xl p-4 mb-6 font-sans text-ink text-base"
+                className="bg-surface/40 border border-transparent hover:border-line/30 focus:bg-surface focus:border-line focus:shadow-sm rounded-xl p-4 mb-6 font-sans text-ink text-base"
                 value={quest.journalPrompt} onChangeText={(txt) => updateField("journalPrompt", txt)}
               />
             </ScrollView>
