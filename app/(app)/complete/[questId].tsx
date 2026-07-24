@@ -1,13 +1,15 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { ActivityIndicator, NativeScrollEvent, NativeSyntheticEvent, View, ScrollView, TextInput, TouchableOpacity, Image, Platform, Modal, useWindowDimensions } from 'react-native';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { ActivityIndicator, KeyboardAvoidingView, NativeScrollEvent, NativeSyntheticEvent, View, ScrollView, TextInput, TouchableOpacity, Image, Platform, Modal } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
+import * as ImageManipulator from 'expo-image-manipulator';
 import * as Sharing from 'expo-sharing';
 import ViewShot from 'react-native-view-shot';
 import { Camera, MapPin, Plus, Search, Users, X } from 'lucide-react-native';
 import { useCreateLoreEntry } from '../../../src/features/lore/api/loreApi';
 import { useQuest } from '../../../src/features/quests/api/questApi';
 import { searchLocations, type LocationSearchResult } from '../../../src/features/location/api/locationSearchApi';
+import { useFriendsList } from '../../../src/features/social/api/socialApi';
 import { Screen } from '../../../src/shared/components/Screen';
 import { AppText } from '../../../src/shared/components/AppText';
 import { Button } from '../../../src/shared/components/Button';
@@ -15,8 +17,11 @@ import { TopBar } from '../../../src/shared/components/TopBar';
 import { LoreCard } from '../../../src/features/lore/components/LoreCard';
 import { supabase } from '../../../src/lib/supabase'; 
 import { useThemeColors } from '../../../src/shared/design/useThemeColors';
+import type { Profile } from '../../../src/shared/types/domain';
 
 const MAX_PHOTOS = 3;
+const MAX_UPLOAD_IMAGE_EDGE = 1800;
+const UPLOAD_IMAGE_QUALITY = 0.78;
 
 type SelectedPhoto = {
   uri: string;
@@ -25,15 +30,46 @@ type SelectedPhoto = {
   mimeType?: string | null;
 };
 
+async function compressSelectedPhoto(photo: SelectedPhoto): Promise<SelectedPhoto> {
+  const width = photo.width ?? undefined;
+  const height = photo.height ?? undefined;
+  const longEdge = width && height ? Math.max(width, height) : null;
+  const resizeAction = longEdge && longEdge > MAX_UPLOAD_IMAGE_EDGE
+    ? [{
+        resize: width && height && width >= height
+          ? { width: MAX_UPLOAD_IMAGE_EDGE }
+          : { height: MAX_UPLOAD_IMAGE_EDGE }
+      }]
+    : [];
+
+  const result = await ImageManipulator.manipulateAsync(
+    photo.uri,
+    resizeAction,
+    {
+      compress: UPLOAD_IMAGE_QUALITY,
+      format: ImageManipulator.SaveFormat.JPEG
+    }
+  );
+
+  return {
+    uri: result.uri,
+    width: result.width,
+    height: result.height,
+    mimeType: 'image/jpeg'
+  };
+}
+
 export default function QuestCompletionScreen() {
   const colors = useThemeColors();
-  const { width: windowWidth } = useWindowDimensions();
-  const previewWidth = Math.max(windowWidth - 32, 1);
   const { questId } = useLocalSearchParams();
   const router = useRouter();
   const viewShotRef = useRef<any>(null);
+  const completionScrollRef = useRef<ScrollView | null>(null);
+  const scrollContentRef = useRef<View | null>(null);
+  const locationFieldRef = useRef<View | null>(null);
   const locationSearchRequestId = useRef(0);
   const { data: quest } = useQuest(questId as string);
+  const { data: friends = [], isLoading: isLoadingFriends } = useFriendsList();
   const createLoreEntry = useCreateLoreEntry();
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [selectedPhotos, setSelectedPhotos] = useState<SelectedPhoto[]>([]);
@@ -44,13 +80,52 @@ export default function QuestCompletionScreen() {
   const [locationResults, setLocationResults] = useState<LocationSearchResult[]>([]);
   const [isLocationSearchOpen, setIsLocationSearchOpen] = useState(false);
   const [isLocationSearching, setIsLocationSearching] = useState(false);
+  const [photoFrameWidth, setPhotoFrameWidth] = useState(0);
+  const [selectedFriends, setSelectedFriends] = useState<Profile[]>([]);
+  const [friendSearch, setFriendSearch] = useState('');
+  const [isPeoplePickerOpen, setIsPeoplePickerOpen] = useState(false);
+  const [isCompressingPhotos, setIsCompressingPhotos] = useState(false);
 
   
   const [questTitle, setQuestTitle] = useState<string>("Loading...");
-  const heroImage = selectedPhotos[0]?.uri ?? null;
+  const previewWidth = Math.max(photoFrameWidth, 1);
+  const heroPhotoIndex = activePhotoIndex < selectedPhotos.length ? activePhotoIndex : 0;
+  const heroImage = selectedPhotos[heroPhotoIndex]?.uri ?? null;
   const slideCount = selectedPhotos.length < MAX_PHOTOS ? selectedPhotos.length + 1 : selectedPhotos.length;
   const remainingPhotoSlots = MAX_PHOTOS - selectedPhotos.length;
+  const filteredFriends = friends.filter((friend) => {
+    const query = friendSearch.trim().toLowerCase();
+    if (!query) return true;
+    return `${friend.fullName} ${friend.handle}`.toLowerCase().includes(query);
+  });
   //const [coordinates, setCoordinates] = useState<string>("");
+
+  const scrollLocationIntoView = useCallback(() => {
+    const scrollView = completionScrollRef.current;
+    const scrollContent = scrollContentRef.current;
+    const locationField = locationFieldRef.current;
+
+    if (!scrollView || !scrollContent || !locationField) {
+      return;
+    }
+
+    const delay = Platform.OS === 'android' ? 300 : 80;
+
+    setTimeout(() => {
+      locationField.measureLayout(
+        scrollContent,
+        (_x, y) => {
+          scrollView.scrollTo({
+            y: Math.max(y - 120, 0),
+            animated: true
+          });
+        },
+        () => {
+          scrollView.scrollToEnd({ animated: true });
+        }
+      );
+    }, delay);
+  }, []);
 
   useEffect(() => {
     const fetchQuestDetails = async () => {
@@ -115,6 +190,12 @@ export default function QuestCompletionScreen() {
     return () => clearTimeout(debounceTimer);
   }, [location, selectedLocation?.name]);
 
+  useEffect(() => {
+    if (isLocationSearchOpen || isLocationSearching) {
+      scrollLocationIntoView();
+    }
+  }, [isLocationSearchOpen, isLocationSearching, scrollLocationIntoView]);
+
   const pickPhotos = async () => {
     if (remainingPhotoSlots <= 0) return;
 
@@ -128,15 +209,24 @@ export default function QuestCompletionScreen() {
 
     if (!result.canceled) {
       const insertIndex = selectedPhotos.length;
-      const nextPhotos = result.assets.slice(0, remainingPhotoSlots).map((asset) => ({
-        uri: asset.uri,
-        width: asset.width,
-        height: asset.height,
-        mimeType: asset.mimeType
-      }));
+      setIsCompressingPhotos(true);
 
-      setSelectedPhotos((prev) => [...prev, ...nextPhotos].slice(0, MAX_PHOTOS));
-      setActivePhotoIndex(Math.min(insertIndex, MAX_PHOTOS - 1));
+      try {
+        const pickedPhotos = result.assets.slice(0, remainingPhotoSlots).map((asset) => ({
+          uri: asset.uri,
+          width: asset.width,
+          height: asset.height,
+          mimeType: asset.mimeType
+        }));
+        const nextPhotos = await Promise.all(pickedPhotos.map(compressSelectedPhoto));
+
+        setSelectedPhotos((prev) => [...prev, ...nextPhotos].slice(0, MAX_PHOTOS));
+        setActivePhotoIndex(Math.min(insertIndex, MAX_PHOTOS - 1));
+      } catch (error) {
+        console.error('Failed to compress selected photos:', error);
+      } finally {
+        setIsCompressingPhotos(false);
+      }
     }
   };
 
@@ -169,13 +259,26 @@ export default function QuestCompletionScreen() {
     setIsLocationSearchOpen(false);
   };
 
+  const toggleSelectedFriend = (friend: Profile) => {
+    setSelectedFriends((prev) => {
+      const isSelected = prev.some((selectedFriend) => selectedFriend.id === friend.id);
+      return isSelected
+        ? prev.filter((selectedFriend) => selectedFriend.id !== friend.id)
+        : [...prev, friend];
+    });
+  };
 
-  const handleSaveAndComplete = () => {
+
+  const handleSaveAndComplete = async () => {
     if (!quest || !heroImage) return;
 
     try {
       // Package up the images
-      const photoAssets = selectedPhotos.map((photo) => ({
+      const people = selectedFriends.map((friend) => friend.fullName || friend.handle);
+      const orderedPhotos = selectedPhotos.length > 0
+        ? [selectedPhotos[heroPhotoIndex], ...selectedPhotos.filter((_, index) => index !== heroPhotoIndex)]
+        : [];
+      const photoAssets = orderedPhotos.map((photo) => ({
         uri: photo.uri,
         width: photo.width,
         height: photo.height,
@@ -183,7 +286,7 @@ export default function QuestCompletionScreen() {
       }));
 
       // Save to Supabase (this handles the completed status and points)
-       createLoreEntry.mutateAsync({
+       await createLoreEntry.mutateAsync({
         quest,
         title: quest.title,
         journal: caption || "No words needed.",
@@ -191,6 +294,7 @@ export default function QuestCompletionScreen() {
         latitude: selectedLocation?.latitude ?? null,
         longitude: selectedLocation?.longitude ?? null,
         mood: quest.mood,
+        people,
         tags: [],
         photoAssets
       });
@@ -235,9 +339,20 @@ export default function QuestCompletionScreen() {
     }
   };
   return (
-    <Screen>
+    <Screen scroll={false}>
       <TopBar title="Complete Quest" onBack={() => router.back()} />
-      <ScrollView className="flex-1 px-4" contentContainerStyle={{ paddingBottom: 40 }}>
+      <KeyboardAvoidingView
+        className="flex-1"
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
+        <ScrollView
+          ref={completionScrollRef}
+          className="flex-1"
+          contentContainerStyle={{ paddingBottom: isPeoplePickerOpen || isLocationSearchOpen ? 520 : 280 }}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
+        >
+          <View ref={scrollContentRef} collapsable={false} className="px-3">
         
         {/* Photo carousel */}
         <View className="flex-row justify-between items-end mb-3 mt-4">
@@ -245,7 +360,10 @@ export default function QuestCompletionScreen() {
           <AppText className="opacity-40 text-xs tracking-widest">{selectedPhotos.length} / {MAX_PHOTOS}</AppText>
         </View>
 
-        <View className="w-full rounded-xl overflow-hidden shadow-sm">
+        <View
+          className="w-full rounded-xl overflow-hidden shadow-sm"
+          onLayout={(event) => setPhotoFrameWidth(event.nativeEvent.layout.width)}
+        >
           <ScrollView
             horizontal
             pagingEnabled
@@ -253,9 +371,9 @@ export default function QuestCompletionScreen() {
             onMomentumScrollEnd={handlePhotoScroll}
             scrollEventThrottle={16}
           >
-            {selectedPhotos.map((photo, index) => (
+            {photoFrameWidth > 0 && selectedPhotos.map((photo, index) => (
               <View key={`${photo.uri}-${index}`} style={{ width: previewWidth }} className="relative">
-                {index === 0 ? (
+                {index === heroPhotoIndex ? (
                   <ViewShot ref={viewShotRef} options={{ format: 'jpg', quality: 1.0 }}>
                     <LoreCard 
                       heroImageUri={photo.uri}
@@ -280,7 +398,7 @@ export default function QuestCompletionScreen() {
               </View>
             ))}
 
-            {selectedPhotos.length < MAX_PHOTOS && (
+            {photoFrameWidth > 0 && selectedPhotos.length < MAX_PHOTOS && (
               <TouchableOpacity
                 onPress={pickPhotos}
                 activeOpacity={0.82}
@@ -326,7 +444,7 @@ export default function QuestCompletionScreen() {
         <AppText className="font-serif text-lg mb-3 mt-8">Caption</AppText>
         <TextInput
           className="w-full bg-surface rounded-xl p-4 font-serif text-base border border-line min-h-[100px] text-ink"
-          placeholder="What will you remember..."
+          placeholder="..."
           placeholderTextColor={colors.textTertiary}
           multiline
           textAlignVertical="top"
@@ -334,8 +452,8 @@ export default function QuestCompletionScreen() {
           onChangeText={setCaption}
         />
 
-        {/* Location & Tags Input */}
-        <View className="flex-row space-x-3 mt-4 relative z-20">
+        {/* Location & People Input */}
+        <View ref={locationFieldRef} collapsable={false} className="flex-row space-x-3 mt-4 relative z-20">
           <View className="flex-1 relative">
             <View className="bg-surface rounded-xl p-4 border border-line flex-row items-center space-x-3">
               <MapPin color={colors.textTertiary} size={18} />
@@ -345,7 +463,10 @@ export default function QuestCompletionScreen() {
                 placeholderTextColor={colors.textTertiary}
                 value={location}
                 onChangeText={handleLocationChange}
-                onFocus={() => setIsLocationSearchOpen(locationResults.length > 0)}
+                onFocus={() => {
+                  setIsLocationSearchOpen(locationResults.length > 0);
+                  scrollLocationIntoView();
+                }}
               />
               {isLocationSearching ? (
                 <ActivityIndicator size="small" color={colors.textTertiary} />
@@ -355,7 +476,10 @@ export default function QuestCompletionScreen() {
             </View>
 
             {isLocationSearchOpen && locationResults.length > 0 && (
-              <View className="absolute top-full mt-2 left-0 right-0 bg-surface border border-line rounded-xl shadow-lg z-50 overflow-hidden">
+              <View
+                className="absolute left-0 right-0 bg-surface border border-line rounded-xl shadow-lg z-50 overflow-hidden"
+                style={Platform.OS === 'android' ? { bottom: '100%', marginBottom: 8 } : { top: '100%', marginTop: 8 }}
+              >
                 <ScrollView nestedScrollEnabled keyboardShouldPersistTaps="handled" className="max-h-48">
                   {locationResults.map((result) => (
                     <TouchableOpacity
@@ -370,25 +494,106 @@ export default function QuestCompletionScreen() {
               </View>
             )}
           </View>
-          <TouchableOpacity className="bg-surface rounded-xl p-4 border border-line flex items-center justify-center w-14">
-            <Users color={colors.textTertiary} size={18} />
+          <TouchableOpacity
+            onPress={() => setIsPeoplePickerOpen((prev) => !prev)}
+            className={`rounded-xl p-4 border border-line flex items-center justify-center w-14 relative ${isPeoplePickerOpen || selectedFriends.length > 0 ? 'bg-accent' : 'bg-surface'}`}
+          >
+            <Users color={isPeoplePickerOpen || selectedFriends.length > 0 ? colors.accentText : colors.textTertiary} size={18} />
+            {selectedFriends.length > 0 && (
+              <View className="absolute -top-1 -right-1 min-w-5 h-5 px-1 rounded-full bg-ink items-center justify-center">
+                <AppText className="text-[10px] text-background font-sansSemi">{selectedFriends.length}</AppText>
+              </View>
+            )}
           </TouchableOpacity>
         </View>
+
+        {isPeoplePickerOpen && (
+          <View className="mt-3 bg-surface rounded-xl p-4 border border-line">
+            <View className="flex-row items-center space-x-2 mb-3">
+              <Users color={colors.textTertiary} size={16} />
+              <AppText className="font-sansSemi text-sm text-ink">Tag Friends</AppText>
+            </View>
+
+            <TextInput
+              className="bg-background rounded-lg border border-line px-3 py-3 font-sans text-sm text-ink"
+              placeholder="Search friends"
+              placeholderTextColor={colors.textTertiary}
+              value={friendSearch}
+              onChangeText={setFriendSearch}
+              returnKeyType="search"
+            />
+
+            {selectedFriends.length > 0 && (
+              <View className="flex-row flex-wrap gap-2 mt-3">
+                {selectedFriends.map((friend) => (
+                  <TouchableOpacity
+                    key={friend.id}
+                    onPress={() => toggleSelectedFriend(friend)}
+                    className="flex-row items-center rounded-full bg-accent/20 border border-accent/40 px-3 py-2"
+                  >
+                    <AppText className="text-xs text-ink font-sansSemi">{friend.fullName || friend.handle}</AppText>
+                    <X color={colors.textTertiary} size={12} style={{ marginLeft: 6 }} />
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+
+            <View className="mt-3 max-h-52">
+              {isLoadingFriends ? (
+                <View className="py-4 items-center">
+                  <ActivityIndicator size="small" color={colors.textTertiary} />
+                </View>
+              ) : friends.length === 0 ? (
+                <AppText className="text-muted text-sm py-3">No friends to tag yet.</AppText>
+              ) : filteredFriends.length === 0 ? (
+                <AppText className="text-muted text-sm py-3">No matching friends.</AppText>
+              ) : (
+                <ScrollView nestedScrollEnabled keyboardShouldPersistTaps="handled">
+                  {filteredFriends.map((friend) => {
+                    const isSelected = selectedFriends.some((selectedFriend) => selectedFriend.id === friend.id);
+
+                    return (
+                      <TouchableOpacity
+                        key={friend.id}
+                        onPress={() => toggleSelectedFriend(friend)}
+                        className={`flex-row items-center justify-between py-3 border-b border-line/50 ${isSelected ? 'opacity-60' : ''}`}
+                      >
+                        <View className="flex-1 pr-3">
+                          <AppText className="text-ink font-sansSemi text-sm">{friend.fullName || friend.handle}</AppText>
+                          <AppText className="text-muted text-xs mt-0.5">@{friend.handle}</AppText>
+                        </View>
+                        <View className={`w-7 h-7 rounded-full items-center justify-center border ${isSelected ? 'bg-accent border-accent' : 'bg-background border-line'}`}>
+                          {isSelected ? (
+                            <X color={colors.accentText} size={14} />
+                          ) : (
+                            <Plus color={colors.textTertiary} size={14} />
+                          )}
+                        </View>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+              )}
+            </View>
+          </View>
+        )}
 
         {/* Action Buttons */}
         <View className="mt-10 mb-6 space-y-4">
           <Button 
             label="Save & Complete Quest"
             onPress={handleSaveAndComplete} 
-            disabled={!heroImage || createLoreEntry.isPending}
+            disabled={!heroImage || createLoreEntry.isPending || isCompressingPhotos}
           >
             <AppText className={`text-center font-bold tracking-widest uppercase ${!heroImage ? 'opacity-40' : 'text-white'}`}>
-              {createLoreEntry.isPending ? "Saving..." : "Save & Complete Quest"}
+              {isCompressingPhotos ? "Preparing photos..." : createLoreEntry.isPending ? "Saving..." : "Save & Complete Quest"}
             </AppText>
           </Button>
         </View>
 
-      </ScrollView>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
     {/* ✨ NEW: Success & Share Popup */}
       <Modal
         visible={showSuccessModal}

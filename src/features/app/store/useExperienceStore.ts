@@ -20,6 +20,7 @@ type AddPreviewLoreInput = {
   mood: string;
   latitude?: number | null;
   longitude?: number | null;
+  people: string[];
   tags: string[];
   photoUris: string[];
 };
@@ -114,7 +115,7 @@ export const useExperienceStore = create<ExperienceState>()(
           questTitle: input.quest.title,
           journal: input.journal,
           excerpt: input.journal,
-          people: [],
+          people: input.people,
           tags: input.tags,
           imageUrl: photoUris[0],
           photos: photoUris.map((uri, index) => ({ id: `local-photo-${now.getTime()}-${index}`, uri })),

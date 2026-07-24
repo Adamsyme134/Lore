@@ -28,6 +28,7 @@ type LoreEntryRow = {
     storage_path: string;
     width: number | null;
     height: number | null;
+    sort_order: number | null;
   }> | null;
 };
 
@@ -40,13 +41,16 @@ function formatEntryDate(value: string) {
 }
 
 function mapLoreEntry(row: LoreEntryRow): LoreEntry {
-  const photos = (row.lore_photos ?? []).map((photo) => ({
-    id: photo.id,
-    uri: photo.public_url,
-    storagePath: photo.storage_path,
-    width: photo.width,
-    height: photo.height
-  }));
+  const photos = (row.lore_photos ?? [])
+    .slice()
+    .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+    .map((photo) => ({
+      id: photo.id,
+      uri: photo.public_url,
+      storagePath: photo.storage_path,
+      width: photo.width,
+      height: photo.height
+    }));
 
   const imageUrl = row.cover_photo_url ?? photos[0]?.uri ?? "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=1600&q=85";
 
@@ -77,7 +81,7 @@ async function fetchLoreEntriesFromSupabase(userId: string): Promise<LoreEntry[]
   const client = requireSupabase();
   const { data, error } = await client
     .from("lore_entries")
-    .select("id, user_id, title, journal, location_name, latitude, longitude, mood, occurred_at, cover_photo_url, points_awarded, quest_id, quests(title, accent), lore_photos(id, public_url, storage_path, width, height)")
+    .select("id, user_id, title, journal, location_name, latitude, longitude, mood, occurred_at, cover_photo_url, points_awarded, quest_id, quests(title, accent), lore_photos(id, public_url, storage_path, width, height, sort_order)")
     .eq('user_id', userId)
     .order("occurred_at", { ascending: false });
 
@@ -92,7 +96,7 @@ async function fetchLoreEntryByIdFromSupabase(id: string): Promise<LoreEntry | n
   const client = requireSupabase();
   const { data, error } = await client
     .from("lore_entries")
-    .select("id, user_id, title, journal, location_name, latitude, longitude, mood, occurred_at, cover_photo_url, points_awarded, quest_id, quests(title, accent), lore_photos(id, public_url, storage_path, width, height)")
+    .select("id, user_id, title, journal, location_name, latitude, longitude, mood, occurred_at, cover_photo_url, points_awarded, quest_id, quests(title, accent), lore_photos(id, public_url, storage_path, width, height, sort_order)")
     .eq("id", id)
     .maybeSingle();
 
@@ -192,6 +196,7 @@ export function useCreateLoreEntry() {
           mood: input.mood,
           latitude: input.latitude,
           longitude: input.longitude,
+          people: input.people,
           tags: input.tags,
           photoUris: input.photoAssets.map((asset) => asset.uri)
         });
@@ -243,10 +248,14 @@ export function useCreateLoreEntry() {
           throw photoError;
         }
 
-        await client
+        const { error: coverError } = await client
           .from("lore_entries")
           .update({ cover_photo_url: uploadedPhotos[0].publicUrl })
           .eq("id", entryId);
+
+        if (coverError) {
+          throw coverError;
+        }
       }
 
       await client
@@ -269,7 +278,11 @@ export function useCreateLoreEntry() {
         throw new Error("Lore entry was saved, but could not be read back from Supabase.");
       }
 
-      return savedEntry;
+      return {
+        ...savedEntry,
+        people: input.people,
+        tags: input.tags
+      };
     },
     onSuccess: async () => {
       await Promise.all([

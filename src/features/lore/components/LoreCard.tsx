@@ -1,5 +1,6 @@
 import React from 'react';
-import { View, Image, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
+import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MapPin } from 'lucide-react-native';
 
@@ -17,8 +18,9 @@ export const LoreCard = ({ heroImageUri, title, caption, locationName, coordinat
       {/* Hero Image */}
       <Image 
         source={{ uri: heroImageUri }} 
-        className="absolute w-full h-full" 
-        resizeMode="cover" 
+        contentFit="cover"
+        transition={250}
+        style={StyleSheet.absoluteFill}
       />
 
       {/* Cinematic Gradients for Text Readability */}

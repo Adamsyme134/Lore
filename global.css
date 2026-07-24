@@ -28,7 +28,7 @@
     --color-gold: 184 138 68;
   }
 
-  .dark {
+  .dark:root {
     /* DARK MODE */
     --color-background: 7 20 18;
     --color-background-secondary: 17 36 33;

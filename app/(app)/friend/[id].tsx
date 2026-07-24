@@ -1,12 +1,12 @@
-import { ActivityIndicator, View } from "react-native";
+import { ActivityIndicator, TouchableOpacity, View } from "react-native";
 import { Image } from "expo-image";
-import { useLocalSearchParams } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 
 import { Screen } from "../../../src/shared/components/Screen";
 import { TopBar } from "../../../src/shared/components/TopBar";
 import { AppText } from "../../../src/shared/components/AppText";
 import { SectionHeader } from "../../../src/shared/components/SectionHeader";
-import { LoreEntryCard } from "../../../src/features/lore/components/LoreEntryCard";
+import { LoreCard } from "../../../src/features/lore/components/LoreCard";
 import { QuestCard } from "../../../src/features/quests/components/QuestCard";
 import { useLoreEntriesForUser } from "../../../src/features/lore/api/loreApi";
 import { useFriendInProgressQuests, useFriendProfile } from "../../../src/features/social/api/socialApi";
@@ -28,6 +28,7 @@ function ProfileAvatar({ avatarUrl, fullName }: { avatarUrl?: string | null; ful
 
 export default function FriendProfileScreen() {
   const colors = useThemeColors();
+  const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const profileQuery = useFriendProfile(id);
   const loreQuery = useLoreEntriesForUser(id);
@@ -67,9 +68,31 @@ export default function FriendProfileScreen() {
       {loreQuery.isLoading ? (
         <ActivityIndicator className="mt-2" color={colors.accent} />
       ) : loreQuery.data && loreQuery.data.length > 0 ? (
-        <View>
+        <View className="-mx-[1px] mt-2 flex-row flex-wrap">
           {loreQuery.data.map((entry) => (
-            <LoreEntryCard key={entry.id} entry={entry} />
+            <View
+              key={entry.id}
+              className="aspect-[3/4] w-1/3 items-center justify-center overflow-hidden p-[1px]"
+            >
+              <TouchableOpacity
+                onPress={() => router.push(`/lore/${entry.id}`)}
+                activeOpacity={0.8}
+                style={{
+                  width: "300%",
+                  height: "300%",
+                  transform: [{ scale: 0.3333 }]
+                }}
+              >
+                <View pointerEvents="none" className="h-full w-full overflow-hidden rounded-2xl">
+                  <LoreCard
+                    heroImageUri={entry.imageUrl}
+                    title={entry.questTitle}
+                    caption={entry.excerpt}
+                    locationName={entry.location}
+                  />
+                </View>
+              </TouchableOpacity>
+            </View>
           ))}
         </View>
       ) : (

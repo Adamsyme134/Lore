@@ -21,12 +21,15 @@ import {
 import { queryClient } from "../src/lib/queryClient";
 import { AuthProvider } from "../src/features/auth/AuthProvider";
 import { useThemeStore } from "../src/features/app/store/useThemeStore";
+import { darkPalette, lightThemeColors } from "../src/shared/design/tokens";
 
 void SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
-  const { setColorScheme } = useColorScheme();
+  const { colorScheme, setColorScheme } = useColorScheme();
   const themePreference = useThemeStore((state) => state.themePreference);
+  const isDark = colorScheme === "dark";
+  const themeColors = isDark ? darkPalette : lightThemeColors;
   const [fontsLoaded] = useFonts({
     Inter_400Regular,
     Inter_500Medium,
@@ -51,10 +54,10 @@ export default function RootLayout() {
   }
 
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
+    <GestureHandlerRootView style={{ flex: 1, backgroundColor: themeColors.background }}>
       <QueryClientProvider client={queryClient}>
         <AuthProvider>
-          <StatusBar style="auto" />
+          <StatusBar style={isDark ? "light" : "dark"} />
           <Stack screenOptions={{ headerShown: false }} />
         </AuthProvider>
       </QueryClientProvider>

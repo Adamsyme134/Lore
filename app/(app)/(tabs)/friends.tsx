@@ -1,13 +1,13 @@
 // app/(app)/(tabs)/friends.tsx
 import { useState } from "react";
-import { Alert, Modal, Platform, TextInput, View, ActivityIndicator, Share, TouchableOpacity, Pressable } from "react-native";
+import { Alert, Modal, Platform, TextInput, View, ActivityIndicator, Share, TouchableOpacity, Pressable, ScrollView, useWindowDimensions } from "react-native";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { Screen } from "../../../src/shared/components/Screen";
 import { AppText } from "../../../src/shared/components/AppText";
 import { SectionHeader } from "../../../src/shared/components/SectionHeader";
-import { FriendMomentCard } from "../../../src/features/social/components/FriendMomentCard";
+import { LoreCard } from "../../../src/features/lore/components/LoreCard";
 import { Button } from "../../../src/shared/components/Button";
 import { 
   useFriendMoments, 
@@ -29,6 +29,7 @@ import {
 import { useRouter } from "expo-router";
 import type { Profile } from "../../../src/shared/types/domain";
 import { useThemeColors } from "../../../src/shared/design/useThemeColors";
+import type { FriendMoment } from "../../../src/shared/types/domain";
 
 function notify(message: string) {
   if (Platform.OS === "web") {
@@ -102,6 +103,65 @@ function MemberAvatarRow({
     <TouchableOpacity activeOpacity={0.85} onPress={onPress}>
       {content}
     </TouchableOpacity>
+  );
+}
+
+function FriendLoreFeed({ moments }: { moments: FriendMoment[] }) {
+  const router = useRouter();
+  const { width } = useWindowDimensions();
+  const horizontalPadding = 40;
+  const cardWidth = Math.max(width - horizontalPadding, 1);
+  const cardHeight = cardWidth * 4 / 3;
+  const cardGap = 16;
+
+  return (
+    <View className="mt-2" style={{ height: cardHeight + cardGap }}>
+      <ScrollView
+        nestedScrollEnabled
+        showsVerticalScrollIndicator={false}
+        snapToInterval={cardHeight + cardGap}
+        decelerationRate="fast"
+        disableIntervalMomentum
+        contentContainerStyle={{ paddingBottom: cardGap }}
+      >
+        {moments.map((moment) => (
+          <TouchableOpacity
+            key={moment.id}
+            onPress={() => router.push(`/lore/${moment.id}`)}
+            activeOpacity={0.9}
+            className="relative overflow-hidden rounded-card"
+            style={{ width: cardWidth, height: cardHeight, marginBottom: cardGap }}
+          >
+            <View pointerEvents="none" className="h-full w-full">
+              <LoreCard
+                heroImageUri={moment.imageUrl}
+                title={moment.title}
+                caption={moment.reaction}
+                locationName={moment.location}
+              />
+            </View>
+            <TouchableOpacity
+              accessibilityLabel="Comment"
+              accessibilityRole="button"
+              onPress={() => {}}
+              activeOpacity={0.75}
+              className="absolute bottom-4 left-4 h-12 w-12 items-center justify-center rounded-full bg-black/45"
+            >
+              <Ionicons name="chatbubble-outline" size={22} color="white" />
+            </TouchableOpacity>
+            <TouchableOpacity
+              accessibilityLabel="Like"
+              accessibilityRole="button"
+              onPress={() => {}}
+              activeOpacity={0.75}
+              className="absolute bottom-4 right-4 h-12 w-12 items-center justify-center rounded-full bg-black/45"
+            >
+              <Ionicons name="heart-outline" size={24} color="white" />
+            </TouchableOpacity>
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
+    </View>
   );
 }
 
@@ -474,15 +534,11 @@ export default function FriendsScreen() {
 
       {/* FRIEND LORE */}
       {friendMoments && friendMoments.length > 0 && (
-  <>
-    <SectionHeader eyebrow="Friend lore" title="Quiet inspiration" />
-    {friendMoments.map((moment) => (
-      <TouchableOpacity key={moment.id} onPress={() => router.push(`/lore/${moment.id}`)} activeOpacity={0.9}>
-        <FriendMomentCard moment={moment} />
-      </TouchableOpacity>
-    ))}
-  </>
-)}
+        <>
+          <SectionHeader eyebrow="Friend lore" title="Quiet inspiration" />
+          <FriendLoreFeed moments={friendMoments} />
+        </>
+      )}
       <Modal visible={isGroupCreatedOpen} transparent animationType="fade" onRequestClose={() => setIsGroupCreatedOpen(false)}>
         <View className="flex-1 items-center justify-center bg-black/30 px-8">
           <View className="w-full rounded-[28px] border border-line bg-surface p-6">

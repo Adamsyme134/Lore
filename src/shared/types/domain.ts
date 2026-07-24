@@ -181,6 +181,7 @@ export type NewLoreEntryInput = {
   mood: string;
   latitude?: number | null;
   longitude?: number | null;
+  people: string[];
   tags: string[];
   photoAssets: Array<{
     uri: string;
