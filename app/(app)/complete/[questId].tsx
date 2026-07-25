@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { ActivityIndicator, KeyboardAvoidingView, NativeScrollEvent, NativeSyntheticEvent, View, ScrollView, TextInput, TouchableOpacity, Image, Platform, Modal } from 'react-native';
+import { ActivityIndicator, Alert, KeyboardAvoidingView, NativeScrollEvent, NativeSyntheticEvent, View, ScrollView, TextInput, TouchableOpacity, Image, Platform, Modal } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
@@ -304,6 +304,13 @@ export default function QuestCompletionScreen() {
       
     } catch (err) {
       console.error("Failed to save lore:", err);
+      const message = err instanceof Error ? err.message : "Please try again.";
+
+      if (Platform.OS === "web") {
+        (globalThis as any).alert?.(`Could not save your lore photos. ${message}`);
+      } else {
+        Alert.alert("Could not save your photos", message);
+      }
     }
   };
   const handleShare = async () => {

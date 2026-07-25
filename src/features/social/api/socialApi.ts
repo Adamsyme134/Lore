@@ -9,13 +9,16 @@ import { mapQuest, type QuestRow } from "../../quests/api/questApi";
 
 type FriendMomentRow = {
   id: string;
+  quest_id: string | null;
   title: string;
+  journal: string;
   location_name: string;
   cover_photo_url: string | null;
   profiles: {
     id: string;
     handle: string;
     full_name: string;
+    avatar_url: string | null;
   } | null;
   quests: {
     accent: Accent;
@@ -60,6 +63,16 @@ type UserQuestRow = {
   quests: QuestRow | null;
 };
 
+type FriendshipRow = {
+  user_a: string;
+  user_b: string;
+};
+
+type AcceptedFriendRequestRow = {
+  requester_id: string;
+  addressee_id: string;
+};
+
 export type LeaderboardFilter = "all_time" | "year" | "month";
 
 export type FriendGroup = {
@@ -86,6 +99,19 @@ export interface PendingRequest {
   };
 }
 
+export type LoreComment = {
+  id: string;
+  entryId: string;
+  body: string;
+  createdAt: string;
+  author: {
+    id: string;
+    name: string;
+    handle: string;
+    avatarUrl?: string | null;
+  };
+};
+
 function mapProfile(row: ProfileRow): Profile {
   return {
     id: row.id,
@@ -104,6 +130,98 @@ function formatSupabaseError(error: { message?: string; code?: string; details?:
     error.details,
     error.hint
   ].filter(Boolean).join("\n");
+}
+
+function isMissingEngagementTable(error: { code?: string; message?: string } | null) {
+  return error?.code === "42P01" || error?.code === "PGRST205" || error?.message?.toLowerCase().includes("does not exist");
+}
+
+function countByEntryId(rows: Array<{ entry_id: string }> | null | undefined) {
+  return (rows ?? []).reduce<Record<string, number>>((acc, row) => {
+    acc[row.entry_id] = (acc[row.entry_id] ?? 0) + 1;
+    return acc;
+  }, {});
+}
+
+async function fetchFriendMomentEngagement(entryIds: string[], userId?: string) {
+  if (entryIds.length === 0) {
+    return { likeCounts: {}, commentCounts: {}, likedEntryIds: new Set<string>() };
+  }
+
+  const client = requireSupabase();
+  const [likesResult, commentsResult] = await Promise.all([
+    client.from("lore_likes").select("entry_id, user_id").in("entry_id", entryIds),
+    client.from("lore_comments").select("entry_id").in("entry_id", entryIds)
+  ]);
+
+  const likeCounts = likesResult.error && isMissingEngagementTable(likesResult.error)
+    ? {}
+    : countByEntryId(likesResult.data as Array<{ entry_id: string }> | null);
+  const commentCounts = commentsResult.error && isMissingEngagementTable(commentsResult.error)
+    ? {}
+    : countByEntryId(commentsResult.data as Array<{ entry_id: string }> | null);
+
+  if (likesResult.error || commentsResult.error) {
+    console.warn("Friend lore engagement is unavailable; rendering moments without counts.", likesResult.error ?? commentsResult.error);
+  }
+
+  const likedEntryIds = new Set(
+    (likesResult.error ? [] : ((likesResult.data as Array<{ entry_id: string; user_id: string }> | null) ?? []))
+      .filter((like) => like.user_id === userId)
+      .map((like) => like.entry_id)
+  );
+
+  return { likeCounts, commentCounts, likedEntryIds };
+}
+
+function uniqueFriendIds(ids: string[], userId: string) {
+  return Array.from(new Set(ids.filter((id) => id && id !== userId)));
+}
+
+async function fetchFriendIdsFromSupabase(userId: string) {
+  const client = requireSupabase();
+  let hadLookupError = false;
+
+  const { data: friendships, error: friendshipError } = await client
+    .from("friendships")
+    .select("user_a, user_b")
+    .or(`user_a.eq.${userId},user_b.eq.${userId}`);
+
+  if (friendshipError) {
+    hadLookupError = true;
+    console.warn("Friendship lookup failed while loading friend lore.", friendshipError);
+  } else {
+    const friendIds = uniqueFriendIds(
+      ((friendships ?? []) as FriendshipRow[]).map((friendship) => (
+        friendship.user_a === userId ? friendship.user_b : friendship.user_a
+      )),
+      userId
+    );
+
+    if (friendIds.length > 0) {
+      return friendIds;
+    }
+  }
+
+  const { data: acceptedRequests, error: requestError } = await client
+    .from("friend_requests")
+    .select("requester_id, addressee_id")
+    .eq("status", "accepted")
+    .or(`requester_id.eq.${userId},addressee_id.eq.${userId}`);
+
+  if (requestError) {
+    hadLookupError = true;
+    console.warn("Accepted friend request lookup failed while loading friend lore.", requestError);
+  } else {
+    return uniqueFriendIds(
+      ((acceptedRequests ?? []) as AcceptedFriendRequestRow[]).map((request) => (
+        request.requester_id === userId ? request.addressee_id : request.requester_id
+      )),
+      userId
+    );
+  }
+
+  return hadLookupError ? null : [];
 }
 
 async function uploadFriendGroupBanner(
@@ -132,11 +250,23 @@ async function uploadFriendGroupBanner(
 
 async function fetchFriendMomentsFromSupabase(userId?: string) {
   const client = requireSupabase();
-  let query = client
-    .from("lore_entries")
-    .select("id, title, location_name, cover_photo_url, profiles(id, handle, full_name), quests(accent)");
+  let friendIds: string[] | null = null;
 
   if (userId) {
+    friendIds = await fetchFriendIdsFromSupabase(userId);
+
+    if (friendIds && friendIds.length === 0) {
+      return [];
+    }
+  }
+
+  let query = client
+    .from("lore_entries")
+    .select("id, quest_id, title, journal, location_name, cover_photo_url, profiles!lore_entries_user_id_fkey(id, handle, full_name, avatar_url), quests(accent)");
+
+  if (friendIds) {
+    query = query.in("user_id", friendIds);
+  } else if (userId) {
     query = query.neq("user_id", userId);
   }
 
@@ -144,11 +274,29 @@ async function fetchFriendMomentsFromSupabase(userId?: string) {
     .order("occurred_at", { ascending: false })
     .limit(12);
 
-  if (error) throw error;
+  if (error) {
+    console.warn("Expanded friend lore query failed; falling back to the stable feed query.", error);
 
-  return (data ?? []).map((row) => {
-    const item = row as unknown as FriendMomentRow;
-    return {
+    let fallbackQuery = client
+      .from("lore_entries")
+      .select("id, title, location_name, cover_photo_url, profiles!lore_entries_user_id_fkey(id, handle, full_name), quests(accent)");
+
+    if (friendIds) {
+      fallbackQuery = fallbackQuery.in("user_id", friendIds);
+    } else if (userId) {
+      fallbackQuery = fallbackQuery.neq("user_id", userId);
+    }
+
+    const { data: fallbackData, error: fallbackError } = await fallbackQuery
+      .order("occurred_at", { ascending: false })
+      .limit(12);
+
+    if (fallbackError) throw fallbackError;
+
+    const fallbackRows = (fallbackData ?? []) as unknown as FriendMomentRow[];
+    const fallbackEngagement = await fetchFriendMomentEngagement(fallbackRows.map((row) => row.id), userId);
+
+    return fallbackRows.map((item) => ({
       id: item.id,
       profileId: item.profiles?.id,
       name: item.profiles?.full_name ?? "A friend",
@@ -157,7 +305,32 @@ async function fetchFriendMomentsFromSupabase(userId?: string) {
       location: item.location_name,
       reaction: "This belongs in a proper field journal.",
       imageUrl: item.cover_photo_url ?? "https://images.unsplash.com/photo-1494526585095-c41746248156?auto=format&fit=crop&w=1600&q=85",
-      accent: item.quests?.accent ?? "forest"
+      accent: item.quests?.accent ?? "forest",
+      likeCount: fallbackEngagement.likeCounts[item.id] ?? 0,
+      commentCount: fallbackEngagement.commentCounts[item.id] ?? 0,
+      likedByMe: fallbackEngagement.likedEntryIds.has(item.id)
+    } satisfies FriendMoment));
+  }
+
+  const rows = (data ?? []) as unknown as FriendMomentRow[];
+  const engagement = await fetchFriendMomentEngagement(rows.map((row) => row.id), userId);
+
+  return rows.map((item) => {
+    return {
+      id: item.id,
+      profileId: item.profiles?.id,
+      name: item.profiles?.full_name ?? "A friend",
+      handle: item.profiles?.handle,
+      avatarUrl: item.profiles?.avatar_url,
+      questId: item.quest_id,
+      title: item.title,
+      location: item.location_name,
+      reaction: item.journal || "This belongs in a proper field journal.",
+      imageUrl: item.cover_photo_url ?? "https://images.unsplash.com/photo-1494526585095-c41746248156?auto=format&fit=crop&w=1600&q=85",
+      accent: item.quests?.accent ?? "forest",
+      likeCount: engagement.likeCounts[item.id] ?? 0,
+      commentCount: engagement.commentCounts[item.id] ?? 0,
+      likedByMe: engagement.likedEntryIds.has(item.id)
     } satisfies FriendMoment;
   });
 }
@@ -169,6 +342,138 @@ export function useFriendMoments() {
     queryKey: ["friend-moments", isBackendReady ? "remote" : "preview", user?.id],
     queryFn: () => (isBackendReady && user?.id ? fetchFriendMomentsFromSupabase(user.id) : Promise.resolve([])),
     enabled: !!user
+  });
+}
+
+async function fetchLoreCommentsFromSupabase(entryId: string): Promise<LoreComment[]> {
+  const client = requireSupabase();
+  const { data, error } = await client
+    .from("lore_comments")
+    .select("id, entry_id, body, created_at, profiles(id, handle, full_name, avatar_url)")
+    .eq("entry_id", entryId)
+    .order("created_at", { ascending: true });
+
+  if (error) {
+    if (isMissingEngagementTable(error)) return [];
+    throw error;
+  }
+
+  return ((data ?? []) as unknown as Array<{
+    id: string;
+    entry_id: string;
+    body: string;
+    created_at: string;
+    profiles: {
+      id: string;
+      handle: string;
+      full_name: string;
+      avatar_url: string | null;
+    } | null;
+  }>).map((comment) => ({
+    id: comment.id,
+    entryId: comment.entry_id,
+    body: comment.body,
+    createdAt: comment.created_at,
+    author: {
+      id: comment.profiles?.id ?? "unknown",
+      name: comment.profiles?.full_name ?? "A friend",
+      handle: comment.profiles?.handle ?? "friend",
+      avatarUrl: comment.profiles?.avatar_url
+    }
+  }));
+}
+
+async function fetchLoreLikeState(entryId: string, userId?: string) {
+  const client = requireSupabase();
+  const { data, error } = await client
+    .from("lore_likes")
+    .select("entry_id, user_id")
+    .eq("entry_id", entryId);
+
+  if (error) {
+    if (isMissingEngagementTable(error)) return { likeCount: 0, likedByMe: false };
+    throw error;
+  }
+
+  const likes = (data ?? []) as Array<{ entry_id: string; user_id: string }>;
+  return {
+    likeCount: likes.length,
+    likedByMe: likes.some((like) => like.user_id === userId)
+  };
+}
+
+export function useLoreComments(entryId?: string) {
+  return useQuery({
+    queryKey: ["lore-comments", entryId],
+    queryFn: () => entryId ? fetchLoreCommentsFromSupabase(entryId) : Promise.resolve([]),
+    enabled: !!entryId
+  });
+}
+
+export function useLoreLikeState(entryId?: string) {
+  const { user } = useAuth();
+
+  return useQuery({
+    queryKey: ["lore-like-state", entryId, user?.id],
+    queryFn: () => entryId ? fetchLoreLikeState(entryId, user?.id) : Promise.resolve({ likeCount: 0, likedByMe: false }),
+    enabled: !!entryId
+  });
+}
+
+export function useToggleLoreLike() {
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ entryId, liked }: { entryId: string; liked: boolean }) => {
+      if (!user || !supabase) return;
+      const client = requireSupabase();
+
+      if (liked) {
+        const { error } = await client
+          .from("lore_likes")
+          .delete()
+          .eq("entry_id", entryId)
+          .eq("user_id", user.id);
+        if (error) throw error;
+        return;
+      }
+
+      const { error } = await client
+        .from("lore_likes")
+        .insert({ entry_id: entryId, user_id: user.id });
+      if (error && error.code !== "23505") throw error;
+    },
+    onSuccess: async (_result, variables) => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["friend-moments"] }),
+        queryClient.invalidateQueries({ queryKey: ["lore-like-state", variables.entryId] })
+      ]);
+    }
+  });
+}
+
+export function useAddLoreComment() {
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ entryId, body }: { entryId: string; body: string }) => {
+      const trimmedBody = body.trim();
+      if (!user || !supabase || !trimmedBody) return;
+
+      const { error } = await requireSupabase()
+        .from("lore_comments")
+        .insert({ entry_id: entryId, user_id: user.id, body: trimmedBody });
+
+      if (error) throw error;
+    },
+    onSuccess: async (_result, variables) => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["friend-moments"] }),
+        queryClient.invalidateQueries({ queryKey: ["lore-comments", variables.entryId] })
+      ]);
+    }
   });
 }
 

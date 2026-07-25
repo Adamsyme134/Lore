@@ -5,8 +5,7 @@ import { Screen } from "../../../src/shared/components/Screen";
 import { AppText } from "../../../src/shared/components/AppText";
 import { QuestHero } from "../../../src/features/quests/components/QuestHero";
 import { QuestCard } from "../../../src/features/quests/components/QuestCard";
-// ✨ We removed LoreEntryCard here
-import { FriendMomentCard } from "../../../src/features/social/components/FriendMomentCard";
+import { FriendLoreFeed } from "../../../src/features/social/components/FriendLoreFeed";
 import { useQuests } from "../../../src/features/quests/api/questApi";
 import { useFriendMoments } from "../../../src/features/social/api/socialApi"; // ✨ Added Friend API
 import { useAuth } from "../../../src/features/auth/AuthProvider";
@@ -116,7 +115,7 @@ export default function TodayScreen() {
 
   return (
     <Screen
-      contentClassName="pt-2"
+      contentClassName="pt-2 pb-0"
       refreshControl={
         <RefreshControl
           refreshing={isRefreshing}
@@ -197,22 +196,13 @@ export default function TodayScreen() {
       </View>
 
       {/* --- PAGE 3: FRIEND'S LORE --- */}
-      <View className="px-5 pb-32"> 
-        <AppText variant="title" className="mb-6">
+      <View className="-mx-5"> 
+        <AppText variant="title" className="mb-6 px-5">
           Friend's Lore
         </AppText>
         
         {friendMoments.length > 0 ? (
-          friendMoments.map((moment) => (
-            <TouchableOpacity 
-              key={moment.id} 
-              onPress={() => router.push(`/lore/${moment.id}`)} 
-              activeOpacity={0.9} 
-              className="mb-6"
-            >
-              <FriendMomentCard moment={moment} />
-            </TouchableOpacity>
-          ))
+          <FriendLoreFeed moments={friendMoments} />
         ) : (
           <AppText className="text-center text-muted mt-4">No recent lore from friends.</AppText>
         )}

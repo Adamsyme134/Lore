@@ -1,4 +1,4 @@
-import { View, Pressable, Modal, Alert, Platform, ScrollView } from "react-native";
+import { View, Pressable, Modal, Alert, Platform, ScrollView, TextInput } from "react-native";
 import { useState, useRef } from "react";
 import { useLocalSearchParams, router } from "expo-router";
 import { Image } from "expo-image";
@@ -18,6 +18,7 @@ import { LoreCard } from "../../../src/features/lore/components/LoreCard";
 import { useAuth } from "../../../src/features/auth/AuthProvider";
 import * as MediaLibrary from "expo-media-library/legacy";
 import { useThemeColors } from "../../../src/shared/design/useThemeColors";
+import { useAddLoreComment, useLoreComments } from "../../../src/features/social/api/socialApi";
 
 export default function LoreDetailScreen() {
   const colors = useThemeColors();
@@ -25,8 +26,11 @@ export default function LoreDetailScreen() {
   const { data: entry } = useLoreEntry(id);
   const { user } = useAuth();
   const deleteMutation = useDeleteLoreEntry();
+  const commentsQuery = useLoreComments(id);
+  const addComment = useAddLoreComment();
 
   const [isModalVisible, setModalVisible] = useState(false);
+  const [commentBody, setCommentBody] = useState("");
   const viewRef = useRef(null);
 
   const handleShare = async () => {
@@ -104,6 +108,13 @@ export default function LoreDetailScreen() {
     );
   };
 
+  const handleAddComment = async () => {
+    if (!entry || !commentBody.trim()) return;
+
+    await addComment.mutateAsync({ entryId: entry.id, body: commentBody });
+    setCommentBody("");
+  };
+
   if (!entry) {
     return (
       <Screen>
@@ -132,9 +143,13 @@ export default function LoreDetailScreen() {
         </View>
         <View className="mt-4">
           <Button 
-            label="View Lore Card" 
-            variant="secondary" 
-            onPress={() => setModalVisible(true)} 
+            label="View Quest"
+            variant="secondary"
+            onPress={() => {
+              if (entry.questId) {
+                router.push({ pathname: "/quest/[id]", params: { id: entry.questId } });
+              }
+            }}
           />
         </View>
 
@@ -166,6 +181,41 @@ export default function LoreDetailScreen() {
             </View>
           </View>
         ) : null}
+
+        <View className="mt-6 rounded-card border border-line bg-surface p-5">
+          <AppText variant="eyebrow">Comments</AppText>
+          <View className="mt-4 gap-4">
+            {(commentsQuery.data ?? []).length > 0 ? (
+              commentsQuery.data?.map((comment) => (
+                <View key={comment.id} className="border-b border-line/50 pb-4">
+                  <View className="flex-row items-center justify-between gap-3">
+                    <AppText className="font-sansSemi text-sm text-ink">{comment.author.name}</AppText>
+                    <AppText variant="caption" className="text-tertiary">@{comment.author.handle}</AppText>
+                  </View>
+                  <AppText className="mt-2 text-muted">{comment.body}</AppText>
+                </View>
+              ))
+            ) : (
+              <AppText className="text-muted">No comments yet.</AppText>
+            )}
+          </View>
+          <View className="mt-5 flex-row items-center gap-3">
+            <TextInput
+              className="flex-1 rounded-2xl border border-line bg-background px-4 py-3 font-sans text-sm text-ink"
+              placeholder="Add a comment"
+              placeholderTextColor={colors.textTertiary}
+              value={commentBody}
+              onChangeText={setCommentBody}
+            />
+            <Pressable
+              onPress={handleAddComment}
+              disabled={!commentBody.trim() || addComment.isPending}
+              className="h-12 w-12 items-center justify-center rounded-full bg-accent disabled:opacity-50"
+            >
+              <Ionicons name="send" size={18} color={colors.accentText} />
+            </Pressable>
+          </View>
+        </View>
 
         <View className="mt-6">
           <MapPreview location={entry.location} latitude={entry.latitude} longitude={entry.longitude} />

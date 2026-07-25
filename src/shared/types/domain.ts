@@ -149,11 +149,16 @@ export type FriendMoment = {
   profileId?: string;
   name: string;
   handle?: string;
+  avatarUrl?: string | null;
+  questId?: string | null;
   title: string;
   location: string;
   reaction: string;
   imageUrl: string;
   accent: Accent;
+  likeCount?: number;
+  commentCount?: number;
+  likedByMe?: boolean;
 };
 
 export type Profile = {

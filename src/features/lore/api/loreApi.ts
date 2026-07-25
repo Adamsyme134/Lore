@@ -1,4 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Platform } from "react-native";
+import * as FileSystem from "expo-file-system/legacy";
+import { decode } from "base64-arraybuffer";
 import { requireSupabase, supabase } from "../../../lib/supabase";
 import { useAuth } from "../../auth/AuthProvider";
 import { useExperienceStore } from "../../app/store/useExperienceStore";
@@ -154,12 +157,43 @@ export function useLoreEntry(id?: string) {
   });
 }
 
+function getPhotoExtension(asset: NewLoreEntryInput["photoAssets"][number]) {
+  const mimeExtension = asset.mimeType?.split(";")[0]?.split("/")[1]?.toLowerCase();
+  const uriExtension = asset.uri.split(".").pop()?.split("?")[0]?.toLowerCase();
+  const extension = mimeExtension || uriExtension || "jpg";
+
+  return extension === "jpeg" ? "jpg" : extension;
+}
+
+function getPhotoContentType(extension: string, asset: NewLoreEntryInput["photoAssets"][number]) {
+  if (asset.mimeType) return asset.mimeType;
+  return `image/${extension === "jpg" ? "jpeg" : extension}`;
+}
+
+async function readPhotoAsArrayBuffer(asset: NewLoreEntryInput["photoAssets"][number]) {
+  if (Platform.OS === "web" || asset.uri.startsWith("http")) {
+    const response = await fetch(asset.uri);
+
+    if (!response.ok) {
+      throw new Error(`Could not read photo for upload (${response.status}).`);
+    }
+
+    return response.arrayBuffer();
+  }
+
+  const base64 = await FileSystem.readAsStringAsync(asset.uri, {
+    encoding: FileSystem.EncodingType.Base64
+  });
+
+  return decode(base64);
+}
+
 async function uploadLorePhoto(userId: string, entryId: string, asset: NewLoreEntryInput["photoAssets"][number], index: number) {
   const client = requireSupabase();
-  const extension = asset.uri.split(".").pop()?.split("?")[0]?.toLowerCase() || "jpg";
-  const contentType = asset.mimeType ?? `image/${extension === "jpg" ? "jpeg" : extension}`;
+  const extension = getPhotoExtension(asset);
+  const contentType = getPhotoContentType(extension, asset);
   const storagePath = `${userId}/${entryId}/${Date.now()}-${index}.${extension}`;
-  const arrayBuffer = await fetch(asset.uri).then((response) => response.arrayBuffer());
+  const arrayBuffer = await readPhotoAsArrayBuffer(asset);
 
   const { error } = await client.storage
     .from("lore-photos")
@@ -204,6 +238,7 @@ export function useCreateLoreEntry() {
 
       const client = requireSupabase();
       const pointsAwarded = input.quest.pointsValue + Math.min(3, input.photoAssets.length) * 2;
+      let uploadedPhotos: Array<{ storagePath: string; publicUrl: string }> = [];
 
       const { data: entryRow, error: entryError } = await client
         .from("lore_entries")
@@ -227,48 +262,58 @@ export function useCreateLoreEntry() {
       }
 
       const entryId = entryRow.id as string;
-      const uploadedPhotos = await Promise.all(
-  input.photoAssets.map((asset, index) => uploadLorePhoto(user.id, entryId, asset, index))
-);
 
-      if (uploadedPhotos.length > 0) {
-        const { error: photoError } = await client.from("lore_photos").insert(
-          uploadedPhotos.map((photo, index) => ({
-            entry_id: entryId,
-            user_id: user.id,
-            storage_path: photo.storagePath,
-            public_url: photo.publicUrl,
-            width: input.photoAssets[index].width ?? null,
-            height: input.photoAssets[index].height ?? null,
-            sort_order: index
-          }))
-        );
-
-        if (photoError) {
-          throw photoError;
+      try {
+        for (const [index, asset] of input.photoAssets.entries()) {
+          uploadedPhotos.push(await uploadLorePhoto(user.id, entryId, asset, index));
         }
 
-        const { error: coverError } = await client
-          .from("lore_entries")
-          .update({ cover_photo_url: uploadedPhotos[0].publicUrl })
-          .eq("id", entryId);
+        if (uploadedPhotos.length > 0) {
+          const { error: photoError } = await client.from("lore_photos").insert(
+            uploadedPhotos.map((photo, index) => ({
+              entry_id: entryId,
+              user_id: user.id,
+              storage_path: photo.storagePath,
+              public_url: photo.publicUrl,
+              width: input.photoAssets[index].width ?? null,
+              height: input.photoAssets[index].height ?? null,
+              sort_order: index
+            }))
+          );
 
-        if (coverError) {
-          throw coverError;
+          if (photoError) {
+            throw photoError;
+          }
+
+          const { error: coverError } = await client
+            .from("lore_entries")
+            .update({ cover_photo_url: uploadedPhotos[0].publicUrl })
+            .eq("id", entryId);
+
+          if (coverError) {
+            throw coverError;
+          }
         }
-      }
 
-      await client
-        .from("user_quests")
-        .upsert({ user_id: user.id, quest_id: input.quest.id, status: "completed", completed_at: new Date().toISOString() }, { onConflict: "user_id,quest_id" });
+        await client
+          .from("user_quests")
+          .upsert({ user_id: user.id, quest_id: input.quest.id, status: "completed", completed_at: new Date().toISOString() }, { onConflict: "user_id,quest_id" });
 
-      const { error: pointsError } = await client.rpc("award_lore_points", {
-        entry_id: entryId,
-        photo_count: input.photoAssets.length
-      });
+        const { error: pointsError } = await client.rpc("award_lore_points", {
+          entry_id: entryId,
+          photo_count: input.photoAssets.length
+        });
 
-      if (pointsError) {
-        throw pointsError;
+        if (pointsError) {
+          throw pointsError;
+        }
+      } catch (error) {
+        if (uploadedPhotos.length > 0) {
+          await client.storage.from("lore-photos").remove(uploadedPhotos.map((photo) => photo.storagePath));
+        }
+
+        await client.from("lore_entries").delete().eq("id", entryId);
+        throw error;
       }
 
       const entries = await fetchLoreEntriesFromSupabase(user.id);
