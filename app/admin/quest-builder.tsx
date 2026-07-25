@@ -2,13 +2,18 @@
 import { useState, useEffect, useRef } from "react";
 import { View, ScrollView, TextInput, Pressable, PanResponder } from "react-native";
 import { Image } from "expo-image";
+import { LinearGradient } from "expo-linear-gradient";
 import { AppText } from "../../src/shared/components/AppText";
 import { QuestHero } from "../../src/features/quests/components/QuestHero";
 import { QuestCard } from "../../src/features/quests/components/QuestCard";
 import { YouTubeWidget } from "../../src/features/quests/components/widgets/YouTubeWidget";
 import { CardRevealWidget } from "../../src/features/quests/components/widgets/CardRevealWidget";
 import { searchLocations, type LocationSearchResult } from "../../src/features/location/api/locationSearchApi";
+import { mapJourney, type JourneyRow } from "../../src/features/quests/api/questApi";
+import { previewJourneys } from "../../src/shared/data/previewData";
 import type { 
+  Journey,
+  JourneyTimelineItem,
   Quest, 
   QuestCategory, 
   QuestCost, 
@@ -312,7 +317,7 @@ const createBlankQuest = (): Quest => ({
   galleryUrls: [],
   categories: ["Adventure"],
   cost: "Free" as QuestCost,
-  length: "Half day" as QuestLength,
+  length: "A few hours" as QuestLength,
   difficulty: "Medium" as QuestDifficulty,
   country: "Any" as QuestCountry,
   minParticipants: 1,
@@ -321,6 +326,52 @@ const createBlankQuest = (): Quest => ({
   accessibility: [] as QuestAccessibility[],
   locationTypes: ["Anywhere"] as QuestLocationType[]
 });
+
+const createBlankJourney = (quests: Quest[] = []): Journey => {
+  const nextQuest = quests[0];
+  return {
+    id: `draft-journey-${Date.now()}`,
+    slug: `new-journey-${Date.now()}`,
+    title: "Untitled Journey",
+    description: "A themed path of experiences.",
+    backgroundImageUrl: nextQuest?.imageUrl || "https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&w=1200&q=85",
+    imagePosition: "50% 50%",
+    iconName: "trail-sign-outline",
+    timeline: [
+      { id: `timeline-${Date.now()}-1`, title: "First experience", questId: nextQuest?.id, isComplete: true },
+      { id: `timeline-${Date.now()}-2`, title: "Second experience", isComplete: false },
+      { id: `timeline-${Date.now()}-3`, title: "Third experience", isComplete: false }
+    ],
+    completedCount: 1,
+    totalCount: 6,
+    nextQuestId: nextQuest?.id || null,
+    nextQuestTitle: nextQuest?.title || "Choose the next quest",
+    nextQuestImageUrl: nextQuest?.imageUrl || "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=400&q=85",
+    questIds: nextQuest ? [nextQuest.id] : [],
+    isActive: true
+  };
+};
+
+const timelineToText = (timeline: JourneyTimelineItem[]) =>
+  timeline.map((item) => `${item.isComplete ? "[x]" : "[ ]"} ${item.title}`).join("\n");
+
+const textToTimeline = (value: string, current: JourneyTimelineItem[]): JourneyTimelineItem[] =>
+  value
+    .split("\n")
+    .map((line, index) => {
+      const trimmed = line.trim();
+      if (!trimmed) return null;
+      const isComplete = /^\[(x|X)\]/.test(trimmed);
+      const title = trimmed.replace(/^\[(x|X| )\]\s*/, "").trim();
+      return {
+        id: current[index]?.id || `timeline-${Date.now()}-${index}`,
+        title: title || `Step ${index + 1}`,
+        questId: current[index]?.questId,
+        isComplete
+      };
+    })
+    .filter(Boolean) as JourneyTimelineItem[];
+
 function DraggableImageCrop({ imageUrl, value, onChange }: { imageUrl: string, value: string, onChange: (val: string) => void }) {
   const panRef = useRef({ x: 50, y: 50 });
   const [pos, setPos] = useState({ x: 50, y: 50 });
@@ -384,6 +435,8 @@ function DraggableImageCrop({ imageUrl, value, onChange }: { imageUrl: string, v
 export default function QuestBuilderAdmin() {
   const [leftPanelVisible, setLeftPanelVisible] = useState(true); // <-- ADD THIS
   const [view, setView] = useState<'grid' | 'editor'>('grid');
+  const [libraryKind, setLibraryKind] = useState<'quests' | 'journeys'>('quests');
+  const [editorKind, setEditorKind] = useState<'quest' | 'journey'>('quest');
   const [focusIndex, setFocusIndex] = useState<number | null>(null);
   const [activeTab, setActiveTab] = useState<'basic' | 'tags' | 'metadata'>('basic');
   const [previewMode, setPreviewMode] = useState<'hero' | 'details'>('hero');
@@ -406,9 +459,11 @@ export default function QuestBuilderAdmin() {
   }>({ visible: false, query: "", stepIndex: -1, chunkIndex: -1, cursor: -1 });
   
   const [savedQuests, setSavedQuests] = useState<Quest[]>([]);
+  const [savedJourneys, setSavedJourneys] = useState<Journey[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeCategory, setActiveCategory] = useState<QuestCategory | "All">("All");
   const [quest, setQuest] = useState<Quest>(createBlankQuest());
+  const [journey, setJourney] = useState<Journey>(createBlankJourney());
 
   useEffect(() => {
     const fetchQuests = async () => {
@@ -441,7 +496,7 @@ export default function QuestBuilderAdmin() {
             galleryUrls: q.gallery_urls || [],
             categories: (q.categories as QuestCategory[]) || (q.category ? [q.category] : ["Adventure"]),
             cost: (q.cost as QuestCost) || "Free",
-            length: (q.length as QuestLength) || "Half day",
+            length: (q.length as QuestLength) || "A few hours",
             difficulty: (q.difficulty as QuestDifficulty) || "Medium",
             country: q.country || "Any",
             minParticipants: q.min_participants || 1,
@@ -466,8 +521,32 @@ export default function QuestBuilderAdmin() {
     fetchQuests();
   }, []);
 
+  useEffect(() => {
+    const fetchJourneys = async () => {
+      try {
+        const client = requireSupabase();
+        const { data, error } = await client
+          .from('journeys')
+          .select('*')
+          .eq('is_active', true)
+          .order('created_at', { ascending: false });
+        if (error) throw error;
+
+        setSavedJourneys((data || []).map((row) => mapJourney(row as JourneyRow)));
+      } catch (error) {
+        console.error("Error fetching journeys:", error);
+        setSavedJourneys(previewJourneys);
+      }
+    };
+    fetchJourneys();
+  }, []);
+
   const updateField = (field: keyof Quest, value: any) => {
     setQuest((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const updateJourneyField = (field: keyof Journey, value: any) => {
+    setJourney((prev) => ({ ...prev, [field]: value }));
   };
 
   const handleSave = async () => {
@@ -523,6 +602,62 @@ export default function QuestBuilderAdmin() {
     }
   };
 
+  const handleSaveJourney = async () => {
+    try {
+      const client = requireSupabase();
+      const journeyData = {
+        slug: journey.slug,
+        title: journey.title,
+        description: journey.description,
+        background_image_url: journey.backgroundImageUrl,
+        image_position: journey.imagePosition,
+        icon_name: journey.iconName,
+        timeline: journey.timeline,
+        completed_count: journey.completedCount,
+        total_count: journey.totalCount,
+        next_quest_id: journey.nextQuestId,
+        next_quest_title: journey.nextQuestTitle,
+        next_quest_image_url: journey.nextQuestImageUrl,
+        quest_ids: journey.questIds,
+        is_active: true
+      };
+
+      const isNew = journey.id.startsWith("draft-");
+      const result = isNew
+        ? await client.from('journeys').insert([journeyData]).select().single()
+        : await client.from('journeys').update(journeyData).eq('id', journey.id).select().single();
+
+      if (result.error) throw result.error;
+      alert("Journey successfully saved!");
+      setSavedJourneys(prev => {
+        const mapped = { ...journey, id: result.data.id };
+        return isNew ? [mapped, ...prev] : prev.map(item => item.id === journey.id ? mapped : item);
+      });
+      setLibraryKind('journeys');
+      setView('grid');
+    } catch (error: any) {
+      alert(`Failed to save journey: ${error.message || "Check terminal"}`);
+    }
+  };
+
+  const handleDeleteJourney = async () => {
+    if (window.confirm(`Are you sure you want to permanently delete "${journey.title}"?`)) {
+      try {
+        const client = requireSupabase();
+        if (!journey.id.startsWith('draft-')) {
+          const { error } = await client.from('journeys').update({ is_active: false }).eq('id', journey.id);
+          if (error) throw error;
+        }
+        setSavedJourneys(prev => prev.filter(item => item.id !== journey.id));
+        setLibraryKind('journeys');
+        setView('grid');
+        alert("Journey deleted successfully.");
+      } catch (error: any) {
+        alert("Failed to delete journey: " + (error.message || "Unknown error"));
+      }
+    }
+  };
+
   const handleDelete = async () => {
     if (window.confirm(`Are you sure you want to permanently delete "${quest.title}"?`)) {
       try {
@@ -543,38 +678,58 @@ export default function QuestBuilderAdmin() {
   if (view === 'grid') {
     const filtered = savedQuests.filter(q => {
       const matchesSearch = q.title.toLowerCase().includes(searchQuery.toLowerCase());
-      const safeCategory = q.category || "Adventure";
-      const matchesCategory = activeCategory === "All" || safeCategory === activeCategory;
+      const safeCategories = q.categories || (q.category ? [q.category] : ["Adventure"]);
+      const matchesCategory = activeCategory === "All" || safeCategories.includes(activeCategory);
       return matchesSearch && matchesCategory;
     });
+    const filteredJourneys = savedJourneys.filter(item =>
+      item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      item.description.toLowerCase().includes(searchQuery.toLowerCase())
+    );
     
     return (
       <View className="flex-1 bg-surface p-10">
         <View className="flex-row justify-between items-center mb-10">
-          <AppText variant="display">Quest Library</AppText>
-          <Pressable onPress={() => { setQuest(createBlankQuest()); setView('editor'); setPreviewMode('hero'); setActiveTab('basic'); }} className="bg-accent px-6 py-3 rounded-full">
-            <AppText className="text-accentText font-sansSemi">+ Create New Quest</AppText>
-          </Pressable>
+          <View>
+            <AppText variant="display">{libraryKind === 'quests' ? 'Quest Library' : 'Journey Library'}</AppText>
+            <View className="mt-4 flex-row rounded-full border border-line bg-stone p-1">
+              {(['quests', 'journeys'] as const).map(kind => (
+                <Pressable key={kind} onPress={() => setLibraryKind(kind)} className={`px-5 py-2 rounded-full ${libraryKind === kind ? 'bg-accent' : 'bg-transparent'}`}>
+                  <AppText className={libraryKind === kind ? 'text-accentText font-sansSemi capitalize' : 'text-ink/60 capitalize'}>{kind}</AppText>
+                </Pressable>
+              ))}
+            </View>
+          </View>
+          <View className="flex-row gap-3">
+            <Pressable onPress={() => { setQuest(createBlankQuest()); setEditorKind('quest'); setView('editor'); setPreviewMode('hero'); setActiveTab('basic'); }} className="bg-stone px-6 py-3 rounded-full border border-line">
+              <AppText className="text-ink font-sansSemi">+ Create New Quest</AppText>
+            </Pressable>
+            <Pressable onPress={() => { setJourney(createBlankJourney(savedQuests)); setEditorKind('journey'); setView('editor'); }} className="bg-accent px-6 py-3 rounded-full">
+              <AppText className="text-accentText font-sansSemi">+ Create New Journey</AppText>
+            </Pressable>
+          </View>
         </View>
 
-        <TextInput className="bg-surface border border-line rounded-lg p-4 mb-6 font-sans text-ink max-w-md" placeholder="Search quests..." value={searchQuery} onChangeText={setSearchQuery} />
+        <TextInput className="bg-surface border border-line rounded-lg p-4 mb-6 font-sans text-ink max-w-md" placeholder={libraryKind === 'quests' ? 'Search quests...' : 'Search journeys...'} value={searchQuery} onChangeText={setSearchQuery} />
 
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mb-8 max-h-12" contentContainerStyle={{ gap: 8 }}>
-          {CATEGORIES.map(cat => {
-            const isActive = activeCategory === cat;
-            return (
-              <Pressable key={cat} onPress={() => setActiveCategory(cat)} className={`px-5 py-2.5 rounded-full border ${isActive ? 'bg-accent border-accent' : 'bg-surface border-line shadow-sm'}`}>
-                <AppText className={isActive ? 'text-accentText font-sansSemi' : 'text-ink'}>{cat}</AppText>
-              </Pressable>
-            );
-          })}
-        </ScrollView>
+        {libraryKind === 'quests' && (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mb-8 max-h-12" contentContainerStyle={{ gap: 8 }}>
+            {CATEGORIES.map(cat => {
+              const isActive = activeCategory === cat;
+              return (
+                <Pressable key={cat} onPress={() => setActiveCategory(cat)} className={`px-5 py-2.5 rounded-full border ${isActive ? 'bg-accent border-accent' : 'bg-surface border-line shadow-sm'}`}>
+                  <AppText className={isActive ? 'text-accentText font-sansSemi' : 'text-ink'}>{cat}</AppText>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+        )}
 
-        {filtered.length === 0 ? (
+        {libraryKind === 'quests' && filtered.length === 0 ? (
           <View className="items-center justify-center p-20 border border-dashed border-line rounded-[24px]">
             <AppText className="text-ink/50 mb-4">No quests found.</AppText>
           </View>
-        ) : (
+        ) : libraryKind === 'quests' ? (
           <ScrollView>
             <View className="flex-row flex-wrap gap-6">
               {filtered.map(q => (
@@ -597,14 +752,201 @@ export default function QuestBuilderAdmin() {
                     </View>
                   </View>
 
-                  <Pressable onPress={() => { setQuest(q); setView('editor'); setPreviewMode('hero'); setActiveTab('basic'); }} className="bg-stone py-2 rounded-lg items-center border border-line hover:bg-stone-300">
+                  <Pressable onPress={() => { setQuest(q); setEditorKind('quest'); setView('editor'); setPreviewMode('hero'); setActiveTab('basic'); }} className="bg-stone py-2 rounded-lg items-center border border-line hover:bg-stone-300">
                     <AppText className="text-ink font-sansSemi text-sm">Edit Quest</AppText>
                   </Pressable>
                 </View>
               ))}
             </View>
           </ScrollView>
+        ) : filteredJourneys.length === 0 ? (
+          <View className="items-center justify-center p-20 border border-dashed border-line rounded-[24px]">
+            <AppText className="text-ink/50 mb-4">No journeys found.</AppText>
+          </View>
+        ) : (
+          <ScrollView>
+            <View className="flex-row flex-wrap gap-6">
+              {filteredJourneys.map(item => (
+                <View key={item.id} className="w-72 mb-4">
+                  <View className="h-80 overflow-hidden rounded-[24px] border border-line bg-stone">
+                    <Image source={{ uri: item.backgroundImageUrl }} style={{ width: '100%', height: '100%' }} contentFit="cover" />
+                    <LinearGradient
+                      colors={["transparent", "rgba(0,0,0,0.85)"]}
+                      style={{ position: "absolute", top: 0, right: 0, bottom: 0, left: 0 }}
+                    />
+                    <View className="absolute bottom-0 left-0 right-0 p-5">
+                      <AppText variant="title" className="text-ivory mb-2">{item.title}</AppText>
+                      <AppText className="text-ivory/80 mb-4">{item.completedCount} / {item.totalCount} experiences</AppText>
+                      <View className="flex-row items-center gap-2">
+                        {item.timeline.slice(0, 7).map(step => (
+                          <View key={step.id} className={`h-4 w-4 rounded-full border ${step.isComplete ? 'bg-accent border-accent' : 'border-ivory/60 bg-transparent'}`} />
+                        ))}
+                      </View>
+                    </View>
+                  </View>
+                  <Pressable onPress={() => { setJourney(item); setEditorKind('journey'); setView('editor'); }} className="mt-3 bg-stone py-2 rounded-lg items-center border border-line hover:bg-stone-300">
+                    <AppText className="text-ink font-sansSemi text-sm">Edit Journey</AppText>
+                  </Pressable>
+                </View>
+              ))}
+            </View>
+          </ScrollView>
         )}
+      </View>
+    );
+  }
+
+  if (editorKind === 'journey') {
+    const selectedNextQuest = savedQuests.find(q => q.id === journey.nextQuestId);
+    const timelineText = timelineToText(journey.timeline);
+
+    return (
+      <View className="flex-1 flex-row bg-surface">
+        <View className="w-1/3 max-w-[520px] border-r border-line bg-surface">
+          <View className="p-6 border-b border-line flex-row justify-between items-center bg-surface">
+            <Pressable onPress={() => { setLibraryKind('journeys'); setView('grid'); }} className="px-4 py-2 bg-stone rounded-md"><AppText className="text-ink">← Back</AppText></Pressable>
+            <View className="flex-row gap-3">
+              {!journey.id.startsWith('draft-') && (
+                <Pressable onPress={handleDeleteJourney} className="px-4 py-2 border border-[#E63946] rounded-md bg-[#E63946]/10"><AppText className="text-[#E63946] font-sansSemi">Delete</AppText></Pressable>
+              )}
+              <Pressable onPress={handleSaveJourney} className="px-6 py-2 bg-orange rounded-md"><AppText className="text-white font-sansSemi">Save</AppText></Pressable>
+            </View>
+          </View>
+
+          <ScrollView className="flex-1 p-8" contentContainerStyle={{ paddingBottom: 100 }}>
+            <AppText variant="subtitle" className="mb-2">Title</AppText>
+            <TextInput className="bg-surface border border-line rounded-lg p-4 mb-6 font-sans text-ink" value={journey.title} onChangeText={(txt) => updateJourneyField("title", txt)} />
+
+            <AppText variant="subtitle" className="mb-2">Slug</AppText>
+            <TextInput className="bg-surface border border-line rounded-lg p-4 mb-6 font-sans text-ink" value={journey.slug} onChangeText={(txt) => updateJourneyField("slug", txt)} />
+
+            <AppText variant="subtitle" className="mb-2">Description</AppText>
+            <TextInput className="bg-surface border border-line rounded-lg p-4 mb-6 font-sans text-ink" multiline numberOfLines={3} value={journey.description} onChangeText={(txt) => updateJourneyField("description", txt)} />
+
+            <AppText variant="subtitle" className="mb-2">Background Image URL</AppText>
+            <TextInput className="bg-surface border border-line rounded-lg p-4 mb-6 font-sans text-ink" value={journey.backgroundImageUrl} onChangeText={(txt) => updateJourneyField("backgroundImageUrl", txt)} />
+            <DraggableImageCrop imageUrl={journey.backgroundImageUrl} value={journey.imagePosition || "50% 50%"} onChange={(val) => updateJourneyField("imagePosition", val)} />
+
+            <AppText variant="subtitle" className="mb-2">Icon Name</AppText>
+            <TextInput className="bg-surface border border-line rounded-lg p-4 mb-6 font-sans text-ink" placeholder="Ionicons name, e.g. trail-sign-outline" value={journey.iconName || ""} onChangeText={(txt) => updateJourneyField("iconName", txt)} />
+
+            <View className="flex-row gap-4">
+              <View className="flex-1">
+                <AppText variant="subtitle" className="mb-2">Completed</AppText>
+                <TextInput className="bg-surface border border-line rounded-lg p-4 mb-6 font-sans text-ink" keyboardType="number-pad" value={journey.completedCount.toString()} onChangeText={(txt) => updateJourneyField("completedCount", parseInt(txt) || 0)} />
+              </View>
+              <View className="flex-1">
+                <AppText variant="subtitle" className="mb-2">Total</AppText>
+                <TextInput className="bg-surface border border-line rounded-lg p-4 mb-6 font-sans text-ink" keyboardType="number-pad" value={journey.totalCount.toString()} onChangeText={(txt) => updateJourneyField("totalCount", parseInt(txt) || 0)} />
+              </View>
+            </View>
+
+            <AppText variant="subtitle" className="mb-2">Checklist Timeline</AppText>
+            <TextInput
+              className="bg-surface border border-line rounded-lg p-4 mb-6 font-sans text-ink"
+              multiline
+              numberOfLines={8}
+              value={timelineText}
+              onChangeText={(txt) => {
+                const nextTimeline = textToTimeline(txt, journey.timeline);
+                setJourney(prev => ({
+                  ...prev,
+                  timeline: nextTimeline,
+                  completedCount: nextTimeline.filter(item => item.isComplete).length
+                }));
+              }}
+            />
+
+            <AppText variant="subtitle" className="mb-3">Included Quests</AppText>
+            <View className="mb-8 flex-row flex-wrap gap-2">
+              {savedQuests.map(q => {
+                const isSelected = journey.questIds.includes(q.id);
+                return (
+                  <Pressable
+                    key={q.id}
+                    onPress={() => {
+                      setJourney(prev => ({
+                        ...prev,
+                        questIds: isSelected ? prev.questIds.filter(id => id !== q.id) : [...prev.questIds, q.id]
+                      }));
+                    }}
+                    className={`px-3 py-2 rounded-full border ${isSelected ? 'bg-accent border-accent' : 'bg-surface border-line'}`}
+                  >
+                    <AppText className={isSelected ? 'text-accentText text-xs font-sansSemi' : 'text-ink text-xs'}>{q.title}</AppText>
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            <AppText variant="subtitle" className="mb-3">Next Up Quest</AppText>
+            <View className="mb-6 gap-2">
+              {savedQuests.map(q => {
+                const isSelected = journey.nextQuestId === q.id;
+                return (
+                  <Pressable
+                    key={q.id}
+                    onPress={() => {
+                      setJourney(prev => ({
+                        ...prev,
+                        nextQuestId: q.id,
+                        nextQuestTitle: q.title,
+                        nextQuestImageUrl: q.imageUrl,
+                        questIds: prev.questIds.includes(q.id) ? prev.questIds : [...prev.questIds, q.id]
+                      }));
+                    }}
+                    className={`p-3 rounded-xl border flex-row items-center ${isSelected ? 'bg-accent/20 border-accent' : 'bg-surface border-line'}`}
+                  >
+                    <Image source={{ uri: q.imageUrl }} className="w-12 h-12 rounded-lg mr-3 bg-stone" contentFit="cover" />
+                    <AppText className={isSelected ? 'text-ink font-sansSemi flex-1' : 'text-ink flex-1'}>{q.title}</AppText>
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            <AppText variant="subtitle" className="mb-2">Next Up Title Override</AppText>
+            <TextInput className="bg-surface border border-line rounded-lg p-4 mb-6 font-sans text-ink" value={journey.nextQuestTitle} onChangeText={(txt) => updateJourneyField("nextQuestTitle", txt)} />
+
+            <AppText variant="subtitle" className="mb-2">Next Up Image URL</AppText>
+            <TextInput className="bg-surface border border-line rounded-lg p-4 mb-6 font-sans text-ink" value={journey.nextQuestImageUrl} onChangeText={(txt) => updateJourneyField("nextQuestImageUrl", txt)} />
+          </ScrollView>
+        </View>
+
+        <View className="flex-1 bg-stone items-center justify-center p-8">
+          <View className="w-[360px] h-[520px] overflow-hidden rounded-[32px] border-[8px] border-white bg-surface shadow-xl">
+            <Image source={{ uri: journey.backgroundImageUrl }} style={{ width: '100%', height: '100%' }} contentFit="cover" />
+            <LinearGradient
+              colors={["rgba(0,0,0,0.12)", "rgba(0,0,0,0.68)", "rgba(7,20,18,0.96)"]}
+              locations={[0, 0.48, 1]}
+              style={{ position: "absolute", top: 0, right: 0, bottom: 0, left: 0 }}
+            />
+            <View className="absolute inset-0 justify-between p-8">
+              <View>
+                <View className="mb-8 h-14 w-14 items-center justify-center rounded-full border border-accent/40 bg-background/80">
+                  <AppText className="text-ivory text-xl">~</AppText>
+                </View>
+                <AppText variant="title" className="text-ivory">{journey.title}</AppText>
+                <AppText className="mt-2 text-lg leading-6 text-ivory/85">{journey.description}</AppText>
+                <View className="mt-6 flex-row items-center">
+                  {journey.timeline.slice(0, 7).map((item, index, visibleItems) => (
+                    <View key={item.id} className="flex-1 flex-row items-center">
+                      <View className={`h-6 w-6 rounded-full border ${item.isComplete ? 'bg-accent border-accent' : 'border-ivory/60 bg-background/40'}`} />
+                      {index < visibleItems.length - 1 ? <View className="h-px flex-1 bg-ivory/45" /> : null}
+                    </View>
+                  ))}
+                </View>
+                <AppText className="mt-3 text-ivory/80">{journey.completedCount} / {journey.totalCount} experiences</AppText>
+              </View>
+              <View>
+                <AppText className="mb-3 text-ivory/85">Next up</AppText>
+                <View className="flex-row items-center">
+                  <Image source={{ uri: journey.nextQuestImageUrl || selectedNextQuest?.imageUrl }} className="mr-4 h-14 w-14 rounded-lg bg-stone" contentFit="cover" />
+                  <AppText className="flex-1 text-lg leading-6 text-ivory">{journey.nextQuestTitle}</AppText>
+                  <AppText className="text-ivory/60 text-2xl">&gt;</AppText>
+                </View>
+              </View>
+            </View>
+          </View>
+        </View>
       </View>
     );
   }

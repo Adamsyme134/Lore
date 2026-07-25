@@ -1,8 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../../auth/AuthProvider";
 import { requireSupabase, supabase } from "../../../lib/supabase";
-import { previewQuests } from "../../../shared/data/previewData";
+import { previewJourneys, previewQuests } from "../../../shared/data/previewData";
 import type { 
+  Journey,
+  JourneyTimelineItem,
   Quest, 
   QuestCategory, 
   QuestCost, 
@@ -54,6 +56,24 @@ export type QuestRow = {
   recent_avatars?: string[];
 };
 
+export type JourneyRow = {
+  id: string;
+  slug: string;
+  title: string;
+  description: string;
+  background_image_url: string;
+  image_position?: string;
+  icon_name?: string;
+  timeline?: JourneyTimelineItem[] | null;
+  completed_count?: number;
+  total_count?: number;
+  next_quest_id?: string | null;
+  next_quest_title?: string;
+  next_quest_image_url?: string;
+  quest_ids?: string[];
+  is_active?: boolean;
+};
+
 export function mapQuest(row: QuestRow): Quest {
   return {
     id: row.id,
@@ -76,7 +96,7 @@ export function mapQuest(row: QuestRow): Quest {
     categories: (row.categories as QuestCategory[]) || (row.category ? [row.category as QuestCategory] : ["Adventure"]),
     category: (row.category as QuestCategory) || "Adventure",
     cost: (row.cost as QuestCost) || "Free",
-    length: (row.length as QuestLength) || "Half day",
+    length: (row.length as QuestLength) || "A few hours",
     difficulty: (row.difficulty as QuestDifficulty) || "Medium",
     country: (row.country as QuestCountry) || "Any",
     minParticipants: row.min_participants || 1,
@@ -95,6 +115,29 @@ export function mapQuest(row: QuestRow): Quest {
   };
 }
 
+export function mapJourney(row: JourneyRow): Journey {
+  const timeline = row.timeline ?? [];
+  const completedCount = row.completed_count ?? timeline.filter((item) => item.isComplete).length;
+
+  return {
+    id: row.id,
+    slug: row.slug,
+    title: row.title,
+    description: row.description || "",
+    backgroundImageUrl: row.background_image_url,
+    imagePosition: row.image_position || "50% 50%",
+    iconName: row.icon_name || "trail-sign-outline",
+    timeline,
+    completedCount,
+    totalCount: row.total_count || Math.max(timeline.length, completedCount),
+    nextQuestId: row.next_quest_id ?? null,
+    nextQuestTitle: row.next_quest_title || "Choose your next quest",
+    nextQuestImageUrl: row.next_quest_image_url || row.background_image_url,
+    questIds: row.quest_ids || [],
+    isActive: row.is_active ?? true
+  };
+}
+
 async function fetchQuestsFromSupabase() {
   const client = requireSupabase();
   const { data, error } = await client
@@ -107,12 +150,33 @@ async function fetchQuestsFromSupabase() {
   return (data ?? []).map((row) => mapQuest(row as QuestRow));
 }
 
+async function fetchJourneysFromSupabase() {
+  const client = requireSupabase();
+  const { data, error } = await client
+    .from("journeys")
+    .select("*")
+    .eq("is_active", true)
+    .order("created_at", { ascending: false });
+
+  if (error) throw error;
+  return (data ?? []).map((row) => mapJourney(row as JourneyRow));
+}
+
 export function useQuests() {
   const { isBackendReady } = useAuth();
   return useQuery({
     queryKey: ["quests", isBackendReady ? "remote" : "preview"],
     queryFn: () => (isBackendReady ? fetchQuestsFromSupabase() : Promise.resolve(previewQuests)),
     initialData: isBackendReady ? undefined : previewQuests
+  });
+}
+
+export function useJourneys() {
+  const { isBackendReady } = useAuth();
+  return useQuery({
+    queryKey: ["journeys", isBackendReady ? "remote" : "preview"],
+    queryFn: () => (isBackendReady ? fetchJourneysFromSupabase() : Promise.resolve(previewJourneys)),
+    initialData: previewJourneys
   });
 }
 

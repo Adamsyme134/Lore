@@ -1,4 +1,4 @@
-import type { FriendMoment, LoreEntry, Quest } from "../types/domain";
+import type { FriendMoment, Journey, LoreEntry, Quest } from "../types/domain";
 
 export const previewQuests: Quest[] = [
   {
@@ -20,7 +20,18 @@ export const previewQuests: Quest[] = [
       "Write three lines about what felt different."
     ],
     journalPrompt: "What did the city look like before it belonged to anyone else?",
-    pointsValue: 10
+    pointsValue: 10,
+    categories: ["Adventure"],
+    category: "Adventure",
+    cost: "Free",
+    length: "A few hours",
+    difficulty: "Easy",
+    country: "Any",
+    minParticipants: 1,
+    maxParticipants: 1,
+    seasons: ["All year"],
+    accessibility: ["Walking"],
+    locationTypes: ["City", "Countryside", "Anywhere"]
   },
   {
     id: "unknown-cafe",
@@ -41,7 +52,18 @@ export const previewQuests: Quest[] = [
       "Save the receipt or photograph the table."
     ],
     journalPrompt: "What did this place reveal once you were inside?",
-    pointsValue: 10
+    pointsValue: 10,
+    categories: ["Food & Drink", "Culture"],
+    category: "Food & Drink",
+    cost: "£",
+    length: "A few hours",
+    difficulty: "Easy",
+    country: "Any",
+    minParticipants: 1,
+    maxParticipants: 2,
+    seasons: ["All year"],
+    accessibility: ["Walking", "Public Transport"],
+    locationTypes: ["City", "Town"]
   },
   {
     id: "train-no-plan",
@@ -62,7 +84,18 @@ export const previewQuests: Quest[] = [
       "Find one object, view or conversation worth remembering."
     ],
     journalPrompt: "What did you find because you refused to over-plan?",
-    pointsValue: 12
+    pointsValue: 12,
+    categories: ["Adventure", "Culture"],
+    category: "Adventure",
+    cost: "££",
+    length: "Full day",
+    difficulty: "Medium",
+    country: "Any",
+    minParticipants: 1,
+    maxParticipants: 3,
+    seasons: ["Spring", "Summer", "Autumn"],
+    accessibility: ["Public Transport"],
+    locationTypes: ["Town", "Countryside"]
   },
   {
     id: "independent-cinema",
@@ -83,7 +116,18 @@ export const previewQuests: Quest[] = [
       "Discuss the best image from the film afterwards."
     ],
     journalPrompt: "Which frame stayed with you after leaving the building?",
-    pointsValue: 10
+    pointsValue: 10,
+    categories: ["Culture", "Social"],
+    category: "Culture",
+    cost: "£",
+    length: "A few hours",
+    difficulty: "Easy",
+    country: "Any",
+    minParticipants: 1,
+    maxParticipants: 4,
+    seasons: ["All year"],
+    accessibility: ["Public Transport", "Wheelchair Accessible"],
+    locationTypes: ["City", "Town"]
   },
   {
     id: "sketch-in-public",
@@ -104,7 +148,95 @@ export const previewQuests: Quest[] = [
       "Photograph the sketch beside the scene."
     ],
     journalPrompt: "What did drawing force you to notice?",
-    pointsValue: 8
+    pointsValue: 8,
+    categories: ["Skill", "Culture"],
+    category: "Skill",
+    cost: "Free",
+    length: "A few hours",
+    difficulty: "Easy",
+    country: "Any",
+    minParticipants: 1,
+    maxParticipants: 1,
+    seasons: ["All year"],
+    accessibility: ["Walking", "Public Transport"],
+    locationTypes: ["City", "Town", "Countryside"]
+  }
+];
+
+export const previewJourneys: Journey[] = [
+  {
+    id: "explorer-journey",
+    slug: "explorer-journey",
+    title: "The Explorer",
+    description: "Embrace the wild.",
+    backgroundImageUrl: "https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&w=1200&q=85",
+    imagePosition: "50% 50%",
+    iconName: "trail-sign-outline",
+    timeline: [
+      { id: "explorer-1", title: "Choose your edge", questId: "sunrise-high-place", isComplete: true },
+      { id: "explorer-2", title: "Leave early", questId: "train-no-plan", isComplete: true },
+      { id: "explorer-3", title: "Go without a plan", questId: "train-no-plan", isComplete: true },
+      { id: "explorer-4", title: "Sleep somewhere high", isComplete: false },
+      { id: "explorer-5", title: "Cross water", isComplete: false },
+      { id: "explorer-6", title: "Find a hidden route", isComplete: false },
+      { id: "explorer-7", title: "Bring someone back", isComplete: false }
+    ],
+    completedCount: 4,
+    totalCount: 12,
+    nextQuestId: "sunrise-high-place",
+    nextQuestTitle: "Watch sunrise from a summit",
+    nextQuestImageUrl: "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=400&q=85",
+    questIds: ["sunrise-high-place", "train-no-plan"],
+    isActive: true
+  },
+  {
+    id: "coffee-journey",
+    slug: "coffee-journey",
+    title: "Coffee Journey",
+    description: "From curious to connoisseur.",
+    backgroundImageUrl: "https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?auto=format&fit=crop&w=1200&q=85",
+    imagePosition: "50% 50%",
+    iconName: "cafe-outline",
+    timeline: [
+      { id: "coffee-1", title: "Try the nearest cafe", questId: "unknown-cafe", isComplete: true },
+      { id: "coffee-2", title: "Ask the barista", questId: "unknown-cafe", isComplete: true },
+      { id: "coffee-3", title: "Visit a roastery", isComplete: false },
+      { id: "coffee-4", title: "Taste two origins", isComplete: false },
+      { id: "coffee-5", title: "Make a slow brew", isComplete: false },
+      { id: "coffee-6", title: "Share a favourite", isComplete: false },
+      { id: "coffee-7", title: "Build your map", isComplete: false }
+    ],
+    completedCount: 2,
+    totalCount: 8,
+    nextQuestId: "unknown-cafe",
+    nextQuestTitle: "Visit a local roastery",
+    nextQuestImageUrl: "https://images.unsplash.com/photo-1442512595331-e89e73853f31?auto=format&fit=crop&w=400&q=85",
+    questIds: ["unknown-cafe"],
+    isActive: true
+  },
+  {
+    id: "maker-journey",
+    slug: "maker-journey",
+    title: "The Maker",
+    description: "Create with intention.",
+    backgroundImageUrl: "https://images.unsplash.com/photo-1493106819501-66d381c466f1?auto=format&fit=crop&w=1200&q=85",
+    imagePosition: "50% 50%",
+    iconName: "brush-outline",
+    timeline: [
+      { id: "maker-1", title: "Draw outside", questId: "sketch-in-public", isComplete: true },
+      { id: "maker-2", title: "Collect a texture", questId: "sketch-in-public", isComplete: true },
+      { id: "maker-3", title: "Make by hand", isComplete: true },
+      { id: "maker-4", title: "Try pottery", isComplete: false },
+      { id: "maker-5", title: "Repair something", isComplete: false },
+      { id: "maker-6", title: "Gift a piece", isComplete: false }
+    ],
+    completedCount: 3,
+    totalCount: 10,
+    nextQuestId: "sketch-in-public",
+    nextQuestTitle: "Try a pottery class",
+    nextQuestImageUrl: "https://images.unsplash.com/photo-1565193298357-c5b2efc1de43?auto=format&fit=crop&w=400&q=85",
+    questIds: ["sketch-in-public"],
+    isActive: true
   }
 ];
 

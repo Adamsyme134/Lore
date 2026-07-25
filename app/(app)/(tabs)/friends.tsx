@@ -1,6 +1,6 @@
 // app/(app)/(tabs)/friends.tsx
 import { useState } from "react";
-import { Alert, Modal, Platform, TextInput, View, ActivityIndicator, Share, TouchableOpacity, Pressable } from "react-native";
+import { Alert, Modal, Platform, StyleSheet, TextInput, View, ActivityIndicator, Share, TouchableOpacity, Pressable } from "react-native";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
@@ -29,6 +29,7 @@ import {
 import { useRouter } from "expo-router";
 import type { Profile } from "../../../src/shared/types/domain";
 import { useThemeColors } from "../../../src/shared/design/useThemeColors";
+import { imageSource } from "../../../src/shared/utils/imageSource";
 
 function notify(message: string) {
   if (Platform.OS === "web") {
@@ -50,7 +51,7 @@ function MemberAvatar({ member, faded = false }: { member: Profile; faded?: bool
       style={{ opacity: faded ? 0.45 : 1 }}
     >
       {member.avatarUrl ? (
-        <Image source={{ uri: member.avatarUrl }} className="h-full w-full" contentFit="cover" />
+        <Image source={imageSource(member.avatarUrl)} contentFit="cover" style={{ height: "100%", width: "100%" }} />
       ) : (
         <AppText className="font-sansSemi text-ivory">
           {member.fullName.charAt(0).toUpperCase()}
@@ -117,7 +118,7 @@ function GroupCard({ group }: { group: FriendGroup }) {
     >
       {hasBanner ? (
         <>
-          <Image source={{ uri: bannerImageUrl }} className="absolute inset-0 h-full w-full bg-stone" contentFit="cover" />
+          <Image source={imageSource(bannerImageUrl)} contentFit="cover" style={StyleSheet.absoluteFillObject} />
           <View className="absolute inset-0 bg-black/35" />
         </>
       ) : null}
@@ -454,9 +455,13 @@ export default function FriendsScreen() {
               activeOpacity={0.78}
             >
               <View className="h-12 w-12 items-center justify-center rounded-full bg-orange">
-                <AppText className="font-sansSemi text-ivory text-lg">
-                  {friend.fullName.charAt(0).toUpperCase()}
-                </AppText>
+                {friend.avatarUrl ? (
+                  <Image source={imageSource(friend.avatarUrl)} contentFit="cover" style={{ height: "100%", width: "100%" }} />
+                ) : (
+                  <AppText className="font-sansSemi text-ivory text-lg">
+                    {friend.fullName.charAt(0).toUpperCase()}
+                  </AppText>
+                )}
               </View>
               <View className="ml-4 flex-1">
                 <AppText className="font-sansSemi text-[17px]">{friend.fullName}</AppText>

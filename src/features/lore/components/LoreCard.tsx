@@ -3,6 +3,7 @@ import { View, Text, StyleSheet } from 'react-native';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MapPin } from 'lucide-react-native';
+import { imageSource } from '../../../shared/utils/imageSource';
 
 interface LoreCardProps {
   heroImageUri: string;
@@ -17,7 +18,7 @@ export const LoreCard = ({ heroImageUri, title, caption, locationName, coordinat
     <View className="w-full aspect-[3/4] bg-[#0a0a0a] overflow-hidden relative" collapsable={false}>
       {/* Hero Image */}
       <Image 
-        source={{ uri: heroImageUri }} 
+        source={imageSource(heroImageUri)} 
         contentFit="cover"
         transition={250}
         style={StyleSheet.absoluteFill}
@@ -50,7 +51,7 @@ export const LoreCard = ({ heroImageUri, title, caption, locationName, coordinat
 
       {/* Caption & Quote Mark */}
       <View className="absolute bottom-24 right-8 w-2/3 flex flex-col items-end">
-        <Text className="text-white font-serif text-7xl leading-[0.5] h-12 overflow-visible">
+        <Text className="text-white font-serif text-7xl leading-[72px] h-[72px] overflow-visible">
           ”
         </Text>
         <Text className="text-white font-serif italic text-lg text-right mt-2 leading-relaxed shadow-sm">

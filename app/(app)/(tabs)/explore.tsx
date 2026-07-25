@@ -1,214 +1,479 @@
 // app/(app)/(tabs)/explore.tsx
 import { useState, useMemo, useEffect } from "react";
-import { View, ScrollView, TextInput, Pressable, ActivityIndicator, TouchableOpacity } from "react-native";
+import { View, ScrollView, TextInput, Pressable, ActivityIndicator } from "react-native";
+import { Image } from "expo-image";
+import { LinearGradient } from "expo-linear-gradient";
+import { Ionicons } from "@expo/vector-icons";
+import Animated, { FadeInDown } from "react-native-reanimated";
+import { useRouter } from "expo-router";
 import { Screen } from "../../../src/shared/components/Screen";
 import { AppText } from "../../../src/shared/components/AppText";
-import { QuestCard } from "../../../src/features/quests/components/QuestCard";
-import { Ionicons } from '@expo/vector-icons'; // ✨ Needed for filter icon
+import { Chip } from "../../../src/shared/components/Chip";
 import { useAuth } from "../../../src/features/auth/AuthProvider";
-import { useRouter } from "expo-router";
-import type { 
-  Quest, 
-  QuestCategory, 
-  QuestCost, 
-  QuestLength, 
-  QuestDifficulty, 
-  QuestSeason, 
-  QuestAccessibility, 
-  QuestLocationType, 
-  QuestCountry
-} from "../../../src/shared/types/domain";
-import Animated, { FadeInDown } from 'react-native-reanimated';
 import { requireSupabase } from "../../../src/lib/supabase";
 import { useExperienceStore } from "../../../src/features/app/store/useExperienceStore";
 import { useThemeColors } from "../../../src/shared/design/useThemeColors";
+import { useJourneys, useQuests, useSaveQuest } from "../../../src/features/quests/api/questApi";
+import type {
+  Journey,
+  Quest,
+  QuestCategory,
+  QuestCost,
+  QuestLength
+} from "../../../src/shared/types/domain";
 
-const CATEGORIES: (QuestCategory | "All" | "Saved")[] = ["All", "Saved", "Adventure", "Skill", "Culture", "Food & Drink", "Wellness", "Social"];
-const COSTS: (QuestCost | "All")[] = ["All", "Free", "£", "££", "£££"]; // ✨ FIX 2
-const LENGTHS: (QuestLength | "All")[] = ["All", "A few hours", "Full day", "Multi-day", "Long-term"]; // ✨ FIX 2
+const CATEGORIES: (QuestCategory | "For You" | "All" | "Saved")[] = [
+  "For You",
+  "All",
+  "Saved",
+  "Adventure",
+  "Skill",
+  "Culture",
+  "Food & Drink",
+  "Wellness",
+  "Social"
+];
+const COSTS: (QuestCost | "All")[] = ["All", "Free", "£", "££", "£££"];
+const LENGTHS: (QuestLength | "All")[] = ["All", "A few hours", "Full day", "Multi-day", "Long-term"];
+
+function contentPosition(imagePosition?: string) {
+  const posMatch = imagePosition?.match(/(\d+(?:\.\d+)?)%\s+(\d+(?:\.\d+)?)%/);
+  return posMatch ? { left: `${posMatch[1]}%`, top: `${posMatch[2]}%` } : (imagePosition || "center");
+}
+
+function SectionTitle({ title, actionLabel }: { title: string; actionLabel?: string }) {
+  return (
+    <View className="mb-4 flex-row items-center justify-between px-6">
+      <AppText variant="subtitle" className="text-2xl text-ink">
+        {title}
+      </AppText>
+      {actionLabel ? (
+        <Pressable className="flex-row items-center gap-1">
+          <AppText className="text-muted">{actionLabel}</AppText>
+          <Ionicons name="chevron-forward" size={18} color="#B0B4B1" />
+        </Pressable>
+      ) : null}
+    </View>
+  );
+}
+
+function JourneyTimeline({ journey }: { journey: Journey }) {
+  return (
+    <View className="mt-5 flex-row items-center">
+      {journey.timeline.slice(0, 7).map((item, index, visibleItems) => {
+        const isCurrent = index === journey.completedCount - 1;
+        return (
+          <View key={item.id} className="flex-1 flex-row items-center">
+            <View
+              className={`h-6 w-6 items-center justify-center rounded-full border ${
+                item.isComplete ? "border-accent bg-accent" : isCurrent ? "border-accent bg-accent/80" : "border-ivory/60 bg-background/40"
+              }`}
+            >
+              {item.isComplete ? <Ionicons name="checkmark" size={14} color="#5C614E" /> : null}
+            </View>
+            {index < visibleItems.length - 1 ? <View className="h-px flex-1 bg-ivory/45" /> : null}
+          </View>
+        );
+      })}
+    </View>
+  );
+}
+
+function JourneyCard({ journey }: { journey: Journey }) {
+  const router = useRouter();
+
+  return (
+    <Pressable
+      onPress={() => {
+        if (journey.nextQuestId) router.push({ pathname: "/quest/[id]", params: { id: journey.nextQuestId } });
+      }}
+      className="mr-4 overflow-hidden rounded-[24px] border border-accent/40 bg-surface"
+      style={{ width: 312, height: 420 }}
+    >
+      <Image
+        source={{ uri: journey.backgroundImageUrl }}
+        style={{ height: "100%", width: "100%" }}
+        contentFit="cover"
+        contentPosition={contentPosition(journey.imagePosition) as any}
+        transition={300}
+      />
+      <LinearGradient
+        colors={["rgba(0,0,0,0.14)", "rgba(0,0,0,0.72)", "rgba(7,20,18,0.95)"]}
+        locations={[0, 0.5, 1]}
+        style={{ position: "absolute", top: 0, right: 0, bottom: 0, left: 0 }}
+      />
+
+      <View className="absolute inset-0 justify-between p-7">
+        <View>
+          <View className="mb-7 h-14 w-14 items-center justify-center rounded-full border border-accent/40 bg-background/80">
+            <Ionicons name={(journey.iconName as any) || "trail-sign-outline"} size={24} color="#F3F0EB" />
+          </View>
+          <AppText variant="title" className="text-ivory">
+            {journey.title}
+          </AppText>
+          <AppText className="mt-2 text-lg leading-6 text-ivory/85">
+            {journey.description}
+          </AppText>
+          <JourneyTimeline journey={journey} />
+          <AppText className="mt-3 text-ivory/80">
+            {journey.completedCount} / {journey.totalCount} experiences
+          </AppText>
+        </View>
+
+        <View>
+          <AppText className="mb-3 text-ivory/85">Next up</AppText>
+          <View className="flex-row items-center">
+            <Image source={{ uri: journey.nextQuestImageUrl }} className="mr-4 h-14 w-14 rounded-lg bg-stone" contentFit="cover" />
+            <AppText className="flex-1 text-lg leading-6 text-ivory">{journey.nextQuestTitle}</AppText>
+            <Ionicons name="chevron-forward" size={24} color="#B0B4B1" />
+          </View>
+        </View>
+      </View>
+    </Pressable>
+  );
+}
+
+function CuratedQuestTile({
+  quest,
+  isSaved,
+  onToggleSaved
+}: {
+  quest: Quest;
+  isSaved: boolean;
+  onToggleSaved: (questId: string) => void;
+}) {
+  const router = useRouter();
+  const tags = [...(quest.categories || []), quest.length].filter(Boolean).slice(0, 2);
+
+  return (
+    <Pressable
+      onPress={() => router.push({ pathname: "/quest/[id]", params: { id: quest.id } })}
+      className="mr-4 overflow-hidden rounded-[18px] border border-line/25 bg-stone"
+      style={{ width: 196, height: 286 }}
+    >
+      <Image
+        source={{ uri: quest.imageUrl }}
+        style={{ height: "100%", width: "100%" }}
+        contentFit="cover"
+        contentPosition={contentPosition(quest.imagePosition) as any}
+        transition={300}
+      />
+      <LinearGradient
+        colors={["rgba(0,0,0,0.08)", "rgba(0,0,0,0.86)"]}
+        locations={[0.25, 1]}
+        style={{ position: "absolute", top: 0, right: 0, bottom: 0, left: 0 }}
+      />
+      <Pressable
+        onPress={(event) => {
+          event.stopPropagation();
+          onToggleSaved(quest.id);
+        }}
+        className="absolute right-3 top-3 h-11 w-11 items-center justify-center rounded-xl border border-ivory/20 bg-background/70"
+      >
+        <Ionicons name={isSaved ? "bookmark" : "bookmark-outline"} size={22} color="#F3F0EB" />
+      </Pressable>
+      <View className="absolute bottom-0 left-0 right-0 p-5">
+        <AppText variant="subtitle" className="mb-4 text-2xl leading-7 text-ivory">
+          {quest.title}
+        </AppText>
+        <View className="flex-row flex-wrap gap-2">
+          {tags.map((tag) => (
+            <Chip key={tag} label={tag} tone="light" />
+          ))}
+        </View>
+      </View>
+    </Pressable>
+  );
+}
+
+function RecommendedQuestCard({
+  quest,
+  isSaved,
+  onToggleSaved
+}: {
+  quest: Quest;
+  isSaved: boolean;
+  onToggleSaved: (questId: string) => void;
+}) {
+  const router = useRouter();
+
+  return (
+    <Pressable
+      onPress={() => router.push({ pathname: "/quest/[id]", params: { id: quest.id } })}
+      className="mx-6 flex-row overflow-hidden rounded-[20px] border border-line/50 bg-surface"
+      style={{ minHeight: 136 }}
+    >
+      <Image
+        source={{ uri: quest.imageUrl }}
+        style={{ width: 132, minHeight: 136 }}
+        contentFit="cover"
+        contentPosition={contentPosition(quest.imagePosition) as any}
+      />
+      <View className="flex-1 p-5">
+        <AppText className="mb-1 text-tertiary">You've enjoyed nature lately.</AppText>
+        <AppText variant="subtitle" className="text-2xl leading-8 text-ink">
+          {quest.title}
+        </AppText>
+        <View className="mt-3 flex-row flex-wrap gap-2">
+          {[...(quest.categories || []), quest.length, quest.difficulty].filter(Boolean).slice(0, 3).map((tag) => (
+            <Chip key={tag} label={tag} tone="light" />
+          ))}
+        </View>
+      </View>
+      <Pressable
+        onPress={(event) => {
+          event.stopPropagation();
+          onToggleSaved(quest.id);
+        }}
+        className="absolute right-4 top-4"
+      >
+        <Ionicons name={isSaved ? "bookmark" : "bookmark-outline"} size={26} color="#B0B4B1" />
+      </Pressable>
+    </Pressable>
+  );
+}
 
 export default function Explore() {
-  const router = useRouter(); // ✨ NEW
   const { user } = useAuth();
   const colors = useThemeColors();
   const [searchQuery, setSearchQuery] = useState("");
-  const [activeCategory, setActiveCategory] = useState<QuestCategory | "All" | "Saved">("All");
-  
-  // State for real Supabase data
+  const [activeCategory, setActiveCategory] = useState<QuestCategory | "For You" | "All" | "Saved">("For You");
   const [showFilters, setShowFilters] = useState(false);
   const [activeCost, setActiveCost] = useState<QuestCost | "All">("All");
   const [activeLength, setActiveLength] = useState<QuestLength | "All">("All");
-
-  const [quests, setQuests] = useState<Quest[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [remoteActiveQuestIds, setRemoteActiveQuestIds] = useState<string[]>([]);
 
   const { savedQuestIds, activeQuests } = useExperienceStore();
-  // Fetch real quests from Supabase
+  const saveQuest = useSaveQuest();
+  const { data: quests = [], isLoading: isLoadingQuests } = useQuests();
+  const { data: journeys = [], isLoading: isLoadingJourneys } = useJourneys();
+
   useEffect(() => {
-    const fetchQuests = async () => {
+    let isMounted = true;
+
+    const fetchActiveQuestIds = async () => {
+      if (!user?.id) {
+        setRemoteActiveQuestIds([]);
+        return;
+      }
+
       try {
         const client = requireSupabase();
-        const { data: activeData } = await client
-        .from('user_quests')
-        .select('quest_id')
-        .eq('user_id', user?.id)
-        .eq('status', 'active');
+        const { data, error } = await client
+          .from("user_quests")
+          .select("quest_id")
+          .eq("user_id", user.id)
+          .eq("status", "active");
 
-        const activeIds = new Set([
-          ...(activeData?.map(c => c.quest_id) || []),
-          ...Object.keys(activeQuests)
-        ]);
-        const { data, error } = await client.from('quests').select('*').eq('is_active', true).order('created_at', { ascending: false });
-        
         if (error) throw error;
-
-        if (data) {
-          const mappedQuests: Quest[] = data
-          .filter(q => !activeIds.has(q.id))
-          .map(q => ({
-            id: q.id,
-            slug: q.slug,
-            title: q.title,
-            kicker: q.kicker,
-            description: q.description,
-            whyItMatters: q.why_it_matters || "",
-            locationHint: q.location_hint || "Anywhere",
-            duration: q.duration_label || q.length || "Half day", // ✨ Missing duration fixed
-            mood: q.mood || "wild",
-            accent: q.accent || "orange",
-      
-            steps: q.steps || [],
-            journalPrompt: q.journal_prompt || "",
-            pointsValue: q.points_value || 10,
-            
-            //  Strict Type Casting to fix the string errors
-            imageUrl: q.image_url,
-            imagePosition: q.image_position || "center", // ✨ NEW
-            categories: (q.categories as QuestCategory[]) || (q.category ? [q.category]: ["Adventure"]),
-            cost: (q.cost as QuestCost) || "Free",
-            length: (q.length as QuestLength) || "Half day",
-            difficulty: (q.difficulty as QuestDifficulty) || "Medium",
-            country: (q.country as QuestCountry) || "Any",
-            minParticipants: q.min_participants || 1,
-            maxParticipants: q.max_participants || 1,
-            seasons: (q.seasons as QuestSeason[]) || ["All year"],
-            accessibility: (q.accessibility as QuestAccessibility[]) || [],
-            locationTypes: (q.location_types as QuestLocationType[]) || ["Anywhere"]
-          }));
-          setQuests(mappedQuests);
-        }
+        if (isMounted) setRemoteActiveQuestIds(data?.map((item) => item.quest_id) || []);
       } catch (error) {
-        console.error("Error fetching live quests:", error);
-      } finally {
-        setIsLoading(false);
+        console.error("Error fetching active quests:", error);
+        if (isMounted) setRemoteActiveQuestIds([]);
       }
     };
 
-    fetchQuests();
-  }, [activeQuests, user?.id]);
+    void fetchActiveQuestIds();
+    return () => {
+      isMounted = false;
+    };
+  }, [user?.id, activeQuests]);
+
+  const activeQuestIds = useMemo(
+    () => new Set([...remoteActiveQuestIds, ...Object.keys(activeQuests)]),
+    [activeQuests, remoteActiveQuestIds]
+  );
 
   const filteredQuests = useMemo(() => {
-    return quests.filter(q => {
-      const matchesSearch = q.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                            q.description.toLowerCase().includes(searchQuery.toLowerCase());
-      
+    return quests.filter((quest) => {
+      const matchesSearch =
+        quest.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        quest.description.toLowerCase().includes(searchQuery.toLowerCase());
+
+      if (activeQuestIds.has(quest.id)) return false;
+
       if (activeCategory === "Saved") {
-        return matchesSearch && savedQuestIds.includes(q.id);
+        return matchesSearch && savedQuestIds.includes(quest.id);
       }
-      
-      const safeCategories = q.categories || (q.category ? [q.category] : ["Adventure"]);
-      const matchesCategory = activeCategory === "All" || safeCategories.includes(activeCategory as any);
-      
-      const matchesCost = activeCost === "All" || q.cost === activeCost;
-      const matchesLength = activeLength === "All" || q.length === activeLength;
-      
+
+      const safeCategories = quest.categories || (quest.category ? [quest.category] : ["Adventure"]);
+      const matchesCategory =
+        activeCategory === "For You" ||
+        activeCategory === "All" ||
+        safeCategories.includes(activeCategory as QuestCategory);
+      const matchesCost = activeCost === "All" || quest.cost === activeCost;
+      const matchesLength = activeLength === "All" || quest.length === activeLength;
+
       return matchesSearch && matchesCategory && matchesCost && matchesLength;
     });
-  }, [searchQuery, activeCategory, activeCost, activeLength, quests, savedQuestIds]);
+  }, [activeCategory, activeCost, activeLength, activeQuestIds, quests, savedQuestIds, searchQuery]);
+
+  const filteredJourneys = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    if (!query) return journeys.filter((journey) => journey.isActive);
+    return journeys.filter(
+      (journey) =>
+        journey.isActive &&
+        (journey.title.toLowerCase().includes(query) || journey.description.toLowerCase().includes(query))
+    );
+  }, [journeys, searchQuery]);
+
+  const recommendedQuest = useMemo(
+    () =>
+      filteredQuests.find((quest) => quest.categories?.includes("Adventure")) ||
+      filteredQuests[0] ||
+      quests.find((quest) => !activeQuestIds.has(quest.id)),
+    [activeQuestIds, filteredQuests, quests]
+  );
+
+  const curatedTitle = searchQuery
+    ? "Search Results"
+    : activeCategory === "Saved"
+      ? "Saved Quests"
+      : activeCategory !== "For You" && activeCategory !== "All"
+        ? `${activeCategory} Quests`
+        : "Curated Quests";
+
   return (
-    <Screen>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }}>
-        
-        <View className="px-6 pt-6 mb-6">
-          <AppText variant="display" className="mb-6">Explore</AppText>
+    <Screen scroll={false}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 120 }}>
+        <View className="px-6 pb-4 pt-6">
+          <AppText variant="display" className="mb-6">
+            Explore
+          </AppText>
           <View className="flex-row gap-3">
-            <View className="flex-1 flex-row items-center bg-surface border border-line rounded-full px-5 py-3 shadow-sm">
-              <AppText className="mr-3 text-tertiary">🔍</AppText>
+            <View className="flex-1 flex-row items-center rounded-full border border-line bg-surface px-5 py-3 shadow-sm">
+              <Ionicons name="search" size={20} color={colors.textTertiary} />
               <TextInput
-                className="flex-1 font-sans text-ink"
+                className="ml-3 flex-1 font-sans text-ink"
                 placeholder="Search quests..."
-                placeholderTextColor={colors.textTertiary} 
+                placeholderTextColor={colors.textTertiary}
                 value={searchQuery}
                 onChangeText={setSearchQuery}
               />
             </View>
-            {/* ✨ FIX 2: Filter Toggle Button */}
-            <Pressable 
+            <Pressable
               onPress={() => setShowFilters(!showFilters)}
-              className={`h-12 w-12 items-center justify-center rounded-full border shadow-sm ${showFilters ? 'bg-accent border-accent' : 'bg-surface border-line'}`}
+              className={`h-12 w-12 items-center justify-center rounded-full border shadow-sm ${showFilters ? "bg-accent border-accent" : "bg-surface border-line"}`}
             >
               <Ionicons name="options" size={20} color={showFilters ? colors.accentText : colors.text} />
             </Pressable>
           </View>
         </View>
 
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mb-4 pl-6" contentContainerStyle={{ paddingRight: 40, gap: 8 }}>
-          {CATEGORIES.map(cat => {
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mb-4 pl-6" contentContainerStyle={{ paddingRight: 40, gap: 12 }}>
+          {CATEGORIES.map((cat) => {
             const isActive = activeCategory === cat;
             return (
-              <Pressable key={cat} onPress={() => setActiveCategory(cat)} className={`px-5 py-2.5 rounded-full border ${isActive ? 'bg-accent border-accent' : 'bg-transparent border-line'}`}>
-                <AppText className={isActive ? 'text-accentText font-sansSemi' : 'text-ink'}>{cat}</AppText>
+              <Pressable
+                key={cat}
+                onPress={() => setActiveCategory(cat)}
+                className={`rounded-full border px-5 py-2.5 ${isActive ? "bg-accent border-accent" : "bg-transparent border-line"}`}
+              >
+                <AppText className={isActive ? "text-accentText font-sansSemi" : "text-ink"}>{cat}</AppText>
               </Pressable>
             );
           })}
         </ScrollView>
 
-        {/* ✨ FIX 2: Expanding Filters */}
         {showFilters && (
           <Animated.View entering={FadeInDown.duration(200)} className="mb-6">
             <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mb-3 pl-6" contentContainerStyle={{ paddingRight: 40, gap: 8 }}>
-              {COSTS.map(cost => {
+              {COSTS.map((cost) => {
                 const isActive = activeCost === cost;
                 return (
-                  <Pressable key={cost} onPress={() => setActiveCost(cost)} className={`px-4 py-1.5 rounded-full border ${isActive ? 'bg-elevated border-accent' : 'bg-transparent border-line/40'}`}>
-                    <AppText variant="caption" className={isActive ? 'text-ink font-sansSemi' : 'text-muted'}>{cost}</AppText>
+                  <Pressable
+                    key={cost}
+                    onPress={() => setActiveCost(cost)}
+                    className={`rounded-full border px-4 py-1.5 ${isActive ? "bg-elevated border-accent" : "bg-transparent border-line/40"}`}
+                  >
+                    <AppText variant="caption" className={isActive ? "text-ink font-sansSemi" : "text-muted"}>
+                      {cost}
+                    </AppText>
                   </Pressable>
                 );
               })}
             </ScrollView>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} className="pl-6" contentContainerStyle={{ paddingRight: 40, gap: 8 }}>
-              {LENGTHS.map(len => {
+              {LENGTHS.map((len) => {
                 const isActive = activeLength === len;
                 return (
-                  <Pressable key={len} onPress={() => setActiveLength(len)} className={`px-4 py-1.5 rounded-full border ${isActive ? 'bg-elevated border-accent' : 'bg-transparent border-line/40'}`}>
-                    <AppText variant="caption" className={isActive ? 'text-ink font-sansSemi' : 'text-muted'}>{len}</AppText>
+                  <Pressable
+                    key={len}
+                    onPress={() => setActiveLength(len)}
+                    className={`rounded-full border px-4 py-1.5 ${isActive ? "bg-elevated border-accent" : "bg-transparent border-line/40"}`}
+                  >
+                    <AppText variant="caption" className={isActive ? "text-ink font-sansSemi" : "text-muted"}>
+                      {len}
+                    </AppText>
                   </Pressable>
                 );
               })}
             </ScrollView>
           </Animated.View>
         )}
-        <View className="px-2">
-          <AppText variant="subtitle" className="mb-4">
-            {searchQuery ? "Search Results" : activeCategory !== "All" ? `${activeCategory} Quests` : "All Quests"}
-          </AppText>
-          
-          {isLoading ? (
-             <View className="py-12 items-center justify-center">
-                <ActivityIndicator size="large" color={colors.accent} />
-             </View>
-          ) : filteredQuests.length === 0 ? (
-            <View className="items-center justify-center py-12 border border-dashed border-line rounded-card">
-              <AppText className="text-muted text-center">No quests found.</AppText>
+
+        <View className="mb-8">
+          <SectionTitle title="Your Journeys" actionLabel="See all" />
+          {isLoadingJourneys && filteredJourneys.length === 0 ? (
+            <View className="items-center justify-center py-12">
+              <ActivityIndicator size="large" color={colors.accent} />
+            </View>
+          ) : filteredJourneys.length === 0 ? (
+            <View className="mx-6 items-center justify-center rounded-card border border-dashed border-line py-12">
+              <AppText className="text-center text-muted">No journeys found.</AppText>
             </View>
           ) : (
-            <View className="gap-4">
-              {filteredQuests.map(q => (
-                <QuestCard key={q.id} quest={q} />
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} className="pl-6" contentContainerStyle={{ paddingRight: 24 }}>
+              {filteredJourneys.map((journey) => (
+                <JourneyCard key={journey.id} journey={journey} />
               ))}
-            </View>
+            </ScrollView>
           )}
         </View>
+
+        <View className="mb-9">
+          <SectionTitle title={curatedTitle} actionLabel="See all" />
+          {isLoadingQuests && filteredQuests.length === 0 ? (
+            <View className="items-center justify-center py-12">
+              <ActivityIndicator size="large" color={colors.accent} />
+            </View>
+          ) : filteredQuests.length === 0 ? (
+            <View className="mx-6 items-center justify-center rounded-card border border-dashed border-line py-12">
+              <AppText className="text-center text-muted">No quests found.</AppText>
+            </View>
+          ) : (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} className="pl-6" contentContainerStyle={{ paddingRight: 24 }}>
+              {filteredQuests.map((quest) => (
+                <CuratedQuestTile
+                  key={quest.id}
+                  quest={quest}
+                  isSaved={savedQuestIds.includes(quest.id)}
+                  onToggleSaved={(questId) => saveQuest.mutate(questId)}
+                />
+              ))}
+            </ScrollView>
+          )}
+        </View>
+
+        {recommendedQuest ? (
+          <View className="mb-8">
+            <View className="mb-4 flex-row items-center justify-between px-6">
+              <AppText variant="subtitle" className="text-2xl text-ink">
+                Because you're exploring
+              </AppText>
+              <View className="flex-row items-center gap-2">
+                <AppText className="text-muted">Recommended next steps</AppText>
+                <Ionicons name="sparkles" size={14} color={colors.textTertiary} />
+              </View>
+            </View>
+            <RecommendedQuestCard
+              quest={recommendedQuest}
+              isSaved={savedQuestIds.includes(recommendedQuest.id)}
+              onToggleSaved={(questId) => saveQuest.mutate(questId)}
+            />
+          </View>
+        ) : null}
       </ScrollView>
     </Screen>
   );

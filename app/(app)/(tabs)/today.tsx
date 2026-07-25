@@ -173,7 +173,7 @@ export default function TodayScreen() {
       </Animated.View>
 
       {/* --- PAGE 2: IN PROGRESS HORIZONTAL SCROLL --- */}
-      <View className="mb-8">
+      <View className="mb-8 pt-2">
         <View className="px-5 mb-4">
           <AppText variant="title">In Progress</AppText>
         </View>

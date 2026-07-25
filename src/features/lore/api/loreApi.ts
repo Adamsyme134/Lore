@@ -25,6 +25,12 @@ type LoreEntryRow = {
     title: string;
     accent: Accent;
   } | null;
+  profiles?: {
+    id: string;
+    handle: string | null;
+    full_name: string | null;
+    avatar_url: string | null;
+  } | null;
   lore_photos: Array<{
     id: string;
     public_url: string;
@@ -60,6 +66,12 @@ function mapLoreEntry(row: LoreEntryRow): LoreEntry {
   return {
     id: row.id,
     userId: row.user_id,
+    uploader: row.profiles ? {
+      id: row.profiles.id,
+      name: row.profiles.full_name ?? "Explorer",
+      handle: row.profiles.handle ?? undefined,
+      avatarUrl: row.profiles.avatar_url
+    } : undefined,
     title: row.title,
     date: formatEntryDate(row.occurred_at),
     occurredAt: row.occurred_at,
@@ -84,7 +96,7 @@ async function fetchLoreEntriesFromSupabase(userId: string): Promise<LoreEntry[]
   const client = requireSupabase();
   const { data, error } = await client
     .from("lore_entries")
-    .select("id, user_id, title, journal, location_name, latitude, longitude, mood, occurred_at, cover_photo_url, points_awarded, quest_id, quests(title, accent), lore_photos(id, public_url, storage_path, width, height, sort_order)")
+    .select("id, user_id, title, journal, location_name, latitude, longitude, mood, occurred_at, cover_photo_url, points_awarded, quest_id, quests(title, accent), profiles!lore_entries_user_id_fkey(id, handle, full_name, avatar_url), lore_photos(id, public_url, storage_path, width, height, sort_order)")
     .eq('user_id', userId)
     .order("occurred_at", { ascending: false });
 
@@ -99,7 +111,7 @@ async function fetchLoreEntryByIdFromSupabase(id: string): Promise<LoreEntry | n
   const client = requireSupabase();
   const { data, error } = await client
     .from("lore_entries")
-    .select("id, user_id, title, journal, location_name, latitude, longitude, mood, occurred_at, cover_photo_url, points_awarded, quest_id, quests(title, accent), lore_photos(id, public_url, storage_path, width, height, sort_order)")
+    .select("id, user_id, title, journal, location_name, latitude, longitude, mood, occurred_at, cover_photo_url, points_awarded, quest_id, quests(title, accent), profiles!lore_entries_user_id_fkey(id, handle, full_name, avatar_url), lore_photos(id, public_url, storage_path, width, height, sort_order)")
     .eq("id", id)
     .maybeSingle();
 

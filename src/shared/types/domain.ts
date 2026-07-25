@@ -76,6 +76,32 @@ export type QuestStats = {
   completed: number;
   recentAvatars?: string[];
 };
+
+export type JourneyTimelineItem = {
+  id: string;
+  title: string;
+  questId?: string;
+  isComplete: boolean;
+};
+
+export type Journey = {
+  id: string;
+  slug: string;
+  title: string;
+  description: string;
+  backgroundImageUrl: string;
+  imagePosition?: string;
+  iconName?: string;
+  timeline: JourneyTimelineItem[];
+  completedCount: number;
+  totalCount: number;
+  nextQuestId?: string | null;
+  nextQuestTitle: string;
+  nextQuestImageUrl: string;
+  questIds: string[];
+  isActive: boolean;
+};
+
 export type Quest = {
   id: string;
   slug: string;
@@ -125,6 +151,12 @@ export type LorePhoto = {
 export type LoreEntry = {
   id: string;
   userId?: string;
+  uploader?: {
+    id: string;
+    name: string;
+    handle?: string;
+    avatarUrl?: string | null;
+  };
   title: string;
   date: string;
   occurredAt: string;

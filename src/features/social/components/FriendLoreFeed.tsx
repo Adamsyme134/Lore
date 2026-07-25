@@ -8,6 +8,7 @@ import type { FriendMoment } from "../../../shared/types/domain";
 import { AppText } from "../../../shared/components/AppText";
 import { LoreCard } from "../../lore/components/LoreCard";
 import { useToggleLoreLike } from "../api/socialApi";
+import { imageSource } from "../../../shared/utils/imageSource";
 
 type FriendLoreFeedProps = {
   moments: FriendMoment[];
@@ -80,7 +81,7 @@ export function FriendLoreFeed({ moments }: FriendLoreFeedProps) {
               <View className="absolute right-4 top-4 flex-row items-center rounded-full bg-black/45 py-2 pl-2 pr-3">
                 <View className="h-8 w-8 items-center justify-center overflow-hidden rounded-full bg-orange">
                   {moment.avatarUrl ? (
-                    <Image source={{ uri: moment.avatarUrl }} className="h-full w-full" contentFit="cover" />
+                    <Image source={imageSource(moment.avatarUrl)} contentFit="cover" style={{ height: "100%", width: "100%" }} />
                   ) : (
                     <AppText className="font-sansSemi text-xs text-ivory">
                       {moment.name.charAt(0).toUpperCase()}

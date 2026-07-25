@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { ActivityIndicator, Alert, Modal, Platform, ScrollView, TextInput, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, Alert, Modal, Platform, ScrollView, StyleSheet, TextInput, TouchableOpacity, View } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
@@ -26,6 +26,7 @@ import {
   type LeaderboardFilter
 } from "../../../src/features/social/api/socialApi";
 import type { Profile } from "../../../src/shared/types/domain";
+import { imageSource } from "../../../src/shared/utils/imageSource";
 
 const leaderboardFilters: { label: string; value: LeaderboardFilter }[] = [
   { label: "All time", value: "all_time" },
@@ -53,7 +54,7 @@ function MemberAvatar({ member, faded = false }: { member: Profile; faded?: bool
       style={{ opacity: faded ? 0.45 : 1 }}
     >
       {member.avatarUrl ? (
-        <Image source={{ uri: member.avatarUrl }} className="h-full w-full" contentFit="cover" />
+        <Image source={imageSource(member.avatarUrl)} contentFit="cover" style={{ height: "100%", width: "100%" }} />
       ) : (
         <AppText className="font-sansSemi text-ivory">
           {member.fullName.charAt(0).toUpperCase()}
@@ -249,7 +250,7 @@ export default function GroupDetailScreen() {
         <View className="min-h-[190px] justify-end p-5">
           {hasBanner ? (
             <>
-              <Image source={{ uri: bannerImageUrl }} className="absolute inset-0 h-full w-full bg-stone" contentFit="cover" />
+              <Image source={imageSource(bannerImageUrl)} contentFit="cover" style={StyleSheet.absoluteFillObject} />
               <View className="absolute inset-0 bg-black/35" />
             </>
           ) : null}
@@ -455,7 +456,7 @@ export default function GroupDetailScreen() {
             />
             {editPreviewUrl ? (
               <View className="mt-3 h-28 overflow-hidden rounded-[18px] bg-stone">
-                <Image source={{ uri: editPreviewUrl }} className="h-full w-full" contentFit="cover" />
+                <Image source={imageSource(editPreviewUrl)} contentFit="cover" style={{ height: "100%", width: "100%" }} />
               </View>
             ) : null}
             <View className="mt-3 flex-row gap-3">
