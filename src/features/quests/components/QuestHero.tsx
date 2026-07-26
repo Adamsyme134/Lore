@@ -4,6 +4,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { router } from "expo-router";
 import { Ionicons } from '@expo/vector-icons';
+import Svg, { G, Line, Rect, Text as SvgText } from "react-native-svg";
 import type { Quest } from "../../../shared/types/domain";
 import { AppText } from "../../../shared/components/AppText";
 import { useThemeColors } from "../../../shared/design/useThemeColors";
@@ -14,10 +15,75 @@ type QuestHeroProps = {
   variant?: "full" | "recommended";
   onPressOverride?: () => void;
   isSaved?: boolean;
+  isCompleted?: boolean;
   onSavePress?: () => void;
 };
 
-export function QuestHero({ quest, className, variant = "full", onPressOverride, isSaved, onSavePress }: QuestHeroProps) {
+const stampScratches = [
+  { x: 70, y: 94, width: 58, height: 5, rotate: -4 },
+  { x: 142, y: 99, width: 24, height: 4, rotate: 6 },
+  { x: 198, y: 88, width: 66, height: 5, rotate: -7 },
+  { x: 286, y: 103, width: 46, height: 4, rotate: 3 },
+  { x: 386, y: 91, width: 72, height: 5, rotate: 6 },
+  { x: 492, y: 102, width: 38, height: 4, rotate: -5 },
+  { x: 570, y: 92, width: 92, height: 5, rotate: 4 },
+  { x: 706, y: 103, width: 54, height: 4, rotate: -6 },
+  { x: 804, y: 89, width: 76, height: 5, rotate: 5 },
+  { x: 94, y: 131, width: 30, height: 7, rotate: -15 },
+  { x: 156, y: 174, width: 52, height: 8, rotate: 10 },
+  { x: 246, y: 203, width: 28, height: 7, rotate: -8 },
+  { x: 322, y: 158, width: 64, height: 8, rotate: 11 },
+  { x: 424, y: 217, width: 44, height: 7, rotate: -13 },
+  { x: 512, y: 144, width: 58, height: 8, rotate: 9 },
+  { x: 596, y: 190, width: 26, height: 7, rotate: -10 },
+  { x: 690, y: 154, width: 74, height: 8, rotate: 7 },
+  { x: 780, y: 214, width: 48, height: 7, rotate: -9 },
+  { x: 864, y: 166, width: 28, height: 7, rotate: 12 },
+  { x: 92, y: 252, width: 72, height: 5, rotate: 3 },
+  { x: 210, y: 239, width: 54, height: 4, rotate: -6 },
+  { x: 318, y: 257, width: 86, height: 5, rotate: 5 },
+  { x: 464, y: 241, width: 40, height: 4, rotate: -7 },
+  { x: 560, y: 254, width: 62, height: 5, rotate: 4 },
+  { x: 682, y: 238, width: 46, height: 4, rotate: -5 },
+  { x: 774, y: 256, width: 84, height: 5, rotate: 6 }
+];
+
+function CompletedStamp() {
+  return (
+    <Svg pointerEvents="none" className="absolute inset-0 z-20" viewBox="0 0 1000 350" preserveAspectRatio="none">
+      <G transform="rotate(-8 500 175)" opacity={0.94}>
+        <Line x1="58" y1="88" x2="942" y2="88" stroke="white" strokeWidth="18" strokeLinecap="square" />
+        <Line x1="66" y1="262" x2="934" y2="262" stroke="white" strokeWidth="22" strokeLinecap="square" />
+        <SvgText
+          x="500"
+          y="222"
+          fill="white"
+          fontSize="138"
+          fontWeight="900"
+          fontFamily="Inter_900Black, Inter_800ExtraBold, Inter_700Bold, System"
+          letterSpacing="-2"
+          textAnchor="middle"
+        >
+          COMPLETED
+        </SvgText>
+        {stampScratches.map((scratch, index) => (
+          <Rect
+            key={index}
+            x={scratch.x}
+            y={scratch.y}
+            width={scratch.width}
+            height={scratch.height}
+            fill="#1c1a17"
+            fillOpacity={0.68}
+            transform={`rotate(${scratch.rotate} ${scratch.x + scratch.width / 2} ${scratch.y + scratch.height / 2})`}
+          />
+        ))}
+      </G>
+    </Svg>
+  );
+}
+
+export function QuestHero({ quest, className, variant = "full", onPressOverride, isSaved, isCompleted, onSavePress }: QuestHeroProps) {
   const colors = useThemeColors();
   const posMatch = quest.imagePosition?.match(/(\d+(?:\.\d+)?)%\s+(\d+(?:\.\d+)?)%/);
   const contentPos = posMatch ? { left: `${posMatch[1]}%`, top: `${posMatch[2]}%` } : (quest.imagePosition || 'center');
@@ -43,6 +109,7 @@ export function QuestHero({ quest, className, variant = "full", onPressOverride,
           style={{ height: "100%", width: "100%" }}
         />
         <View className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/20" />
+        {isCompleted && !isRecommended ? <CompletedStamp /> : null}
 
         {isRecommended ? (
           <>
@@ -111,7 +178,7 @@ export function QuestHero({ quest, className, variant = "full", onPressOverride,
                   {quest.title}
                 </AppText>
                 
-                {onSavePress && (
+                {onSavePress && !isCompleted && (
                   <Pressable 
                     onPress={onSavePress} 
                     className={`w-11 h-11 rounded-full items-center justify-center border ${isSaved ? 'bg-accent border-accent' : 'bg-surface border-line'}`}

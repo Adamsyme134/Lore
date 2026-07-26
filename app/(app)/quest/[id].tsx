@@ -16,6 +16,7 @@ import { QuestExecutionProvider } from "../../../src/features/quests/context/Que
 import { QuestHero } from "../../../src/features/quests/components/QuestHero";
 import { useAddFriendGroupQuest, useCreateFriendGroup, useFriendGroups, useFriendsList } from "../../../src/features/social/api/socialApi";
 import { useThemeColors } from "../../../src/shared/design/useThemeColors";
+import { useLoreEntries } from "../../../src/features/lore/api/loreApi";
 
 function SegmentedProgressBar({ completed, total }: { completed: number; total: number }) {
   const safeTotal = Math.max(total, 1);
@@ -62,6 +63,7 @@ export default function QuestDetailScreen() {
   const { data: quest } = useQuest(id);
   const { data: journeys = [] } = useJourneys();
   const { data: questStatuses } = useUserQuestStatuses();
+  const { data: loreEntries = [], isLoading: isLoadingLoreEntries } = useLoreEntries();
   const { savedQuestIds, activeQuests, toggleQuestStep } = useExperienceStore();
   const saveQuest = useSaveQuest();
   const activateQuest = useActivateQuest();
@@ -159,6 +161,8 @@ export default function QuestDetailScreen() {
   }
 
   const isSaved = savedQuestIds.includes(quest.id);
+  const completedLoreEntry = loreEntries.find((entry) => entry.questId === quest.id);
+  const isQuestCompleted = completedQuestIds.has(quest.id) || !!completedLoreEntry;
   const groupParticipants = groupProgress.data?.participants ?? [];
   const acceptedParticipantCount = Math.max(groupParticipants.length, isActive ? 1 : 0);
   const isGroupQuest = groupProgress.data?.hasGroup || quest.minParticipants > 1;
@@ -313,6 +317,7 @@ export default function QuestDetailScreen() {
             <QuestHero 
               quest={quest} 
               isSaved={isSaved} 
+              isCompleted={isQuestCompleted}
               onSavePress={() => saveQuest.mutate(quest.id)} 
             />
 
@@ -440,7 +445,17 @@ export default function QuestDetailScreen() {
             </View>
 
             <View className="mt-6 flex-row gap-3">
-              {!isActive ? (
+              {isQuestCompleted ? (
+                <Button
+                  label={completedLoreEntry ? "See Lore Entry" : isLoadingLoreEntries ? "Loading Entry..." : "Completed"}
+                  className="flex-1 bg-orange"
+                  disabled={!completedLoreEntry}
+                  onPress={() => {
+                    if (!completedLoreEntry) return;
+                    router.push({ pathname: "/lore/[id]", params: { id: completedLoreEntry.id } });
+                  }}
+                />
+              ) : !isActive ? (
                 quest.minParticipants > 1 ? (
                   <Button label="Start with Group" onPress={() => router.push({ pathname: "/(app)/group/select", params: { questId: quest.id } })} className="flex-1 bg-orange" />
                 ) : (
