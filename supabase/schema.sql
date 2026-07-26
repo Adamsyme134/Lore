@@ -40,6 +40,7 @@ create table if not exists public.journeys (
   slug text not null unique,
   title text not null,
   description text not null default '',
+  visibility text not null default 'global' check (visibility in ('global', 'exclusive')),
   background_image_url text not null,
   image_position text default '50% 50%',
   icon_name text default 'trail-sign-outline',
@@ -54,6 +55,9 @@ create table if not exists public.journeys (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+alter table public.journeys
+  add column if not exists visibility text not null default 'global' check (visibility in ('global', 'exclusive'));
 
 alter table public.journeys enable row level security;
 

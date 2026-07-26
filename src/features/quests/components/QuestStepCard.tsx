@@ -113,7 +113,7 @@ export function QuestStepCard({
                 disabled={isCompleteDisabled}
                 className={cx("min-h-[56px] items-center justify-center rounded-full px-6 py-4", theme.bg, isCompleteDisabled && "opacity-50")}
               >
-                <AppText variant="caption" className="font-sansBold uppercase tracking-editorial" style={{ color: colors.isDark ? colors.accentText : "#FFFFFF" }}>
+                <AppText variant="caption" className="font-sansBold uppercase tracking-editorial" style={{ color: colors.accentText }}>
                   Next step
                 </AppText>
               </Pressable>

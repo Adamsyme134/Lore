@@ -21,7 +21,7 @@ module.exports = {
         disabled: "rgb(var(--color-text-disabled) / <alpha-value>)",
         line: "rgb(var(--color-border) / <alpha-value>)",
         accent: "rgb(var(--color-accent) / <alpha-value>)",
-        accentText: "rgb(var(--color-accent-text) / <alpha-value>)",
+        accentText: "#183431",
         charcoal: "rgb(var(--color-background-secondary) / <alpha-value>)",
         ivory: "#F5F0E7",
         cream: "#EFE6D8",

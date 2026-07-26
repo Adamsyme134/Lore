@@ -8,7 +8,7 @@ import { AppText } from "../../../src/shared/components/AppText";
 import { Button } from "../../../src/shared/components/Button";
 import { QuestDetailBlock } from "../../../src/features/quests/components/QuestDetailBlock";
 import { useExperienceStore } from "../../../src/features/app/store/useExperienceStore";
-import { useQuest, useSaveQuest, useActivateQuest, useQuitQuest, useTrackQuestView } from "../../../src/features/quests/api/questApi";
+import { getExclusiveQuestLock, useJourneys, useQuest, useSaveQuest, useActivateQuest, useQuitQuest, useTrackQuestView, useUserQuestStatuses } from "../../../src/features/quests/api/questApi";
 import { useGroupQuestProgress, useUpdateQuestStepProgress, useUserQuestState, type GroupQuestParticipant } from "../../../src/features/quests/api/groupQuestApi";
 import { Ionicons } from '@expo/vector-icons'; 
 
@@ -60,6 +60,8 @@ export default function QuestDetailScreen() {
   const colors = useThemeColors();
   const { id, groupId } = useLocalSearchParams<{ id: string; groupId?: string }>();
   const { data: quest } = useQuest(id);
+  const { data: journeys = [] } = useJourneys();
+  const { data: questStatuses } = useUserQuestStatuses();
   const { savedQuestIds, activeQuests, toggleQuestStep } = useExperienceStore();
   const saveQuest = useSaveQuest();
   const activateQuest = useActivateQuest();
@@ -127,6 +129,31 @@ export default function QuestDetailScreen() {
           </Pressable>
         </View>
         <AppText variant="title" className="px-5">Quest not found.</AppText>
+      </Screen>
+    );
+  }
+
+  const completedQuestIds = new Set(questStatuses?.completed || []);
+  const exclusiveLock = getExclusiveQuestLock(quest.id, journeys, completedQuestIds);
+
+  if (exclusiveLock?.isLocked) {
+    return (
+      <Screen contentClassName="px-5">
+        <View style={{ paddingTop: Math.max(insets.top, 20) }} className="pb-4">
+          <Pressable onPress={() => router.back()} className="h-10 w-10 items-center justify-center rounded-full bg-surface">
+            <Ionicons name="arrow-back" size={20} color={colors.text} />
+          </Pressable>
+        </View>
+        <View className="mt-16 items-center rounded-card border border-line bg-surface p-8">
+          <View className="mb-5 h-14 w-14 items-center justify-center rounded-full bg-stone">
+            <Ionicons name="lock-closed-outline" size={26} color={colors.text} />
+          </View>
+          <AppText variant="title" className="text-center">Quest locked</AppText>
+          <AppText className="mt-3 text-center text-muted">
+            Complete the previous quest in {exclusiveLock.journey.title} to unlock this one.
+          </AppText>
+          <Button label="Back to journey" className="mt-6" onPress={() => router.replace({ pathname: "/journey/[id]", params: { id: exclusiveLock.journey.id } })} />
+        </View>
       </Screen>
     );
   }

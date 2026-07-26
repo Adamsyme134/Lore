@@ -89,6 +89,7 @@ export type Journey = {
   slug: string;
   title: string;
   description: string;
+  visibility: "global" | "exclusive";
   backgroundImageUrl: string;
   imagePosition?: string;
   iconName?: string;

@@ -3,6 +3,7 @@ import { useState, useEffect, useRef } from "react";
 import { View, ScrollView, TextInput, Pressable, PanResponder } from "react-native";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
+import { Ionicons } from "@expo/vector-icons";
 import { AppText } from "../../src/shared/components/AppText";
 import { QuestHero } from "../../src/features/quests/components/QuestHero";
 import { QuestCard } from "../../src/features/quests/components/QuestCard";
@@ -13,7 +14,6 @@ import { mapJourney, type JourneyRow } from "../../src/features/quests/api/quest
 import { previewJourneys } from "../../src/shared/data/previewData";
 import type { 
   Journey,
-  JourneyTimelineItem,
   Quest, 
   QuestCategory, 
   QuestCost, 
@@ -27,6 +27,7 @@ import type {
 import { requireSupabase } from "../../src/lib/supabase";
 
 const CATEGORIES: (QuestCategory | "All")[] = ["All", "Adventure", "Skill", "Culture", "Food & Drink", "Wellness", "Social"];
+const JOURNEY_ICON_NAMES = Object.keys((Ionicons as any).glyphMap || {}).sort();
 
 // -- WIDGETS SETUP -- //
 type WidgetType = 'RANDOMISER' | 'LOCATION' | 'YOUTUBE' | 'LINK' | 'CHECKLIST' | 'MAP' | 'CARD_REVEAL';
@@ -329,48 +330,54 @@ const createBlankQuest = (): Quest => ({
 
 const createBlankJourney = (quests: Quest[] = []): Journey => {
   const nextQuest = quests[0];
+  const questIds = nextQuest ? [nextQuest.id] : [];
   return {
     id: `draft-journey-${Date.now()}`,
     slug: `new-journey-${Date.now()}`,
     title: "Untitled Journey",
     description: "A themed path of experiences.",
+    visibility: "global",
     backgroundImageUrl: nextQuest?.imageUrl || "https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&w=1200&q=85",
     imagePosition: "50% 50%",
     iconName: "trail-sign-outline",
-    timeline: [
-      { id: `timeline-${Date.now()}-1`, title: "First experience", questId: nextQuest?.id, isComplete: true },
-      { id: `timeline-${Date.now()}-2`, title: "Second experience", isComplete: false },
-      { id: `timeline-${Date.now()}-3`, title: "Third experience", isComplete: false }
-    ],
-    completedCount: 1,
-    totalCount: 6,
+    timeline: questIds.map((questId, index) => ({
+      id: `timeline-${Date.now()}-${questId}`,
+      title: quests.find(q => q.id === questId)?.title || `Experience ${index + 1}`,
+      questId,
+      isComplete: false
+    })),
+    completedCount: 0,
+    totalCount: questIds.length,
     nextQuestId: nextQuest?.id || null,
     nextQuestTitle: nextQuest?.title || "Choose the next quest",
     nextQuestImageUrl: nextQuest?.imageUrl || "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=400&q=85",
-    questIds: nextQuest ? [nextQuest.id] : [],
+    questIds,
     isActive: true
   };
 };
 
-const timelineToText = (timeline: JourneyTimelineItem[]) =>
-  timeline.map((item) => `${item.isComplete ? "[x]" : "[ ]"} ${item.title}`).join("\n");
+const buildJourneyFromQuestIds = (baseJourney: Journey, questIds: string[], quests: Quest[]): Journey => {
+  const questById = new Map(quests.map(q => [q.id, q]));
+  const nextQuestId = questIds[0];
+  const nextQuest = nextQuestId ? questById.get(nextQuestId) : null;
+  const existingNextTimelineItem = nextQuestId ? baseJourney.timeline.find(item => item.questId === nextQuestId) : null;
 
-const textToTimeline = (value: string, current: JourneyTimelineItem[]): JourneyTimelineItem[] =>
-  value
-    .split("\n")
-    .map((line, index) => {
-      const trimmed = line.trim();
-      if (!trimmed) return null;
-      const isComplete = /^\[(x|X)\]/.test(trimmed);
-      const title = trimmed.replace(/^\[(x|X| )\]\s*/, "").trim();
-      return {
-        id: current[index]?.id || `timeline-${Date.now()}-${index}`,
-        title: title || `Step ${index + 1}`,
-        questId: current[index]?.questId,
-        isComplete
-      };
-    })
-    .filter(Boolean) as JourneyTimelineItem[];
+  return {
+    ...baseJourney,
+    questIds,
+    timeline: questIds.map((questId, index) => ({
+      id: `${baseJourney.id}-timeline-${questId}`,
+      title: questById.get(questId)?.title || baseJourney.timeline.find(item => item.questId === questId)?.title || `Experience ${index + 1}`,
+      questId,
+      isComplete: false
+    })),
+    completedCount: 0,
+    totalCount: questIds.length,
+    nextQuestId: nextQuestId || null,
+    nextQuestTitle: nextQuest?.title || existingNextTimelineItem?.title || baseJourney.nextQuestTitle || "Choose the next quest",
+    nextQuestImageUrl: nextQuest?.imageUrl || baseJourney.backgroundImageUrl
+  };
+};
 
 function DraggableImageCrop({ imageUrl, value, onChange }: { imageUrl: string, value: string, onChange: (val: string) => void }) {
   const panRef = useRef({ x: 50, y: 50 });
@@ -432,6 +439,75 @@ function DraggableImageCrop({ imageUrl, value, onChange }: { imageUrl: string, v
   );
 }
 
+function JourneyQuestOrderItem({
+  quest,
+  index,
+  count,
+  onMove,
+  onRemove
+}: {
+  quest: Quest;
+  index: number;
+  count: number;
+  onMove: (fromIndex: number, toIndex: number) => void;
+  onRemove: () => void;
+}) {
+  const [dragY, setDragY] = useState(0);
+  const [isDragging, setIsDragging] = useState(false);
+  const indexRef = useRef(index);
+  const countRef = useRef(count);
+  const onMoveRef = useRef(onMove);
+
+  useEffect(() => {
+    indexRef.current = index;
+    countRef.current = count;
+    onMoveRef.current = onMove;
+  }, [count, index, onMove]);
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_, gestureState) => Math.abs(gestureState.dy) > 6,
+      onPanResponderGrant: () => setIsDragging(true),
+      onPanResponderMove: (_, gestureState) => setDragY(gestureState.dy),
+      onPanResponderRelease: (_, gestureState) => {
+        const offset = Math.round(gestureState.dy / 76);
+        const fromIndex = indexRef.current;
+        const targetIndex = Math.max(0, Math.min(countRef.current - 1, fromIndex + offset));
+        setDragY(0);
+        setIsDragging(false);
+        if (targetIndex !== fromIndex) onMoveRef.current(fromIndex, targetIndex);
+      },
+      onPanResponderTerminate: () => {
+        setDragY(0);
+        setIsDragging(false);
+      }
+    })
+  ).current;
+
+  return (
+    <View
+      className={`mb-3 rounded-xl border bg-surface p-3 shadow-sm ${isDragging ? 'border-accent z-50' : 'border-line'}`}
+      style={{ transform: [{ translateY: dragY }], opacity: isDragging ? 0.92 : 1 }}
+    >
+      <View className="flex-row items-center">
+        <View className="mr-3 h-10 w-7 items-center justify-center rounded-lg bg-stone" {...panResponder.panHandlers}>
+          <AppText className="text-ink/50 text-lg">=</AppText>
+        </View>
+        <Image source={{ uri: quest.imageUrl }} className="mr-3 h-14 w-14 rounded-lg bg-stone" contentFit="cover" />
+        <View className="flex-1">
+          <AppText className="font-sansSemi text-ink" numberOfLines={1}>{quest.title}</AppText>
+          <AppText className="mt-1 text-xs text-ink/50" numberOfLines={1}>
+            {index + 1} of {count} · {quest.length} · {quest.difficulty}
+          </AppText>
+        </View>
+        <Pressable onPress={onRemove} className="ml-3 h-9 w-9 items-center justify-center rounded-full border border-line bg-stone">
+          <AppText className="text-[#E63946] font-sansSemi">x</AppText>
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
 export default function QuestBuilderAdmin() {
   const [leftPanelVisible, setLeftPanelVisible] = useState(true); // <-- ADD THIS
   const [view, setView] = useState<'grid' | 'editor'>('grid');
@@ -461,6 +537,10 @@ export default function QuestBuilderAdmin() {
   const [savedQuests, setSavedQuests] = useState<Quest[]>([]);
   const [savedJourneys, setSavedJourneys] = useState<Journey[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
+  const [journeyQuestSearch, setJourneyQuestSearch] = useState('');
+  const [isJourneyQuestSearchOpen, setIsJourneyQuestSearchOpen] = useState(false);
+  const [journeyIconSearch, setJourneyIconSearch] = useState('');
+  const [isJourneyIconPickerOpen, setIsJourneyIconPickerOpen] = useState(false);
   const [activeCategory, setActiveCategory] = useState<QuestCategory | "All">("All");
   const [quest, setQuest] = useState<Quest>(createBlankQuest());
   const [journey, setJourney] = useState<Journey>(createBlankJourney());
@@ -605,33 +685,35 @@ export default function QuestBuilderAdmin() {
   const handleSaveJourney = async () => {
     try {
       const client = requireSupabase();
+      const generatedJourney = buildJourneyFromQuestIds(journey, journey.questIds, savedQuests);
       const journeyData = {
-        slug: journey.slug,
-        title: journey.title,
-        description: journey.description,
-        background_image_url: journey.backgroundImageUrl,
-        image_position: journey.imagePosition,
-        icon_name: journey.iconName,
-        timeline: journey.timeline,
-        completed_count: journey.completedCount,
-        total_count: journey.totalCount,
-        next_quest_id: journey.nextQuestId,
-        next_quest_title: journey.nextQuestTitle,
-        next_quest_image_url: journey.nextQuestImageUrl,
-        quest_ids: journey.questIds,
+        slug: generatedJourney.slug,
+        title: generatedJourney.title,
+        description: generatedJourney.description,
+        visibility: generatedJourney.visibility,
+        background_image_url: generatedJourney.backgroundImageUrl,
+        image_position: generatedJourney.imagePosition,
+        icon_name: generatedJourney.iconName,
+        timeline: generatedJourney.timeline,
+        completed_count: generatedJourney.completedCount,
+        total_count: generatedJourney.totalCount,
+        next_quest_id: generatedJourney.nextQuestId,
+        next_quest_title: generatedJourney.nextQuestTitle,
+        next_quest_image_url: generatedJourney.nextQuestImageUrl,
+        quest_ids: generatedJourney.questIds,
         is_active: true
       };
 
-      const isNew = journey.id.startsWith("draft-");
+      const isNew = generatedJourney.id.startsWith("draft-");
       const result = isNew
         ? await client.from('journeys').insert([journeyData]).select().single()
-        : await client.from('journeys').update(journeyData).eq('id', journey.id).select().single();
+        : await client.from('journeys').update(journeyData).eq('id', generatedJourney.id).select().single();
 
       if (result.error) throw result.error;
       alert("Journey successfully saved!");
       setSavedJourneys(prev => {
-        const mapped = { ...journey, id: result.data.id };
-        return isNew ? [mapped, ...prev] : prev.map(item => item.id === journey.id ? mapped : item);
+        const mapped = { ...generatedJourney, id: result.data.id };
+        return isNew ? [mapped, ...prev] : prev.map(item => item.id === generatedJourney.id ? mapped : item);
       });
       setLibraryKind('journeys');
       setView('grid');
@@ -704,7 +786,7 @@ export default function QuestBuilderAdmin() {
             <Pressable onPress={() => { setQuest(createBlankQuest()); setEditorKind('quest'); setView('editor'); setPreviewMode('hero'); setActiveTab('basic'); }} className="bg-stone px-6 py-3 rounded-full border border-line">
               <AppText className="text-ink font-sansSemi">+ Create New Quest</AppText>
             </Pressable>
-            <Pressable onPress={() => { setJourney(createBlankJourney(savedQuests)); setEditorKind('journey'); setView('editor'); }} className="bg-accent px-6 py-3 rounded-full">
+            <Pressable onPress={() => { setJourney(createBlankJourney(savedQuests)); setJourneyQuestSearch(''); setIsJourneyQuestSearchOpen(false); setJourneyIconSearch(''); setIsJourneyIconPickerOpen(false); setEditorKind('journey'); setView('editor'); }} className="bg-accent px-6 py-3 rounded-full">
               <AppText className="text-accentText font-sansSemi">+ Create New Journey</AppText>
             </Pressable>
           </View>
@@ -784,7 +866,7 @@ export default function QuestBuilderAdmin() {
                       </View>
                     </View>
                   </View>
-                  <Pressable onPress={() => { setJourney(item); setEditorKind('journey'); setView('editor'); }} className="mt-3 bg-stone py-2 rounded-lg items-center border border-line hover:bg-stone-300">
+                  <Pressable onPress={() => { setJourney(buildJourneyFromQuestIds(item, item.questIds.length ? item.questIds : (item.timeline.map(step => step.questId).filter(Boolean) as string[]), savedQuests)); setJourneyQuestSearch(''); setIsJourneyQuestSearchOpen(false); setJourneyIconSearch(''); setIsJourneyIconPickerOpen(false); setEditorKind('journey'); setView('editor'); }} className="mt-3 bg-stone py-2 rounded-lg items-center border border-line hover:bg-stone-300">
                     <AppText className="text-ink font-sansSemi text-sm">Edit Journey</AppText>
                   </Pressable>
                 </View>
@@ -797,8 +879,24 @@ export default function QuestBuilderAdmin() {
   }
 
   if (editorKind === 'journey') {
-    const selectedNextQuest = savedQuests.find(q => q.id === journey.nextQuestId);
-    const timelineText = timelineToText(journey.timeline);
+    const includedQuests = journey.questIds.map(id => savedQuests.find(q => q.id === id)).filter(Boolean) as Quest[];
+    const generatedJourney = buildJourneyFromQuestIds(journey, journey.questIds, savedQuests);
+    const selectedNextQuest = savedQuests.find(q => q.id === generatedJourney.nextQuestId);
+    const questSearch = journeyQuestSearch.trim().toLowerCase();
+    const addableQuests = savedQuests.filter(q => {
+      if (journey.questIds.includes(q.id)) return false;
+      if (!questSearch) return true;
+      return q.title.toLowerCase().includes(questSearch) || q.description.toLowerCase().includes(questSearch);
+    });
+    const updateJourneyQuestIds = (questIds: string[]) => {
+      setJourney(prev => buildJourneyFromQuestIds(prev, questIds, savedQuests));
+    };
+    const moveJourneyQuest = (fromIndex: number, toIndex: number) => {
+      const nextQuestIds = [...journey.questIds];
+      const [movedQuestId] = nextQuestIds.splice(fromIndex, 1);
+      nextQuestIds.splice(toIndex, 0, movedQuestId);
+      updateJourneyQuestIds(nextQuestIds);
+    };
 
     return (
       <View className="flex-1 flex-row bg-surface">
@@ -823,97 +921,151 @@ export default function QuestBuilderAdmin() {
             <AppText variant="subtitle" className="mb-2">Description</AppText>
             <TextInput className="bg-surface border border-line rounded-lg p-4 mb-6 font-sans text-ink" multiline numberOfLines={3} value={journey.description} onChangeText={(txt) => updateJourneyField("description", txt)} />
 
+            <ToggleGroup
+              label="Quest Availability"
+              options={["Global", "Exclusive"]}
+              selected={journey.visibility === "exclusive" ? "Exclusive" : "Global"}
+              onSelect={(val) => updateJourneyField("visibility", val === "Exclusive" ? "exclusive" : "global")}
+            />
+
             <AppText variant="subtitle" className="mb-2">Background Image URL</AppText>
             <TextInput className="bg-surface border border-line rounded-lg p-4 mb-6 font-sans text-ink" value={journey.backgroundImageUrl} onChangeText={(txt) => updateJourneyField("backgroundImageUrl", txt)} />
             <DraggableImageCrop imageUrl={journey.backgroundImageUrl} value={journey.imagePosition || "50% 50%"} onChange={(val) => updateJourneyField("imagePosition", val)} />
 
-            <AppText variant="subtitle" className="mb-2">Icon Name</AppText>
-            <TextInput className="bg-surface border border-line rounded-lg p-4 mb-6 font-sans text-ink" placeholder="Ionicons name, e.g. trail-sign-outline" value={journey.iconName || ""} onChangeText={(txt) => updateJourneyField("iconName", txt)} />
+            <AppText variant="subtitle" className="mb-2">Icon</AppText>
+            <View className="mb-6">
+              <Pressable
+                onPress={() => setIsJourneyIconPickerOpen(value => !value)}
+                className="flex-row items-center justify-between rounded-lg border border-line bg-surface p-4"
+              >
+                <View className="flex-row items-center">
+                  <View className="mr-3 h-10 w-10 items-center justify-center rounded-full bg-stone">
+                    <Ionicons name={(journey.iconName as any) || "trail-sign-outline"} size={22} color="#1C1A17" />
+                  </View>
+                  <AppText className="font-sansSemi text-ink">{journey.iconName || "trail-sign-outline"}</AppText>
+                </View>
+                <AppText className="text-ink/50">{isJourneyIconPickerOpen ? "▲" : "▼"}</AppText>
+              </Pressable>
 
-            <View className="flex-row gap-4">
-              <View className="flex-1">
-                <AppText variant="subtitle" className="mb-2">Completed</AppText>
-                <TextInput className="bg-surface border border-line rounded-lg p-4 mb-6 font-sans text-ink" keyboardType="number-pad" value={journey.completedCount.toString()} onChangeText={(txt) => updateJourneyField("completedCount", parseInt(txt) || 0)} />
+              {isJourneyIconPickerOpen && (
+                <View className="mt-2 rounded-xl border border-line bg-stone p-4">
+                  <TextInput
+                    className="mb-3 rounded-lg border border-line bg-surface p-3 font-sans text-ink"
+                    placeholder="Search icons..."
+                    value={journeyIconSearch}
+                    onChangeText={setJourneyIconSearch}
+                  />
+                  <ScrollView nestedScrollEnabled className="max-h-80">
+                    <View className="flex-row flex-wrap gap-2">
+                      {JOURNEY_ICON_NAMES
+                        .filter(name => !journeyIconSearch.trim() || name.includes(journeyIconSearch.trim().toLowerCase()))
+                        .map(name => {
+                          const isSelected = journey.iconName === name;
+                          return (
+                            <Pressable
+                              key={name}
+                              onPress={() => {
+                                updateJourneyField("iconName", name);
+                                setIsJourneyIconPickerOpen(false);
+                              }}
+                              className={`h-12 w-12 items-center justify-center rounded-xl border ${isSelected ? 'border-accent bg-accent' : 'border-line bg-surface'}`}
+                            >
+                              <Ionicons name={name as any} size={22} color={isSelected ? "#183431" : "#1C1A17"} />
+                            </Pressable>
+                          );
+                        })}
+                    </View>
+                  </ScrollView>
+                </View>
+              )}
+            </View>
+
+            <View className="mb-6 rounded-xl border border-line bg-stone p-4">
+              <AppText variant="subtitle" className="mb-3">Generated Journey Data</AppText>
+              <View className="flex-row gap-3">
+                <View className="flex-1 rounded-lg border border-line bg-surface p-3">
+                  <AppText className="text-[10px] uppercase tracking-widest text-ink/50">Total</AppText>
+                  <AppText className="mt-1 font-sansSemi text-ink">{generatedJourney.totalCount}</AppText>
+                </View>
+                <View className="flex-1 rounded-lg border border-line bg-surface p-3">
+                  <AppText className="text-[10px] uppercase tracking-widest text-ink/50">Checklist</AppText>
+                  <AppText className="mt-1 font-sansSemi text-ink">{generatedJourney.timeline.length} items</AppText>
+                </View>
               </View>
-              <View className="flex-1">
-                <AppText variant="subtitle" className="mb-2">Total</AppText>
-                <TextInput className="bg-surface border border-line rounded-lg p-4 mb-6 font-sans text-ink" keyboardType="number-pad" value={journey.totalCount.toString()} onChangeText={(txt) => updateJourneyField("totalCount", parseInt(txt) || 0)} />
+              <View className="mt-3 rounded-lg border border-line bg-surface p-3">
+                <AppText className="text-[10px] uppercase tracking-widest text-ink/50">Default next up</AppText>
+                <AppText className="mt-1 font-sansSemi text-ink">{generatedJourney.nextQuestTitle}</AppText>
               </View>
             </View>
 
-            <AppText variant="subtitle" className="mb-2">Checklist Timeline</AppText>
-            <TextInput
-              className="bg-surface border border-line rounded-lg p-4 mb-6 font-sans text-ink"
-              multiline
-              numberOfLines={8}
-              value={timelineText}
-              onChangeText={(txt) => {
-                const nextTimeline = textToTimeline(txt, journey.timeline);
-                setJourney(prev => ({
-                  ...prev,
-                  timeline: nextTimeline,
-                  completedCount: nextTimeline.filter(item => item.isComplete).length
-                }));
-              }}
-            />
-
-            <AppText variant="subtitle" className="mb-3">Included Quests</AppText>
-            <View className="mb-8 flex-row flex-wrap gap-2">
-              {savedQuests.map(q => {
-                const isSelected = journey.questIds.includes(q.id);
-                return (
-                  <Pressable
-                    key={q.id}
-                    onPress={() => {
-                      setJourney(prev => ({
-                        ...prev,
-                        questIds: isSelected ? prev.questIds.filter(id => id !== q.id) : [...prev.questIds, q.id]
-                      }));
-                    }}
-                    className={`px-3 py-2 rounded-full border ${isSelected ? 'bg-accent border-accent' : 'bg-surface border-line'}`}
-                  >
-                    <AppText className={isSelected ? 'text-accentText text-xs font-sansSemi' : 'text-ink text-xs'}>{q.title}</AppText>
-                  </Pressable>
-                );
-              })}
+            <View className="mb-3 flex-row items-center justify-between">
+              <AppText variant="subtitle">Included Quests</AppText>
+              <Pressable
+                onPress={() => setIsJourneyQuestSearchOpen(value => !value)}
+                className="h-10 w-10 items-center justify-center rounded-full border border-line bg-accent"
+              >
+                <AppText className="text-accentText text-xl">+</AppText>
+              </Pressable>
             </View>
 
-            <AppText variant="subtitle" className="mb-3">Next Up Quest</AppText>
-            <View className="mb-6 gap-2">
-              {savedQuests.map(q => {
-                const isSelected = journey.nextQuestId === q.id;
-                return (
-                  <Pressable
+            {includedQuests.length === 0 ? (
+              <View className="mb-4 rounded-xl border border-dashed border-line bg-stone p-6">
+                <AppText className="text-center text-ink/50">No quests included yet.</AppText>
+              </View>
+            ) : (
+              <View className="mb-4">
+                {includedQuests.map((q, index) => (
+                  <JourneyQuestOrderItem
                     key={q.id}
-                    onPress={() => {
-                      setJourney(prev => ({
-                        ...prev,
-                        nextQuestId: q.id,
-                        nextQuestTitle: q.title,
-                        nextQuestImageUrl: q.imageUrl,
-                        questIds: prev.questIds.includes(q.id) ? prev.questIds : [...prev.questIds, q.id]
-                      }));
-                    }}
-                    className={`p-3 rounded-xl border flex-row items-center ${isSelected ? 'bg-accent/20 border-accent' : 'bg-surface border-line'}`}
-                  >
-                    <Image source={{ uri: q.imageUrl }} className="w-12 h-12 rounded-lg mr-3 bg-stone" contentFit="cover" />
-                    <AppText className={isSelected ? 'text-ink font-sansSemi flex-1' : 'text-ink flex-1'}>{q.title}</AppText>
-                  </Pressable>
-                );
-              })}
-            </View>
+                    quest={q}
+                    index={index}
+                    count={includedQuests.length}
+                    onMove={moveJourneyQuest}
+                    onRemove={() => updateJourneyQuestIds(journey.questIds.filter(id => id !== q.id))}
+                  />
+                ))}
+              </View>
+            )}
 
-            <AppText variant="subtitle" className="mb-2">Next Up Title Override</AppText>
-            <TextInput className="bg-surface border border-line rounded-lg p-4 mb-6 font-sans text-ink" value={journey.nextQuestTitle} onChangeText={(txt) => updateJourneyField("nextQuestTitle", txt)} />
-
-            <AppText variant="subtitle" className="mb-2">Next Up Image URL</AppText>
-            <TextInput className="bg-surface border border-line rounded-lg p-4 mb-6 font-sans text-ink" value={journey.nextQuestImageUrl} onChangeText={(txt) => updateJourneyField("nextQuestImageUrl", txt)} />
+            {isJourneyQuestSearchOpen && (
+              <View className="mb-8 rounded-xl border border-line bg-stone p-4">
+                <TextInput
+                  className="mb-3 rounded-lg border border-line bg-surface p-3 font-sans text-ink"
+                  placeholder="Search quests to add..."
+                  value={journeyQuestSearch}
+                  onChangeText={setJourneyQuestSearch}
+                />
+                <View className="max-h-80 gap-2">
+                  <ScrollView nestedScrollEnabled>
+                    {addableQuests.length === 0 ? (
+                      <AppText className="py-4 text-center text-ink/50">No matching quests.</AppText>
+                    ) : addableQuests.map(q => (
+                      <Pressable
+                        key={q.id}
+                        onPress={() => {
+                          updateJourneyQuestIds([...journey.questIds, q.id]);
+                          setJourneyQuestSearch('');
+                        }}
+                        className="mb-2 flex-row items-center rounded-xl border border-line bg-surface p-3"
+                      >
+                        <Image source={{ uri: q.imageUrl }} className="mr-3 h-12 w-12 rounded-lg bg-stone" contentFit="cover" />
+                        <View className="flex-1">
+                          <AppText className="font-sansSemi text-ink" numberOfLines={1}>{q.title}</AppText>
+                          <AppText className="mt-1 text-xs text-ink/50" numberOfLines={1}>{q.length} · {q.difficulty}</AppText>
+                        </View>
+                        <AppText className="text-orange font-sansSemi">Add</AppText>
+                      </Pressable>
+                    ))}
+                  </ScrollView>
+                </View>
+              </View>
+            )}
           </ScrollView>
         </View>
 
         <View className="flex-1 bg-stone items-center justify-center p-8">
           <View className="w-[360px] h-[520px] overflow-hidden rounded-[32px] border-[8px] border-white bg-surface shadow-xl">
-            <Image source={{ uri: journey.backgroundImageUrl }} style={{ width: '100%', height: '100%' }} contentFit="cover" />
+            <Image source={{ uri: generatedJourney.backgroundImageUrl }} style={{ width: '100%', height: '100%' }} contentFit="cover" />
             <LinearGradient
               colors={["rgba(0,0,0,0.12)", "rgba(0,0,0,0.68)", "rgba(7,20,18,0.96)"]}
               locations={[0, 0.48, 1]}
@@ -922,25 +1074,25 @@ export default function QuestBuilderAdmin() {
             <View className="absolute inset-0 justify-between p-8">
               <View>
                 <View className="mb-8 h-14 w-14 items-center justify-center rounded-full border border-accent/40 bg-background/80">
-                  <AppText className="text-ivory text-xl">~</AppText>
+                  <Ionicons name={(generatedJourney.iconName as any) || "trail-sign-outline"} size={24} color="#F3F0EB" />
                 </View>
-                <AppText variant="title" className="text-ivory">{journey.title}</AppText>
-                <AppText className="mt-2 text-lg leading-6 text-ivory/85">{journey.description}</AppText>
+                <AppText variant="title" className="text-ivory">{generatedJourney.title}</AppText>
+                <AppText className="mt-2 text-lg leading-6 text-ivory/85">{generatedJourney.description}</AppText>
                 <View className="mt-6 flex-row items-center">
-                  {journey.timeline.slice(0, 7).map((item, index, visibleItems) => (
+                  {generatedJourney.timeline.slice(0, 7).map((item, index, visibleItems) => (
                     <View key={item.id} className="flex-1 flex-row items-center">
                       <View className={`h-6 w-6 rounded-full border ${item.isComplete ? 'bg-accent border-accent' : 'border-ivory/60 bg-background/40'}`} />
                       {index < visibleItems.length - 1 ? <View className="h-px flex-1 bg-ivory/45" /> : null}
                     </View>
                   ))}
                 </View>
-                <AppText className="mt-3 text-ivory/80">{journey.completedCount} / {journey.totalCount} experiences</AppText>
+                <AppText className="mt-3 text-ivory/80">{generatedJourney.completedCount} / {generatedJourney.totalCount} experiences</AppText>
               </View>
               <View>
                 <AppText className="mb-3 text-ivory/85">Next up</AppText>
                 <View className="flex-row items-center">
-                  <Image source={{ uri: journey.nextQuestImageUrl || selectedNextQuest?.imageUrl }} className="mr-4 h-14 w-14 rounded-lg bg-stone" contentFit="cover" />
-                  <AppText className="flex-1 text-lg leading-6 text-ivory">{journey.nextQuestTitle}</AppText>
+                  <Image source={{ uri: generatedJourney.nextQuestImageUrl || selectedNextQuest?.imageUrl }} className="mr-4 h-14 w-14 rounded-lg bg-stone" contentFit="cover" />
+                  <AppText className="flex-1 text-lg leading-6 text-ivory">{generatedJourney.nextQuestTitle}</AppText>
                   <AppText className="text-ivory/60 text-2xl">&gt;</AppText>
                 </View>
               </View>

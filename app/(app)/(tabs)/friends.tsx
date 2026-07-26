@@ -118,7 +118,7 @@ function GroupCard({ group }: { group: FriendGroup }) {
     >
       {hasBanner ? (
         <>
-          <Image source={imageSource(bannerImageUrl)} contentFit="cover" style={StyleSheet.absoluteFillObject} />
+          <Image source={imageSource(bannerImageUrl)} contentFit="cover" style={StyleSheet.absoluteFill} />
           <View className="absolute inset-0 bg-black/35" />
         </>
       ) : null}

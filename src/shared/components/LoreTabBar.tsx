@@ -51,7 +51,7 @@ export function LoreTabBar({ state, navigation }: LoreTabBarProps) {
             <Pressable key={route.key} onPress={onPress} className="flex-1 overflow-hidden rounded-full">
               {({ pressed }) => (
                 <View className={focused ? "items-center rounded-full bg-accent px-2 py-3" : pressed ? "items-center rounded-full bg-elevated px-2 py-3" : "items-center rounded-full px-2 py-3"}>
-                  <AppText variant="caption" className={focused ? "font-sansSemi text-accentText" : "font-sansSemi text-muted"}>
+                  <AppText variant="caption" className={focused ? "font-sansSemi text-accentText" : "font-sansSemi text-muted"} style={focused ? { color: "#183431" } : undefined}>
                     {label}
                   </AppText>
                 </View>

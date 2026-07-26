@@ -82,7 +82,7 @@ export function MapWidget({ config }: { config: string }) {
           <AppText variant="subtitle">{selectedPin.title}</AppText>
           <View className="flex-row gap-3 mt-3">
             <Pressable onPress={() => openInExternalMaps(selectedPin)} className="bg-accent px-4 py-2 rounded-full flex-1 items-center">
-              <AppText className="text-ivory dark:text-accentText font-sansSemi text-xs">Open in Maps ↗</AppText>
+              <AppText className="text-accentText font-sansSemi text-xs">Open in Maps ↗</AppText>
             </Pressable>
             <Pressable onPress={() => setSelectedPin(null)} className="bg-stone px-4 py-2 rounded-full items-center border border-line">
               <AppText className="font-sansSemi text-xs" style={{ color: colors.text }}>Close</AppText>

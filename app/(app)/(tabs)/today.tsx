@@ -6,7 +6,7 @@ import { AppText } from "../../../src/shared/components/AppText";
 import { QuestHero } from "../../../src/features/quests/components/QuestHero";
 import { QuestCard } from "../../../src/features/quests/components/QuestCard";
 import { FriendLoreFeed } from "../../../src/features/social/components/FriendLoreFeed";
-import { useQuests } from "../../../src/features/quests/api/questApi";
+import { getExclusiveJourneyQuestIds, useJourneys, useQuests } from "../../../src/features/quests/api/questApi";
 import { useFriendMoments } from "../../../src/features/social/api/socialApi"; // ✨ Added Friend API
 import { useAuth } from "../../../src/features/auth/AuthProvider";
 import { useExperienceStore } from "../../../src/features/app/store/useExperienceStore";
@@ -18,6 +18,7 @@ import { useThemeColors } from "../../../src/shared/design/useThemeColors";
 export default function TodayScreen() {
   const colors = useThemeColors();
   const { data: quests = [], isLoading: isLoadingQuests, refetch: refetchQuests } = useQuests();
+  const { data: journeys = [] } = useJourneys();
   const { data: friendMoments = [], refetch: refetchFriendMoments } = useFriendMoments(); // ✨ Get actual friends
   const { profile, user } = useAuth();
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -53,6 +54,7 @@ export default function TodayScreen() {
   // ✨ NEW: Calculate exactly which quests go where based on Supabase truth
   const activeQuestIds = questStatuses?.active || [];
   const completedQuestIds = questStatuses?.completed || [];
+  const exclusiveQuestIds = useMemo(() => getExclusiveJourneyQuestIds(journeys), [journeys]);
 
   // In Progress = Only quests explicitly marked as "active"
   const inProgressQuests = useMemo(() => 
@@ -61,10 +63,10 @@ export default function TodayScreen() {
 
   // Unstarted = Quests that are NOT active AND NOT completed
   const unstartedQuests = useMemo(() => 
-    quests.filter((q) => !activeQuestIds.includes(q.id) && !completedQuestIds.includes(q.id)),
-  [quests, activeQuestIds, completedQuestIds]);
+    quests.filter((q) => !exclusiveQuestIds.has(q.id) && !activeQuestIds.includes(q.id) && !completedQuestIds.includes(q.id)),
+  [quests, activeQuestIds, completedQuestIds, exclusiveQuestIds]);
 
-  const displayQuests = unstartedQuests.length > 0 ? unstartedQuests : quests;
+  const displayQuests = unstartedQuests.length > 0 ? unstartedQuests : quests.filter((quest) => !exclusiveQuestIds.has(quest.id));
   const todayQuest = displayQuests[mainQuestIndex % displayQuests.length];
 
   const handleRefresh = useCallback(async () => {

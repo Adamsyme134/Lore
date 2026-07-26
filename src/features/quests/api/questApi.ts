@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../../auth/AuthProvider";
 import { requireSupabase, supabase } from "../../../lib/supabase";
-import { previewJourneys, previewQuests } from "../../../shared/data/previewData";
+import { previewQuests } from "../../../shared/data/previewData";
 import type { 
   Journey,
   JourneyTimelineItem,
@@ -61,6 +61,7 @@ export type JourneyRow = {
   slug: string;
   title: string;
   description: string;
+  visibility?: "global" | "exclusive" | null;
   background_image_url: string;
   image_position?: string;
   icon_name?: string;
@@ -124,6 +125,7 @@ export function mapJourney(row: JourneyRow): Journey {
     slug: row.slug,
     title: row.title,
     description: row.description || "",
+    visibility: row.visibility || "global",
     backgroundImageUrl: row.background_image_url,
     imagePosition: row.image_position || "50% 50%",
     iconName: row.icon_name || "trail-sign-outline",
@@ -175,9 +177,102 @@ export function useJourneys() {
   const { isBackendReady } = useAuth();
   return useQuery({
     queryKey: ["journeys", isBackendReady ? "remote" : "preview"],
-    queryFn: () => (isBackendReady ? fetchJourneysFromSupabase() : Promise.resolve(previewJourneys)),
-    initialData: previewJourneys
+    queryFn: () => (isBackendReady ? fetchJourneysFromSupabase() : Promise.resolve([]))
   });
+}
+
+export type UserQuestStatuses = {
+  active: string[];
+  completed: string[];
+  saved: string[];
+  dismissed: string[];
+};
+
+export function useUserQuestStatuses() {
+  const { isBackendReady, user } = useAuth();
+  const savedQuestIds = useExperienceStore((state) => state.savedQuestIds);
+  const completedQuestIds = useExperienceStore((state) => state.completedQuestIds);
+  const activeQuests = useExperienceStore((state) => state.activeQuests);
+
+  const localStatuses: UserQuestStatuses = {
+    active: Object.keys(activeQuests),
+    completed: completedQuestIds,
+    saved: savedQuestIds,
+    dismissed: []
+  };
+
+  return useQuery({
+    queryKey: [
+      "user-quests-status",
+      user?.id,
+      isBackendReady ? "remote" : "preview",
+      isBackendReady ? null : localStatuses.active,
+      isBackendReady ? null : localStatuses.completed,
+      isBackendReady ? null : localStatuses.saved
+    ],
+    queryFn: async () => {
+      if (!isBackendReady || !user || !supabase) return localStatuses;
+
+      const { data, error } = await supabase
+        .from("user_quests")
+        .select("quest_id, status")
+        .eq("user_id", user.id);
+
+      if (error) throw error;
+
+      return (data ?? []).reduce<UserQuestStatuses>(
+        (statuses, item) => {
+          const status = item.status as keyof UserQuestStatuses;
+          if (status in statuses) {
+            statuses[status].push(item.quest_id);
+          }
+          return statuses;
+        },
+        { active: [], completed: [], saved: [], dismissed: [] }
+      );
+    },
+    initialData: localStatuses
+  });
+}
+
+export function getJourneyQuestIds(journey: Journey) {
+  return journey.questIds.length
+    ? journey.questIds
+    : journey.timeline.map((item) => item.questId).filter(Boolean) as string[];
+}
+
+export function getExclusiveJourneyQuestIds(journeys: Journey[]) {
+  return new Set(
+    journeys
+      .filter((journey) => journey.isActive && journey.visibility === "exclusive")
+      .flatMap(getJourneyQuestIds)
+  );
+}
+
+export function getExclusiveQuestLock(
+  questId: string,
+  journeys: Journey[],
+  completedQuestIds: Set<string>
+) {
+  const journey = journeys.find((item) => {
+    if (!item.isActive || item.visibility !== "exclusive") return false;
+    return getJourneyQuestIds(item).includes(questId);
+  });
+
+  if (!journey) return null;
+
+  const questIds = getJourneyQuestIds(journey);
+  const questIndex = questIds.indexOf(questId);
+  if (questIndex <= 0 || completedQuestIds.has(questId)) {
+    return { journey, isLocked: false, previousQuestId: null };
+  }
+
+  const previousQuestId = questIds[questIndex - 1];
+  return {
+    journey,
+    isLocked: !completedQuestIds.has(previousQuestId),
+    previousQuestId
+  };
 }
 
 // ✨ NEW: Mutation to trigger a view count increment

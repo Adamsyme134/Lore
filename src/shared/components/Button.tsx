@@ -1,7 +1,6 @@
 import { Pressable, type PressableProps, View } from "react-native";
 import { AppText } from "./AppText";
 import { cx } from "../utils/cx";
-import { useThemeColors } from "../design/useThemeColors";
 
 type ButtonVariant = "primary" | "secondary" | "quiet";
 
@@ -19,15 +18,12 @@ const variantClass: Record<ButtonVariant, string> = {
 };
 
 const labelClass: Record<ButtonVariant, string> = {
-  primary: "",
+  primary: "text-accentText",
   secondary: "text-ink",
   quiet: "text-ink"
 };
 
 export function Button({ label, variant = "primary", className, ...props }: ButtonProps) {
-  const colors = useThemeColors();
-  const primaryLabelStyle = variant === "primary" ? { color: colors.isDark ? colors.accentText : "#FFFFFF" } : undefined;
-
   return (
     <Pressable
       {...props}
@@ -36,7 +32,7 @@ export function Button({ label, variant = "primary", className, ...props }: Butt
     >
       {({ pressed }) => (
         <View className={cx("min-h-[56px] items-center justify-center rounded-full px-6 py-4", variantClass[variant], pressed && "opacity-80")}>
-          <AppText variant="caption" className={cx("font-sansBold uppercase tracking-editorial", labelClass[variant])} style={primaryLabelStyle}>
+          <AppText variant="caption" className={cx("font-sansBold uppercase tracking-editorial", labelClass[variant])} style={variant === "primary" ? { color: "#183431" } : undefined}>
             {label}
           </AppText>
         </View>

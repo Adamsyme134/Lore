@@ -7,7 +7,7 @@ export const palette = {
   muted: "#787267",
   line: "#DDD3C2",
   accent: "#C39A66",
-  accentText: "#5C614E",
+  accentText: "#183431",
   forest: "#284D3A",
   navy: "#1F3446",
   orange: "#A5542A",
@@ -26,7 +26,7 @@ export const darkPalette = {
   textTertiary: "#909692",
   textDisabled: "#767B74",
   accent: "#C39A66",
-  accentText: "#5C614E"
+  accentText: "#183431"
 } as const;
 
 export const lightThemeColors = {
@@ -40,7 +40,7 @@ export const lightThemeColors = {
   textTertiary: "#787267",
   textDisabled: "#A39E93",
   accent: "#C39A66",
-  accentText: "#5C614E"
+  accentText: "#183431"
 } as const;
 
 export type Accent = "forest" | "navy" | "orange" | "burgundy" | "gold";
