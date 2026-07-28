@@ -7,9 +7,10 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Screen } from "../../../src/shared/components/Screen";
 import { AppText } from "../../../src/shared/components/AppText";
+import { Button } from "../../../src/shared/components/Button";
 import { difficultyPillClass, difficultyPillTextClass, difficultyPillTextColor } from "../../../src/shared/components/Chip";
 import { useThemeColors } from "../../../src/shared/design/useThemeColors";
-import { getJourneyQuestIds, useJourneys, useQuests, useUserQuestStatuses } from "../../../src/features/quests/api/questApi";
+import { getJourneyQuestIds, useJourneys, useQuests, useStartJourney, useUserJourneyStatuses, useUserQuestStatuses } from "../../../src/features/quests/api/questApi";
 import type { Quest } from "../../../src/shared/types/domain";
 
 function contentPosition(imagePosition?: string) {
@@ -76,7 +77,7 @@ function JourneyQuestRow({
   onPress: () => void;
 }) {
   return (
-    <View className="mb-3 flex-row items-stretch">
+    <View className={`mb-3 flex-row items-stretch ${isLocked ? "opacity-55" : ""}`}>
       <View className="relative mr-3 w-10 items-center justify-center">
         {index > 0 ? <View className="absolute top-0 h-1/2 w-px bg-line" /> : null}
         {index < total - 1 ? <View className="absolute bottom-0 h-1/2 w-px bg-line" /> : null}
@@ -112,6 +113,7 @@ function JourneyQuestRow({
           style={{ position: "absolute", top: 0, right: 0, bottom: 0, left: 0 }}
         />
         {isLocked ? <View className="absolute inset-0 bg-black/35" /> : null}
+        {isLocked ? <View className="absolute inset-0 bg-stone/45" /> : null}
         <View className="absolute inset-0 flex-row items-center px-4 py-3">
           <View className="flex-1 pr-3">
             <AppText variant="subtitle" className="text-xl leading-6 text-ivory" numberOfLines={2}>
@@ -143,8 +145,17 @@ function JourneyQuestRow({
   );
 }
 
-function isJourneyQuestLocked(index: number, questId: string, questIds: string[], completedQuestIds: Set<string>, isExclusive: boolean) {
-  if (!isExclusive || index <= 0 || completedQuestIds.has(questId)) return false;
+function isJourneyQuestLocked(
+  index: number,
+  questId: string,
+  questIds: string[],
+  completedQuestIds: Set<string>,
+  isExclusive: boolean,
+  publicQuestIds: string[],
+  isJourneyStarted: boolean
+) {
+  if (!isJourneyStarted) return true;
+  if (!isExclusive || (publicQuestIds ?? []).includes(questId) || index <= 0 || completedQuestIds.has(questId)) return false;
   return !completedQuestIds.has(questIds[index - 1]);
 }
 
@@ -156,6 +167,8 @@ export default function JourneyDetailScreen() {
   const { data: journeys = [], isLoading: isLoadingJourneys } = useJourneys();
   const { data: quests = [], isLoading: isLoadingQuests } = useQuests();
   const { data: questStatuses } = useUserQuestStatuses();
+  const { data: journeyStatuses } = useUserJourneyStatuses();
+  const startJourney = useStartJourney();
 
   const journey = journeys.find((item) => item.id === id || item.slug === id);
   const questById = useMemo(() => new Map(quests.map((quest) => [quest.id, quest])), [quests]);
@@ -168,6 +181,8 @@ export default function JourneyDetailScreen() {
   const completedCount = orderedQuestIds.filter((questId) => completedQuestIds.has(questId)).length;
   const nextQuestId = orderedQuestIds.find((questId) => !completedQuestIds.has(questId)) || orderedQuestIds[0];
   const isExclusive = journey?.visibility === "exclusive";
+  const activeJourneyIds = useMemo(() => new Set(journeyStatuses?.active || []), [journeyStatuses?.active]);
+  const isJourneyStarted = journey ? activeJourneyIds.has(journey.id) : false;
 
   if ((isLoadingJourneys || isLoadingQuests) && !journey) {
     return (
@@ -230,13 +245,28 @@ export default function JourneyDetailScreen() {
               {journey.description}
             </AppText>
             <JourneyTimeline total={orderedQuestIds.length} completedCount={completedCount} />
+            {!isJourneyStarted ? (
+              <Button
+                label={startJourney.isPending ? "Starting..." : "Start journey"}
+                className="mt-6 self-start"
+                disabled={startJourney.isPending}
+                onPress={() => startJourney.mutate(journey.id)}
+              />
+            ) : null}
           </View>
         </View>
 
         <View className="px-5 pt-7">
-          <AppText variant="subtitle" className="mb-4 text-2xl text-ink">
-            Your path
-          </AppText>
+          <View className="mb-4 flex-row items-center justify-between gap-3">
+            <AppText variant="subtitle" className="text-2xl text-ink">
+              Your path
+            </AppText>
+            {!isJourneyStarted ? (
+              <View className="rounded-full border border-line bg-surface px-3 py-1.5">
+                <AppText variant="caption" className="font-sansSemi text-muted">Locked</AppText>
+              </View>
+            ) : null}
+          </View>
           {orderedQuests.length === 0 ? (
             <View className="rounded-card border border-dashed border-line py-12">
               <AppText className="text-center text-muted">No quests have been added to this journey yet.</AppText>
@@ -248,11 +278,11 @@ export default function JourneyDetailScreen() {
                 quest={quest}
                 index={index}
                 isComplete={completedQuestIds.has(quest.id)}
-                isNext={quest.id === nextQuestId}
-                isLocked={isJourneyQuestLocked(index, quest.id, orderedQuestIds, completedQuestIds, isExclusive)}
+                isNext={isJourneyStarted && quest.id === nextQuestId}
+                isLocked={isJourneyQuestLocked(index, quest.id, orderedQuestIds, completedQuestIds, isExclusive, journey.publicQuestIds, isJourneyStarted)}
                 total={orderedQuests.length}
                 onPress={() => {
-                  if (isJourneyQuestLocked(index, quest.id, orderedQuestIds, completedQuestIds, isExclusive)) return;
+                  if (isJourneyQuestLocked(index, quest.id, orderedQuestIds, completedQuestIds, isExclusive, journey.publicQuestIds, isJourneyStarted)) return;
                   router.push({ pathname: "/quest/[id]", params: { id: quest.id } });
                 }}
               />

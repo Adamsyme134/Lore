@@ -14,6 +14,7 @@ function formatDate(date: Date) {
 
 type AddPreviewLoreInput = {
   quest: Quest;
+  autoCompletedQuests?: Quest[];
   title: string;
   journal: string;
   location: string;
@@ -29,11 +30,13 @@ type ExperienceState = {
   savedQuestIds: string[];
   completedQuestIds: string[];
   activeQuests: Record<string, number[]>;
+  activeJourneyIds: string[];
   previewLoreEntries: LoreEntry[];
   previewPoints: number;
   toggleSavedQuest: (questId: string) => void;
   markQuestComplete: (questId: string) => void;
   activateQuest: (questId: string) => void;
+  startJourney: (journeyId: string) => void;
   quitQuest: (questId: string) => void;
   toggleQuestStep: (questId: string, stepIndex: number) => void;
   addPreviewLoreEntry: (input: AddPreviewLoreInput) => LoreEntry;
@@ -48,6 +51,7 @@ export const useExperienceStore = create<ExperienceState>()(
       savedQuestIds: ["sunrise-high-place"],
       completedQuestIds: [],
       activeQuests: {},
+      activeJourneyIds: [],
       previewLoreEntries,
       previewPoints: previewLoreEntries.reduce((sum, entry) => sum + entry.pointsAwarded, 0),
       
@@ -71,6 +75,13 @@ export const useExperienceStore = create<ExperienceState>()(
             ...state.activeQuests,
             [questId]: state.activeQuests[questId] || []
           }
+        })),
+
+      startJourney: (journeyId) =>
+        set((state) => ({
+          activeJourneyIds: state.activeJourneyIds.includes(journeyId)
+            ? state.activeJourneyIds
+            : [...state.activeJourneyIds, journeyId]
         })),
 
       quitQuest: (questId) =>
@@ -120,19 +131,26 @@ export const useExperienceStore = create<ExperienceState>()(
           imageUrl: photoUris[0],
           photos: photoUris.map((uri, index) => ({ id: `local-photo-${now.getTime()}-${index}`, uri })),
           accent: input.quest.accent,
-          pointsAwarded
+          pointsAwarded,
+          autoCompletedQuests: input.autoCompletedQuests ?? []
         };
 
         set((state) => {
-          // ✨ Remove from In Progress once completed
-          const newActiveQuests = { ...state.activeQuests };
-          delete newActiveQuests[input.quest.id];
+          const autoCompletedQuestIds = (input.autoCompletedQuests ?? []).map((quest) => quest.id);
+          const nextCompletedQuestIds = Array.from(new Set([
+            ...state.completedQuestIds,
+            input.quest.id,
+            ...autoCompletedQuestIds
+          ]));
+          const nextActiveQuests = { ...state.activeQuests };
+          delete nextActiveQuests[input.quest.id];
+          autoCompletedQuestIds.forEach((questId) => {
+            delete nextActiveQuests[questId];
+          });
 
           return {
-            completedQuestIds: state.completedQuestIds.includes(input.quest.id)
-              ? state.completedQuestIds
-              : [...state.completedQuestIds, input.quest.id],
-            activeQuests: newActiveQuests,
+            completedQuestIds: nextCompletedQuestIds,
+            activeQuests: nextActiveQuests,
             previewLoreEntries: [entry, ...state.previewLoreEntries],
             previewPoints: state.previewPoints + pointsAwarded
           };

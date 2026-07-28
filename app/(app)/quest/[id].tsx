@@ -8,7 +8,7 @@ import { AppText } from "../../../src/shared/components/AppText";
 import { Button } from "../../../src/shared/components/Button";
 import { QuestDetailBlock } from "../../../src/features/quests/components/QuestDetailBlock";
 import { useExperienceStore } from "../../../src/features/app/store/useExperienceStore";
-import { getExclusiveQuestLock, useJourneys, useQuest, useSaveQuest, useActivateQuest, useQuitQuest, useTrackQuestView, useUserQuestStatuses } from "../../../src/features/quests/api/questApi";
+import { getExclusiveQuestLock, useJourneys, useQuest, useQuests, useSaveQuest, useActivateQuest, useQuitQuest, useTrackQuestView, useUserJourneyStatuses, useUserQuestStatuses } from "../../../src/features/quests/api/questApi";
 import { useGroupQuestProgress, useUpdateQuestStepProgress, useUserQuestState, type GroupQuestParticipant } from "../../../src/features/quests/api/groupQuestApi";
 import { Ionicons } from '@expo/vector-icons'; 
 
@@ -61,8 +61,10 @@ export default function QuestDetailScreen() {
   const colors = useThemeColors();
   const { id, groupId } = useLocalSearchParams<{ id: string; groupId?: string }>();
   const { data: quest } = useQuest(id);
+  const { data: quests = [] } = useQuests();
   const { data: journeys = [] } = useJourneys();
   const { data: questStatuses } = useUserQuestStatuses();
+  const { data: journeyStatuses } = useUserJourneyStatuses();
   const { data: loreEntries = [], isLoading: isLoadingLoreEntries } = useLoreEntries();
   const { savedQuestIds, activeQuests, toggleQuestStep } = useExperienceStore();
   const saveQuest = useSaveQuest();
@@ -136,7 +138,8 @@ export default function QuestDetailScreen() {
   }
 
   const completedQuestIds = new Set(questStatuses?.completed || []);
-  const exclusiveLock = getExclusiveQuestLock(quest.id, journeys, completedQuestIds);
+  const activeJourneyIds = new Set(journeyStatuses?.active || []);
+  const exclusiveLock = getExclusiveQuestLock(quest.id, journeys, completedQuestIds, activeJourneyIds);
 
   if (exclusiveLock?.isLocked) {
     return (
@@ -152,7 +155,9 @@ export default function QuestDetailScreen() {
           </View>
           <AppText variant="title" className="text-center">Quest locked</AppText>
           <AppText className="mt-3 text-center text-muted">
-            Complete the previous quest in {exclusiveLock.journey.title} to unlock this one.
+            {exclusiveLock.reason === "journey"
+              ? `Start ${exclusiveLock.journey.title} to unlock its quests.`
+              : `Complete the previous quest in ${exclusiveLock.journey.title} to unlock this one.`}
           </AppText>
           <Button label="Back to journey" className="mt-6" onPress={() => router.replace({ pathname: "/journey/[id]", params: { id: exclusiveLock.journey.id } })} />
         </View>
@@ -441,6 +446,7 @@ export default function QuestDetailScreen() {
                     setTimeout(() => scrollToStep(index), 80);
                   }
                 }}
+                linkedQuests={quests}
               />
             </View>
 

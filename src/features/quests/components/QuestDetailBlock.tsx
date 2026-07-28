@@ -12,6 +12,7 @@ import { useQuestExecution } from "../context/QuestExecutionContext";
 import { ChecklistWidget } from './widgets/ChecklistWidget'; 
 import { MapWidget } from './widgets/MapWidget';
 import { CardRevealWidget } from './widgets/CardRevealWidget';
+import { QuestLinkWidget } from './widgets/QuestLinkWidget';
 const parseConfig = (str: string) => {
   const obj: Record<string, string> = {};
   str.split('&').forEach(pair => {
@@ -53,6 +54,7 @@ type QuestDetailBlockProps = {
   onStepLayout?: (index: number, y: number) => void;
   onStepsListLayout?: (y: number) => void;
   onBlockLayout?: (y: number) => void;
+  linkedQuests?: Quest[];
 };
 
 export function QuestDetailBlock({
@@ -64,7 +66,8 @@ export function QuestDetailBlock({
   onExpandedStepChange,
   onStepLayout,
   onStepsListLayout,
-  onBlockLayout
+  onBlockLayout,
+  linkedQuests = []
 }: QuestDetailBlockProps) {
   const { getVariable } = useQuestExecution();
   const accent = accentClass[quest.accent] || accentClass['orange']; 
@@ -155,6 +158,10 @@ export function QuestDetailBlock({
                         flushInline();
                         const raw = part.slice(6, -1);
                         blocks.push(<LinkWidget key={`link-${i}`} config={raw} />);
+                      } else if (part.startsWith("[QUEST:")) {
+                        flushInline();
+                        const raw = part.slice(7, -1);
+                        blocks.push(<QuestLinkWidget key={`quest-${i}`} config={raw} quests={linkedQuests} />);
                       } else if (part.startsWith('[CHECKLIST:')) { 
                         flushInline();
                         const raw = part.slice(11, -1);

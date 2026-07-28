@@ -100,6 +100,7 @@ export type Journey = {
   nextQuestTitle: string;
   nextQuestImageUrl: string;
   questIds: string[];
+  publicQuestIds: string[];
   isActive: boolean;
 };
 
@@ -122,6 +123,7 @@ export type Quest = {
   journalPrompt: string;
   pointsValue: number;
   galleryUrls?: string[];
+  autoCompleteQuestIds?: string[];
 
   // --- VISIBLE TAGS ---
   categories: QuestCategory[];
@@ -175,6 +177,7 @@ export type LoreEntry = {
   photos: LorePhoto[];
   accent: Accent;
   pointsAwarded: number;
+  autoCompletedQuests?: Quest[];
 };
 
 export type FriendMoment = {
@@ -213,6 +216,7 @@ export type FriendRequest = {
 
 export type NewLoreEntryInput = {
   quest: Quest;
+  autoCompletedQuests?: Quest[];
   title: string;
   journal: string;
   location: string;

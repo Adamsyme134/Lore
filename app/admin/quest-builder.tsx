@@ -9,6 +9,7 @@ import { QuestHero } from "../../src/features/quests/components/QuestHero";
 import { QuestCard } from "../../src/features/quests/components/QuestCard";
 import { YouTubeWidget } from "../../src/features/quests/components/widgets/YouTubeWidget";
 import { CardRevealWidget } from "../../src/features/quests/components/widgets/CardRevealWidget";
+import { QuestLinkWidget } from "../../src/features/quests/components/widgets/QuestLinkWidget";
 import { searchLocations, type LocationSearchResult } from "../../src/features/location/api/locationSearchApi";
 import { mapJourney, type JourneyRow } from "../../src/features/quests/api/questApi";
 import { previewJourneys } from "../../src/shared/data/previewData";
@@ -30,7 +31,7 @@ const CATEGORIES: (QuestCategory | "All")[] = ["All", "Adventure", "Skill", "Cul
 const JOURNEY_ICON_NAMES = Object.keys((Ionicons as any).glyphMap || {}).sort();
 
 // -- WIDGETS SETUP -- //
-type WidgetType = 'RANDOMISER' | 'LOCATION' | 'YOUTUBE' | 'LINK' | 'CHECKLIST' | 'MAP' | 'CARD_REVEAL';
+type WidgetType = 'RANDOMISER' | 'LOCATION' | 'YOUTUBE' | 'LINK' | 'QUEST' | 'CHECKLIST' | 'MAP' | 'CARD_REVEAL';
 export const WIDGET_REGISTRY: Record<WidgetType, {
   id: string;
   icon: string;
@@ -65,6 +66,13 @@ export const WIDGET_REGISTRY: Record<WidgetType, {
     label: "Beautiful Link",
     placeholder: "Configure Link...",
     theme: { bg: "bg-stone-200", border: "border-line", text: "text-ink", containerBg: "bg-stone", containerBorder: "border-line", activeBg: "active:bg-stone-300" }
+  },
+  QUEST: {
+    id: "quest",
+    icon: "🧭",
+    label: "Quest Link",
+    placeholder: "Choose Quest...",
+    theme: { bg: "bg-blue/10", border: "border-blue/40", text: "text-blue", containerBg: "bg-blue/5", containerBorder: "border-blue/30", activeBg: "active:bg-blue/20" }
   },
   CHECKLIST: {
     id: "checklist",
@@ -352,6 +360,7 @@ const createBlankJourney = (quests: Quest[] = []): Journey => {
     nextQuestTitle: nextQuest?.title || "Choose the next quest",
     nextQuestImageUrl: nextQuest?.imageUrl || "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=400&q=85",
     questIds,
+    publicQuestIds: [],
     isActive: true
   };
 };
@@ -365,6 +374,7 @@ const buildJourneyFromQuestIds = (baseJourney: Journey, questIds: string[], ques
   return {
     ...baseJourney,
     questIds,
+    publicQuestIds: (baseJourney.publicQuestIds ?? []).filter((questId) => questIds.includes(questId)),
     timeline: questIds.map((questId, index) => ({
       id: `${baseJourney.id}-timeline-${questId}`,
       title: questById.get(questId)?.title || baseJourney.timeline.find(item => item.questId === questId)?.title || `Experience ${index + 1}`,
@@ -378,6 +388,27 @@ const buildJourneyFromQuestIds = (baseJourney: Journey, questIds: string[], ques
     nextQuestImageUrl: nextQuest?.imageUrl || baseJourney.backgroundImageUrl
   };
 };
+
+function LinkedSubQuestItem({
+  quest,
+  onRemove
+}: {
+  quest: Quest;
+  onRemove: () => void;
+}) {
+  return (
+    <View className="mb-2 flex-row items-center rounded-xl border border-line bg-surface p-3">
+      <Image source={{ uri: quest.imageUrl }} className="mr-3 h-12 w-12 rounded-lg bg-stone" contentFit="cover" />
+      <View className="flex-1">
+        <AppText className="font-sansSemi text-ink" numberOfLines={1}>{quest.title}</AppText>
+        <AppText className="mt-1 text-xs text-ink/50" numberOfLines={1}>{quest.length} · {quest.difficulty}</AppText>
+      </View>
+      <Pressable onPress={onRemove} className="ml-3 h-8 w-8 items-center justify-center rounded-full border border-line bg-stone">
+        <AppText className="text-[#E63946] font-sansSemi">x</AppText>
+      </Pressable>
+    </View>
+  );
+}
 
 function DraggableImageCrop({ imageUrl, value, onChange }: { imageUrl: string, value: string, onChange: (val: string) => void }) {
   const panRef = useRef({ x: 50, y: 50 });
@@ -443,13 +474,19 @@ function JourneyQuestOrderItem({
   quest,
   index,
   count,
+  isExclusive,
+  isPublic,
   onMove,
+  onTogglePublic,
   onRemove
 }: {
   quest: Quest;
   index: number;
   count: number;
+  isExclusive: boolean;
+  isPublic: boolean;
   onMove: (fromIndex: number, toIndex: number) => void;
+  onTogglePublic: () => void;
   onRemove: () => void;
 }) {
   const [dragY, setDragY] = useState(0);
@@ -500,6 +537,15 @@ function JourneyQuestOrderItem({
             {index + 1} of {count} · {quest.length} · {quest.difficulty}
           </AppText>
         </View>
+        {isExclusive ? (
+          <Pressable
+            onPress={onTogglePublic}
+            accessibilityLabel={isPublic ? "Make quest exclusive" : "Make quest public"}
+            className={`ml-3 h-9 w-9 items-center justify-center rounded-full border ${isPublic ? 'border-accent bg-accent' : 'border-line bg-stone'}`}
+          >
+            <Ionicons name="earth-outline" size={18} color={isPublic ? "#183431" : "#807A70"} />
+          </Pressable>
+        ) : null}
         <Pressable onPress={onRemove} className="ml-3 h-9 w-9 items-center justify-center rounded-full border border-line bg-stone">
           <AppText className="text-[#E63946] font-sansSemi">x</AppText>
         </Pressable>
@@ -539,6 +585,8 @@ export default function QuestBuilderAdmin() {
   const [searchQuery, setSearchQuery] = useState('');
   const [journeyQuestSearch, setJourneyQuestSearch] = useState('');
   const [isJourneyQuestSearchOpen, setIsJourneyQuestSearchOpen] = useState(false);
+  const [autoCompleteQuestSearch, setAutoCompleteQuestSearch] = useState('');
+  const [isAutoCompleteQuestSearchOpen, setIsAutoCompleteQuestSearchOpen] = useState(false);
   const [journeyIconSearch, setJourneyIconSearch] = useState('');
   const [isJourneyIconPickerOpen, setIsJourneyIconPickerOpen] = useState(false);
   const [activeCategory, setActiveCategory] = useState<QuestCategory | "All">("All");
@@ -574,6 +622,7 @@ export default function QuestBuilderAdmin() {
             pointsValue: q.points_value || 10,
             imagePosition: q.image_position || "center",
             galleryUrls: q.gallery_urls || [],
+            autoCompleteQuestIds: q.auto_complete_quest_ids || [],
             categories: (q.categories as QuestCategory[]) || (q.category ? [q.category] : ["Adventure"]),
             cost: (q.cost as QuestCost) || "Free",
             length: (q.length as QuestLength) || "A few hours",
@@ -658,6 +707,7 @@ export default function QuestBuilderAdmin() {
         seasons: quest.seasons,
         accessibility: quest.accessibility,
         location_types: quest.locationTypes,
+        auto_complete_quest_ids: quest.autoCompleteQuestIds || [],
         is_curated: true,
         is_active: true
       };
@@ -701,6 +751,7 @@ export default function QuestBuilderAdmin() {
         next_quest_title: generatedJourney.nextQuestTitle,
         next_quest_image_url: generatedJourney.nextQuestImageUrl,
         quest_ids: generatedJourney.questIds,
+        public_quest_ids: generatedJourney.visibility === "exclusive" ? generatedJourney.publicQuestIds : [],
         is_active: true
       };
 
@@ -783,7 +834,7 @@ export default function QuestBuilderAdmin() {
             </View>
           </View>
           <View className="flex-row gap-3">
-            <Pressable onPress={() => { setQuest(createBlankQuest()); setEditorKind('quest'); setView('editor'); setPreviewMode('hero'); setActiveTab('basic'); }} className="bg-stone px-6 py-3 rounded-full border border-line">
+            <Pressable onPress={() => { setQuest(createBlankQuest()); setAutoCompleteQuestSearch(''); setIsAutoCompleteQuestSearchOpen(false); setEditorKind('quest'); setView('editor'); setPreviewMode('hero'); setActiveTab('basic'); }} className="bg-stone px-6 py-3 rounded-full border border-line">
               <AppText className="text-ink font-sansSemi">+ Create New Quest</AppText>
             </Pressable>
             <Pressable onPress={() => { setJourney(createBlankJourney(savedQuests)); setJourneyQuestSearch(''); setIsJourneyQuestSearchOpen(false); setJourneyIconSearch(''); setIsJourneyIconPickerOpen(false); setEditorKind('journey'); setView('editor'); }} className="bg-accent px-6 py-3 rounded-full">
@@ -834,7 +885,7 @@ export default function QuestBuilderAdmin() {
                     </View>
                   </View>
 
-                  <Pressable onPress={() => { setQuest(q); setEditorKind('quest'); setView('editor'); setPreviewMode('hero'); setActiveTab('basic'); }} className="bg-stone py-2 rounded-lg items-center border border-line hover:bg-stone-300">
+                  <Pressable onPress={() => { setQuest(q); setAutoCompleteQuestSearch(''); setIsAutoCompleteQuestSearchOpen(false); setEditorKind('quest'); setView('editor'); setPreviewMode('hero'); setActiveTab('basic'); }} className="bg-stone py-2 rounded-lg items-center border border-line hover:bg-stone-300">
                     <AppText className="text-ink font-sansSemi text-sm">Edit Quest</AppText>
                   </Pressable>
                 </View>
@@ -896,6 +947,20 @@ export default function QuestBuilderAdmin() {
       const [movedQuestId] = nextQuestIds.splice(fromIndex, 1);
       nextQuestIds.splice(toIndex, 0, movedQuestId);
       updateJourneyQuestIds(nextQuestIds);
+    };
+    const togglePublicJourneyQuest = (questId: string) => {
+      setJourney(prev => {
+        const publicQuestIds = new Set(prev.publicQuestIds ?? []);
+        if (publicQuestIds.has(questId)) {
+          publicQuestIds.delete(questId);
+        } else {
+          publicQuestIds.add(questId);
+        }
+        return {
+          ...prev,
+          publicQuestIds: Array.from(publicQuestIds).filter(id => prev.questIds.includes(id))
+        };
+      });
     };
 
     return (
@@ -1020,7 +1085,10 @@ export default function QuestBuilderAdmin() {
                     quest={q}
                     index={index}
                     count={includedQuests.length}
+                    isExclusive={journey.visibility === "exclusive"}
+                    isPublic={journey.publicQuestIds.includes(q.id)}
                     onMove={moveJourneyQuest}
+                    onTogglePublic={() => togglePublicJourneyQuest(q.id)}
                     onRemove={() => updateJourneyQuestIds(journey.questIds.filter(id => id !== q.id))}
                   />
                 ))}
@@ -1104,6 +1172,17 @@ export default function QuestBuilderAdmin() {
   }
 
   const exposedVariables = extractExposedVariables(quest.steps);
+  const linkedAutoCompleteQuests = (quest.autoCompleteQuestIds || [])
+    .map(id => savedQuests.find(q => q.id === id))
+    .filter(Boolean) as Quest[];
+  const autoCompleteSearch = autoCompleteQuestSearch.trim().toLowerCase();
+  const addableAutoCompleteQuests = savedQuests.filter(q => {
+    if (q.id === quest.id) return false;
+    if ((quest.autoCompleteQuestIds || []).includes(q.id)) return false;
+    if (!autoCompleteSearch) return true;
+    return q.title.toLowerCase().includes(autoCompleteSearch) || q.description.toLowerCase().includes(autoCompleteSearch);
+  });
+  const updateAutoCompleteQuestIds = (questIds: string[]) => updateField("autoCompleteQuestIds", questIds);
 
   return (
     <View className="flex-1 flex-row bg-surface">
@@ -1201,6 +1280,68 @@ export default function QuestBuilderAdmin() {
               <MultiToggleGroup label="Seasons" options={["Spring", "Summer", "Autumn", "Winter", "All year"]} selected={quest.seasons} onSelect={(val) => updateField("seasons", val)} />
               <MultiToggleGroup label="Accessibility" options={["Walking", "Public Transport", "Driving", "Wheelchair Accessible"]} selected={quest.accessibility} onSelect={(val) => updateField("accessibility", val)} />
               <MultiToggleGroup label="Location Types" options={["City", "Town", "Countryside", "Abroad", "Anywhere"]} selected={quest.locationTypes} onSelect={(val) => updateField("locationTypes", val)} />
+
+              <View className="mb-8">
+                <View className="mb-3 flex-row items-center justify-between">
+                  <AppText variant="subtitle">Auto-completes Quests</AppText>
+                  <Pressable
+                    onPress={() => setIsAutoCompleteQuestSearchOpen(value => !value)}
+                    className="h-10 w-10 items-center justify-center rounded-full border border-line bg-accent"
+                  >
+                    <AppText className="text-accentText text-xl">+</AppText>
+                  </Pressable>
+                </View>
+
+                {linkedAutoCompleteQuests.length === 0 ? (
+                  <View className="mb-4 rounded-xl border border-dashed border-line bg-stone p-6">
+                    <AppText className="text-center text-ink/50">No auto-completed quests linked yet.</AppText>
+                  </View>
+                ) : (
+                  <View className="mb-4">
+                    {linkedAutoCompleteQuests.map(q => (
+                      <LinkedSubQuestItem
+                        key={q.id}
+                        quest={q}
+                        onRemove={() => updateAutoCompleteQuestIds((quest.autoCompleteQuestIds || []).filter(id => id !== q.id))}
+                      />
+                    ))}
+                  </View>
+                )}
+
+                {isAutoCompleteQuestSearchOpen && (
+                  <View className="rounded-xl border border-line bg-stone p-4">
+                    <TextInput
+                      className="mb-3 rounded-lg border border-line bg-surface p-3 font-sans text-ink"
+                      placeholder="Search quests to link..."
+                      value={autoCompleteQuestSearch}
+                      onChangeText={setAutoCompleteQuestSearch}
+                    />
+                    <View className="max-h-80 gap-2">
+                      <ScrollView nestedScrollEnabled>
+                        {addableAutoCompleteQuests.length === 0 ? (
+                          <AppText className="py-4 text-center text-ink/50">No matching quests.</AppText>
+                        ) : addableAutoCompleteQuests.map(q => (
+                          <Pressable
+                            key={q.id}
+                            onPress={() => {
+                              updateAutoCompleteQuestIds([...(quest.autoCompleteQuestIds || []), q.id]);
+                              setAutoCompleteQuestSearch('');
+                            }}
+                            className="mb-2 flex-row items-center rounded-xl border border-line bg-surface p-3"
+                          >
+                            <Image source={{ uri: q.imageUrl }} className="mr-3 h-12 w-12 rounded-lg bg-stone" contentFit="cover" />
+                            <View className="flex-1">
+                              <AppText className="font-sansSemi text-ink" numberOfLines={1}>{q.title}</AppText>
+                              <AppText className="mt-1 text-xs text-ink/50" numberOfLines={1}>{q.length} · {q.difficulty}</AppText>
+                            </View>
+                            <AppText className="text-orange font-sansSemi">Link</AppText>
+                          </Pressable>
+                        ))}
+                      </ScrollView>
+                    </View>
+                  </View>
+                )}
+              </View>
             </View>
           )}
         </ScrollView>
@@ -1379,6 +1520,23 @@ export default function QuestBuilderAdmin() {
                                     </View>
                                     <View className="bg-stone px-3 py-1.5 rounded-full border border-line opacity-50 group-hover:opacity-100 z-10">
                                         <AppText className="text-xs font-sansSemi">✏️ Edit</AppText>
+                                    </View>
+                                  </Pressable>
+                                );
+                              }
+                              // --- VISUAL PREVIEW FOR QUEST LINKS ---
+                              if (widgetType === 'QUEST') {
+                                return (
+                                  <Pressable
+                                    key={chunkIndex}
+                                    onPress={() => setActiveWidgetConfig({ stepIndex: index, chunkIndex, type: widgetType, config: widgetConfig })}
+                                    className="w-full my-3 group relative"
+                                  >
+                                    <View pointerEvents="none">
+                                      <QuestLinkWidget config={widgetConfig} quests={savedQuests} />
+                                    </View>
+                                    <View className="absolute top-3 right-3 bg-surface px-3 py-1.5 rounded-full shadow flex-row items-center border border-line opacity-70 group-hover:opacity-100 z-10">
+                                      <AppText className="text-xs font-sansSemi">✏️ Edit Quest</AppText>
                                     </View>
                                   </Pressable>
                                 );
@@ -1697,7 +1855,22 @@ export default function QuestBuilderAdmin() {
                             <AppText className={`${WIDGET_REGISTRY[activeWidgetConfig.type].theme.text} font-sansSemi text-sm`}>
                               {WIDGET_REGISTRY[activeWidgetConfig.type].icon} Edit {WIDGET_REGISTRY[activeWidgetConfig.type].label}
                             </AppText>
-                            <Pressable onPress={() => setActiveWidgetConfig(null)}><AppText className="text-ink/40">✕</AppText></Pressable>
+                            <View className="flex-row items-center gap-3">
+                              <Pressable
+                                onPress={() => {
+                                  const newParts = rawStepText.split(WIDGET_REGEX);
+                                  newParts.splice(activeWidgetConfig.chunkIndex, 1);
+                                  const newRawText = newParts.join('');
+                                  const newSteps = [...quest.steps];
+                                  newSteps[index] = buildStepString(title, newRawText);
+                                  updateField('steps', newSteps);
+                                  setActiveWidgetConfig(null);
+                                }}
+                              >
+                                <AppText className="text-[#E63946] font-sansSemi text-xs">Delete Widget</AppText>
+                              </Pressable>
+                              <Pressable onPress={() => setActiveWidgetConfig(null)}><AppText className="text-ink/40">✕</AppText></Pressable>
+                            </View>
                           </View>
                           
                           {/* RANDOMISER UI */}
@@ -1973,6 +2146,60 @@ updateField('steps', newSteps);
                                     />
                                   </>
                                 )}
+                              </View>
+                            );
+                          })()}
+
+                          {/* QUEST LINK CONFIG UI */}
+                          {activeWidgetConfig.type === 'QUEST' && (() => {
+                            const currentCfg = parseConfig(activeWidgetConfig.config);
+                            const selectedQuest = savedQuests.find(q => q.id === currentCfg.questId || q.slug === currentCfg.questId);
+                            const linkableQuests = savedQuests.filter(q => q.id !== quest.id);
+
+                            const modifyConfig = (questId: string) => {
+                                const newConfigStr = serializeConfig({ questId });
+                                setActiveWidgetConfig(prev => prev ? {...prev, config: newConfigStr} : null);
+
+                                const newParts = rawStepText.split(WIDGET_REGEX);
+                                newParts[activeWidgetConfig!.chunkIndex] = `[QUEST:${newConfigStr}]`;
+                                const newRawText = newParts.join('');
+                                const newSteps = [...quest.steps];
+                                newSteps[index] = buildStepString(title, newRawText);
+                                updateField('steps', newSteps);
+                            };
+
+                            return (
+                              <View className="flex-col gap-3">
+                                <View pointerEvents="none">
+                                  <QuestLinkWidget config={activeWidgetConfig.config} quests={savedQuests} />
+                                </View>
+
+                                <AppText className="text-xs mb-1">Linked Quest</AppText>
+                                <ScrollView className="max-h-[280px] w-full" nestedScrollEnabled>
+                                  {linkableQuests.length === 0 ? (
+                                    <View className="rounded-lg border border-dashed border-line bg-surface p-4">
+                                      <AppText className="text-center text-ink/50">No other saved quests available.</AppText>
+                                    </View>
+                                  ) : (
+                                    linkableQuests.map(q => {
+                                      const isSelected = selectedQuest?.id === q.id;
+                                      return (
+                                        <Pressable
+                                          key={q.id}
+                                          onPress={() => modifyConfig(q.id)}
+                                          className={`mb-2 flex-row items-center rounded-xl border p-3 ${isSelected ? 'border-blue bg-blue/10' : 'border-line bg-surface'}`}
+                                        >
+                                          <Image source={{ uri: q.imageUrl }} className="mr-3 h-12 w-12 rounded-lg bg-stone" contentFit="cover" />
+                                          <View className="flex-1">
+                                            <AppText className={isSelected ? 'font-sansSemi text-blue' : 'font-sansSemi text-ink'} numberOfLines={1}>{q.title}</AppText>
+                                            <AppText className="mt-1 text-xs text-ink/50" numberOfLines={1}>{q.length} · {q.difficulty}</AppText>
+                                          </View>
+                                          <AppText className={isSelected ? 'text-blue font-sansSemi' : 'text-ink/40'}>{isSelected ? 'Selected' : 'Choose'}</AppText>
+                                        </Pressable>
+                                      );
+                                    })
+                                  )}
+                                </ScrollView>
                               </View>
                             );
                           })()}

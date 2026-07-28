@@ -44,6 +44,7 @@ export default function ArchiveScreen() {
                   title={entry.questTitle}
                   caption={entry.excerpt}
                   locationName={entry.location}
+                  extraQuestCount={entry.autoCompletedQuests?.length || 0}
                 />
               </View>
             </TouchableOpacity>

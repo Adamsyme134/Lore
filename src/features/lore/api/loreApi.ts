@@ -5,8 +5,11 @@ import { decode } from "base64-arraybuffer";
 import { requireSupabase, supabase } from "../../../lib/supabase";
 import { useAuth } from "../../auth/AuthProvider";
 import { useExperienceStore } from "../../app/store/useExperienceStore";
-import type { LoreEntry, NewLoreEntryInput } from "../../../shared/types/domain";
+import type { LoreEntry, NewLoreEntryInput, Quest } from "../../../shared/types/domain";
 import type { Accent } from "../../../shared/design/tokens";
+import { mapQuest, type QuestRow } from "../../quests/api/questApi";
+
+const LORE_ENTRY_SELECT = "id, user_id, title, journal, location_name, latitude, longitude, mood, occurred_at, cover_photo_url, points_awarded, quest_id, auto_completed_quest_ids, quests(title, accent), profiles!lore_entries_user_id_fkey(id, handle, full_name, avatar_url), lore_photos(id, public_url, storage_path, width, height, sort_order)";
 
 type LoreEntryRow = {
   id: string;
@@ -21,6 +24,7 @@ type LoreEntryRow = {
   cover_photo_url: string | null;
   points_awarded: number;
   quest_id: string | null;
+  auto_completed_quest_ids: string[] | null;
   quests: {
     title: string;
     accent: Accent;
@@ -49,7 +53,7 @@ function formatEntryDate(value: string) {
   }).format(new Date(value));
 }
 
-function mapLoreEntry(row: LoreEntryRow): LoreEntry {
+function mapLoreEntry(row: LoreEntryRow, questById: Map<string, Quest> = new Map()): LoreEntry {
   const photos = (row.lore_photos ?? [])
     .slice()
     .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
@@ -88,15 +92,35 @@ function mapLoreEntry(row: LoreEntryRow): LoreEntry {
     imageUrl,
     photos: photos.length > 0 ? photos : [{ id: `${row.id}-cover`, uri: imageUrl }],
     accent: row.quests?.accent ?? "forest",
-    pointsAwarded: row.points_awarded
+    pointsAwarded: row.points_awarded,
+    autoCompletedQuests: (row.auto_completed_quest_ids ?? [])
+      .map((questId) => questById.get(questId))
+      .filter(Boolean) as Quest[]
   };
+}
+
+async function fetchAutoCompletedQuestMap(rows: LoreEntryRow[]) {
+  const questIds = Array.from(new Set(rows.flatMap((row) => row.auto_completed_quest_ids ?? [])));
+  if (questIds.length === 0) return new Map<string, Quest>();
+
+  const client = requireSupabase();
+  const { data, error } = await client
+    .from("v_quests_with_stats")
+    .select("*")
+    .in("id", questIds);
+
+  if (error) throw error;
+  return new Map((data ?? []).map((row) => {
+    const quest = mapQuest(row as QuestRow);
+    return [quest.id, quest] as const;
+  }));
 }
 
 async function fetchLoreEntriesFromSupabase(userId: string): Promise<LoreEntry[]> {
   const client = requireSupabase();
   const { data, error } = await client
     .from("lore_entries")
-    .select("id, user_id, title, journal, location_name, latitude, longitude, mood, occurred_at, cover_photo_url, points_awarded, quest_id, quests(title, accent), profiles!lore_entries_user_id_fkey(id, handle, full_name, avatar_url), lore_photos(id, public_url, storage_path, width, height, sort_order)")
+    .select(LORE_ENTRY_SELECT)
     .eq('user_id', userId)
     .order("occurred_at", { ascending: false });
 
@@ -104,19 +128,25 @@ async function fetchLoreEntriesFromSupabase(userId: string): Promise<LoreEntry[]
     throw error;
   }
 
-  return (data ?? []).map((row) => mapLoreEntry(row as unknown as LoreEntryRow));
+  const rows = (data ?? []) as unknown as LoreEntryRow[];
+  const questById = await fetchAutoCompletedQuestMap(rows);
+  return rows.map((row) => mapLoreEntry(row, questById));
 }
 
 async function fetchLoreEntryByIdFromSupabase(id: string): Promise<LoreEntry | null> {
   const client = requireSupabase();
   const { data, error } = await client
     .from("lore_entries")
-    .select("id, user_id, title, journal, location_name, latitude, longitude, mood, occurred_at, cover_photo_url, points_awarded, quest_id, quests(title, accent), profiles!lore_entries_user_id_fkey(id, handle, full_name, avatar_url), lore_photos(id, public_url, storage_path, width, height, sort_order)")
+    .select(LORE_ENTRY_SELECT)
     .eq("id", id)
     .maybeSingle();
 
   if (error) throw error;
-  return data ? mapLoreEntry(data as unknown as LoreEntryRow) : null;
+  if (!data) return null;
+
+  const row = data as unknown as LoreEntryRow;
+  const questById = await fetchAutoCompletedQuestMap([row]);
+  return mapLoreEntry(row, questById);
 }
 
 export function useLoreEntries() {
@@ -236,6 +266,7 @@ export function useCreateLoreEntry() {
       if (!isBackendReady || !user || !supabase) {
         return addPreviewLoreEntry({
           quest: input.quest,
+          autoCompletedQuests: input.autoCompletedQuests,
           title: input.title,
           journal: input.journal,
           location: input.location,
@@ -251,6 +282,31 @@ export function useCreateLoreEntry() {
       const client = requireSupabase();
       const pointsAwarded = input.quest.pointsValue + Math.min(3, input.photoAssets.length) * 2;
       let uploadedPhotos: Array<{ storagePath: string; publicUrl: string }> = [];
+      const linkedQuestIds = Array.from(new Set([
+        ...(input.quest.autoCompleteQuestIds ?? []),
+        ...(input.autoCompletedQuests ?? []).map((quest) => quest.id)
+      ].filter((questId) => questId !== input.quest.id)));
+      let autoCompletedQuestIds: string[] = [];
+
+      if (linkedQuestIds.length > 0) {
+        const { data: existingStatuses, error: statusError } = await client
+          .from("user_quests")
+          .select("quest_id, status")
+          .eq("user_id", user.id)
+          .in("quest_id", linkedQuestIds);
+
+        if (statusError) {
+          throw statusError;
+        }
+
+        const alreadyCompletedQuestIds = new Set(
+          (existingStatuses ?? [])
+            .filter((item) => item.status === "completed")
+            .map((item) => item.quest_id as string)
+        );
+
+        autoCompletedQuestIds = linkedQuestIds.filter((questId) => !alreadyCompletedQuestIds.has(questId));
+      }
 
       const { data: entryRow, error: entryError } = await client
         .from("lore_entries")
@@ -264,7 +320,8 @@ export function useCreateLoreEntry() {
           longitude: input.longitude ?? null,
           mood: input.mood,
           occurred_at: new Date().toISOString(),
-          points_awarded: pointsAwarded
+          points_awarded: pointsAwarded,
+          auto_completed_quest_ids: autoCompletedQuestIds
         })
         .select("id")
         .single();
@@ -311,6 +368,25 @@ export function useCreateLoreEntry() {
           .from("user_quests")
           .upsert({ user_id: user.id, quest_id: input.quest.id, status: "completed", completed_at: new Date().toISOString() }, { onConflict: "user_id,quest_id" });
 
+        if (autoCompletedQuestIds.length > 0) {
+          const completedAt = new Date().toISOString();
+          const { error: linkedQuestError } = await client
+            .from("user_quests")
+            .upsert(
+              autoCompletedQuestIds.map((questId) => ({
+                user_id: user.id,
+                quest_id: questId,
+                status: "completed",
+                completed_at: completedAt
+              })),
+              { onConflict: "user_id,quest_id" }
+            );
+
+          if (linkedQuestError) {
+            throw linkedQuestError;
+          }
+        }
+
         const { error: pointsError } = await client.rpc("award_lore_points", {
           entry_id: entryId,
           photo_count: input.photoAssets.length
@@ -338,7 +414,10 @@ export function useCreateLoreEntry() {
       return {
         ...savedEntry,
         people: input.people,
-        tags: input.tags
+        tags: input.tags,
+        autoCompletedQuests: savedEntry.autoCompletedQuests?.length
+          ? savedEntry.autoCompletedQuests
+          : (input.autoCompletedQuests ?? []).filter((quest) => autoCompletedQuestIds.includes(quest.id))
       };
     },
     onSuccess: async () => {
@@ -348,7 +427,8 @@ export function useCreateLoreEntry() {
         queryClient.invalidateQueries({ queryKey: ["friend-group-leaderboard"] }),
         queryClient.invalidateQueries({ queryKey: ["active-quests"] }),
         queryClient.invalidateQueries({ queryKey: ["user-quests"] }),
-        queryClient.invalidateQueries({ queryKey: ["user-quests-status"] })
+        queryClient.invalidateQueries({ queryKey: ["user-quests-status"] }),
+        queryClient.invalidateQueries({ queryKey: ["quests"] })
       ]);
       await refreshProfile();
     }
@@ -386,7 +466,8 @@ export function useDeleteLoreEntry() {
         queryClient.invalidateQueries({ queryKey: ["friend-group-leaderboard"] }),
         queryClient.invalidateQueries({ queryKey: ["active-quests"] }),
         queryClient.invalidateQueries({ queryKey: ["user-quests"] }),
-        queryClient.invalidateQueries({ queryKey: ["user-quests-status"] })
+        queryClient.invalidateQueries({ queryKey: ["user-quests-status"] }),
+        queryClient.invalidateQueries({ queryKey: ["quests"] })
       ]);
       await refreshProfile();
     }

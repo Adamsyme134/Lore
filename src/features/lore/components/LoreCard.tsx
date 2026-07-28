@@ -11,9 +11,10 @@ interface LoreCardProps {
   caption: string;
   locationName: string;
   coordinates?: string;
+  extraQuestCount?: number;
 }
 
-export const LoreCard = ({ heroImageUri, title, caption, locationName, coordinates }: LoreCardProps) => {
+export const LoreCard = ({ heroImageUri, title, caption, locationName, coordinates, extraQuestCount = 0 }: LoreCardProps) => {
   return (
     <View className="w-full aspect-[3/4] bg-[#0a0a0a] overflow-hidden relative" collapsable={false}>
       {/* Hero Image */}
@@ -38,6 +39,12 @@ export const LoreCard = ({ heroImageUri, title, caption, locationName, coordinat
       <Text className="absolute top-12 left-8 text-white font-serif text-lg tracking-[0.3em]">
         LORE
       </Text>
+
+      {extraQuestCount > 0 ? (
+        <View className="absolute right-6 top-10 h-[55px] min-w-[55px] items-center justify-center rounded-full bg-white px-3 shadow">
+          <Text className="font-sans text-base font-bold text-[#0a0a0a]">+{extraQuestCount}</Text>
+        </View>
+      ) : null}
 
       {/* Title Block */}
       <View className="absolute top-[25%] left-8 right-8">

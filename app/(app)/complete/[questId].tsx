@@ -15,9 +15,11 @@ import { AppText } from '../../../src/shared/components/AppText';
 import { Button } from '../../../src/shared/components/Button';
 import { TopBar } from '../../../src/shared/components/TopBar';
 import { LoreCard } from '../../../src/features/lore/components/LoreCard';
+import { AutoCompletedQuestGrid } from '../../../src/features/lore/components/AutoCompletedQuestGrid';
 import { supabase } from '../../../src/lib/supabase'; 
 import { useThemeColors } from '../../../src/shared/design/useThemeColors';
-import type { Profile } from '../../../src/shared/types/domain';
+import type { Profile, Quest } from '../../../src/shared/types/domain';
+import { useQuests, useUserQuestStatuses } from '../../../src/features/quests/api/questApi';
 
 const MAX_PHOTOS = 3;
 const MAX_UPLOAD_IMAGE_EDGE = 1800;
@@ -29,6 +31,23 @@ type SelectedPhoto = {
   height?: number | null;
   mimeType?: string | null;
 };
+
+async function fetchAutoCompleteQuestIds(questId: string, fallbackQuestIds: string[] = []) {
+  if (!supabase) return fallbackQuestIds;
+
+  const { data, error } = await supabase
+    .from('quests')
+    .select('auto_complete_quest_ids')
+    .eq('id', questId)
+    .maybeSingle();
+
+  if (error) {
+    console.error("Failed to fetch linked auto-complete quests:", error);
+    return fallbackQuestIds;
+  }
+
+  return (data?.auto_complete_quest_ids as string[] | null) ?? fallbackQuestIds;
+}
 
 async function compressSelectedPhoto(photo: SelectedPhoto): Promise<SelectedPhoto> {
   const width = photo.width ?? undefined;
@@ -69,6 +88,8 @@ export default function QuestCompletionScreen() {
   const locationFieldRef = useRef<View | null>(null);
   const locationSearchRequestId = useRef(0);
   const { data: quest } = useQuest(questId as string);
+  const { data: quests = [] } = useQuests();
+  const { data: questStatuses } = useUserQuestStatuses();
   const { data: friends = [], isLoading: isLoadingFriends } = useFriendsList();
   const createLoreEntry = useCreateLoreEntry();
   const [showSuccessModal, setShowSuccessModal] = useState(false);
@@ -85,6 +106,7 @@ export default function QuestCompletionScreen() {
   const [friendSearch, setFriendSearch] = useState('');
   const [isPeoplePickerOpen, setIsPeoplePickerOpen] = useState(false);
   const [isCompressingPhotos, setIsCompressingPhotos] = useState(false);
+  const [completedSubQuests, setCompletedSubQuests] = useState<Quest[]>([]);
 
   
   const [questTitle, setQuestTitle] = useState<string>("Loading...");
@@ -98,6 +120,7 @@ export default function QuestCompletionScreen() {
     if (!query) return true;
     return `${friend.fullName} ${friend.handle}`.toLowerCase().includes(query);
   });
+  const completedQuestIds = new Set(questStatuses?.completed ?? []);
   //const [coordinates, setCoordinates] = useState<string>("");
 
   const scrollLocationIntoView = useCallback(() => {
@@ -286,8 +309,16 @@ export default function QuestCompletionScreen() {
       }));
 
       // Save to Supabase (this handles the completed status and points)
-       await createLoreEntry.mutateAsync({
-        quest,
+      const questById = new Map(quests.map((item) => [item.id, item]));
+      const linkedQuestIds = await fetchAutoCompleteQuestIds(quest.id, quest.autoCompleteQuestIds ?? []);
+      const autoCompletedQuests = linkedQuestIds
+        .filter((linkedQuestId) => linkedQuestId !== quest.id && !completedQuestIds.has(linkedQuestId))
+        .map((linkedQuestId) => questById.get(linkedQuestId))
+        .filter(Boolean) as Quest[];
+
+      const savedEntry = await createLoreEntry.mutateAsync({
+        quest: { ...quest, autoCompleteQuestIds: linkedQuestIds },
+        autoCompletedQuests,
         title: quest.title,
         journal: caption || "No words needed.",
         location: location || "Unknown Location",
@@ -298,6 +329,7 @@ export default function QuestCompletionScreen() {
         tags: [],
         photoAssets
       });
+      setCompletedSubQuests(savedEntry.autoCompletedQuests ?? []);
       setShowSuccessModal(true);
       
       // Navigate straight to the user's My Lore tab
@@ -608,15 +640,28 @@ export default function QuestCompletionScreen() {
         animationType="fade"
       >
         <View className="flex-1 bg-black/60 justify-center items-center px-6">
-          <View className="w-full bg-surface rounded-[32px] p-6 items-center shadow-lg">
+          <View className="w-full max-w-[520px] bg-surface rounded-[32px] p-6 items-center shadow-lg">
             <View className="w-16 h-16 rounded-full bg-accent items-center justify-center mb-4">
               <AppText className="text-accentText text-2xl font-serif">✓</AppText>
             </View>
             
             <AppText variant="title" className="text-center mb-2">Saved to Archive</AppText>
-            <AppText className="text-center text-muted mb-8 max-w-[250px]">
+            <AppText className="text-center text-muted mb-6 max-w-[250px]">
               Your memory is securely stored. Want to share your Lore Card with friends?
             </AppText>
+
+            {completedSubQuests.length > 0 ? (
+              <View className="mb-6 w-full">
+                <AppText className="mb-3 text-center font-sansSemi text-xs uppercase tracking-widest text-muted">
+                  By completing this quest you completed these quests too:
+                </AppText>
+                <View className="max-h-64 w-full">
+                  <ScrollView showsVerticalScrollIndicator={false}>
+                    <AutoCompletedQuestGrid quests={completedSubQuests} />
+                  </ScrollView>
+                </View>
+              </View>
+            ) : null}
             
             <View className="w-full space-y-3">
               <Button label="Share Lore Card" onPress={handleShare} />

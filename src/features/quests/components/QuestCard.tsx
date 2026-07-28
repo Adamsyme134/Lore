@@ -6,7 +6,7 @@ import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import type { Quest } from "../../../shared/types/domain";
 import { AppText } from "../../../shared/components/AppText";
-import { Chip } from "../../../shared/components/Chip";
+import { CategoryIconBadge, QuestMetaPills } from "./QuestMetadata";
 type QuestCardProps = {
   quest: Quest;
   compact?: boolean;
@@ -48,14 +48,6 @@ export function QuestCard({ quest, compact = false, groupId, onRemove }: QuestCa
       <View className="absolute bottom-0 left-0 right-0 px-5 py-5">
         {!compact && (
           <>
-            <View className="mb-3 flex-row flex-wrap gap-2">
-              {Array.isArray(quest.categories) ? quest.categories.map(cat => (
-                <Chip key={cat} label={cat} tone="light" />
-              )) : null}
-              {quest.length ? <Chip label={quest.length} tone="light" /> : null}
-              {quest.difficulty ? <Chip label={quest.difficulty} tone="light" /> : null}
-              {quest.cost ? <Chip label={quest.cost} tone="light" /> : null}
-            </View>
             {quest.kicker && (
               <AppText variant="eyebrow" className="mb-2 text-ivory/80">
                 {quest.kicker}
@@ -66,11 +58,14 @@ export function QuestCard({ quest, compact = false, groupId, onRemove }: QuestCa
         
         <AppText
           variant={compact ? "subtitle" : "display"}
-          className={compact ? "text-ivory leading-7" : "text-ivory leading-[52px] mb-3"}
+          className={compact ? "text-ivory leading-7" : "text-ivory leading-[52px]"}
         >
           {quest.title}
         </AppText>
+        <QuestMetaPills length={quest.length} difficulty={quest.difficulty} compact={compact} className={compact ? "mt-3" : "mt-4"} />
       </View>
+
+      <CategoryIconBadge category={quest.categories?.[0] || quest.category} className="absolute left-4 top-4" size={compact ? "sm" : "md"} />
 
       {isGroup && (
         <View className="absolute top-4 right-4 bg-[#2D6A4F] px-3 py-1.5 rounded-full shadow-md border border-white/20">
@@ -84,7 +79,7 @@ export function QuestCard({ quest, compact = false, groupId, onRemove }: QuestCa
             event.stopPropagation();
             onRemove();
           }}
-          className="absolute left-3 top-3 z-20 h-10 w-10 items-center justify-center rounded-full border border-white/25 bg-black/55"
+          className="absolute left-3 top-16 z-20 h-10 w-10 items-center justify-center rounded-full border border-white/25 bg-black/55"
         >
           <Ionicons name="trash-outline" size={18} color="#F6F5F2" />
         </Pressable>

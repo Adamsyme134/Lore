@@ -35,6 +35,12 @@ $$;
 
 grant execute on function public.add_friend_group_quest(uuid, uuid) to authenticated;
 
+alter table public.quests
+  add column if not exists auto_complete_quest_ids uuid[] not null default '{}';
+
+alter table public.lore_entries
+  add column if not exists auto_completed_quest_ids uuid[] not null default '{}';
+
 create table if not exists public.journeys (
   id uuid primary key default gen_random_uuid(),
   slug text not null unique,
@@ -51,6 +57,7 @@ create table if not exists public.journeys (
   next_quest_title text not null default '',
   next_quest_image_url text not null default '',
   quest_ids uuid[] not null default '{}',
+  public_quest_ids uuid[] not null default '{}',
   is_active boolean not null default true,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
@@ -58,6 +65,9 @@ create table if not exists public.journeys (
 
 alter table public.journeys
   add column if not exists visibility text not null default 'global' check (visibility in ('global', 'exclusive'));
+
+alter table public.journeys
+  add column if not exists public_quest_ids uuid[] not null default '{}';
 
 alter table public.journeys enable row level security;
 
@@ -74,3 +84,30 @@ create policy "Authenticated users can manage journeys"
   to authenticated
   using (true)
   with check (true);
+
+create table if not exists public.user_journeys (
+  user_id uuid not null references auth.users(id) on delete cascade,
+  journey_id uuid not null references public.journeys(id) on delete cascade,
+  status text not null default 'active' check (status in ('active', 'completed', 'dismissed')),
+  started_at timestamptz not null default now(),
+  completed_at timestamptz,
+  updated_at timestamptz not null default now(),
+  primary key (user_id, journey_id)
+);
+
+alter table public.user_journeys enable row level security;
+
+drop policy if exists "Users can read own journey progress" on public.user_journeys;
+create policy "Users can read own journey progress"
+  on public.user_journeys
+  for select
+  to authenticated
+  using (auth.uid() = user_id);
+
+drop policy if exists "Users can manage own journey progress" on public.user_journeys;
+create policy "Users can manage own journey progress"
+  on public.user_journeys
+  for all
+  to authenticated
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);

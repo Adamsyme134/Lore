@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../../auth/AuthProvider";
 import { requireSupabase, supabase } from "../../../lib/supabase";
-import { previewQuests } from "../../../shared/data/previewData";
+import { previewJourneys, previewQuests } from "../../../shared/data/previewData";
 import type { 
   Journey,
   JourneyTimelineItem,
@@ -48,6 +48,7 @@ export type QuestRow = {
   image_position?: string; 
   categories?: string[];
   gallery_urls?: string[];
+  auto_complete_quest_ids?: string[];
 
   // ✨ NEW: The stats returned by our Supabase View
   view_count?: number;
@@ -72,6 +73,7 @@ export type JourneyRow = {
   next_quest_title?: string;
   next_quest_image_url?: string;
   quest_ids?: string[];
+  public_quest_ids?: string[];
   is_active?: boolean;
 };
 
@@ -94,6 +96,7 @@ export function mapQuest(row: QuestRow): Quest {
     pointsValue: row.points_value || 10,
     imagePosition: (row.image_position as "top" | "center" | "bottom") || "center",
     galleryUrls: row.gallery_urls || [],
+    autoCompleteQuestIds: row.auto_complete_quest_ids || [],
     categories: (row.categories as QuestCategory[]) || (row.category ? [row.category as QuestCategory] : ["Adventure"]),
     category: (row.category as QuestCategory) || "Adventure",
     cost: (row.cost as QuestCost) || "Free",
@@ -136,6 +139,7 @@ export function mapJourney(row: JourneyRow): Journey {
     nextQuestTitle: row.next_quest_title || "Choose your next quest",
     nextQuestImageUrl: row.next_quest_image_url || row.background_image_url,
     questIds: row.quest_ids || [],
+    publicQuestIds: row.public_quest_ids || [],
     isActive: row.is_active ?? true
   };
 }
@@ -177,7 +181,8 @@ export function useJourneys() {
   const { isBackendReady } = useAuth();
   return useQuery({
     queryKey: ["journeys", isBackendReady ? "remote" : "preview"],
-    queryFn: () => (isBackendReady ? fetchJourneysFromSupabase() : Promise.resolve([]))
+    queryFn: () => (isBackendReady ? fetchJourneysFromSupabase() : Promise.resolve(previewJourneys)),
+    initialData: isBackendReady ? undefined : previewJourneys
   });
 }
 
@@ -185,6 +190,12 @@ export type UserQuestStatuses = {
   active: string[];
   completed: string[];
   saved: string[];
+  dismissed: string[];
+};
+
+export type UserJourneyStatuses = {
+  active: string[];
+  completed: string[];
   dismissed: string[];
 };
 
@@ -235,6 +246,48 @@ export function useUserQuestStatuses() {
   });
 }
 
+export function useUserJourneyStatuses() {
+  const { isBackendReady, user } = useAuth();
+  const activeJourneyIds = useExperienceStore((state) => state.activeJourneyIds);
+
+  const localStatuses: UserJourneyStatuses = {
+    active: activeJourneyIds,
+    completed: [],
+    dismissed: []
+  };
+
+  return useQuery({
+    queryKey: [
+      "user-journeys-status",
+      user?.id,
+      isBackendReady ? "remote" : "preview",
+      isBackendReady ? null : localStatuses.active
+    ],
+    queryFn: async () => {
+      if (!isBackendReady || !user || !supabase) return localStatuses;
+
+      const { data, error } = await supabase
+        .from("user_journeys")
+        .select("journey_id, status")
+        .eq("user_id", user.id);
+
+      if (error) throw error;
+
+      return (data ?? []).reduce<UserJourneyStatuses>(
+        (statuses, item) => {
+          const status = item.status as keyof UserJourneyStatuses;
+          if (status in statuses) {
+            statuses[status].push(item.journey_id);
+          }
+          return statuses;
+        },
+        { active: [], completed: [], dismissed: [] }
+      );
+    },
+    initialData: localStatuses
+  });
+}
+
 export function getJourneyQuestIds(journey: Journey) {
   return journey.questIds.length
     ? journey.questIds
@@ -245,14 +298,18 @@ export function getExclusiveJourneyQuestIds(journeys: Journey[]) {
   return new Set(
     journeys
       .filter((journey) => journey.isActive && journey.visibility === "exclusive")
-      .flatMap(getJourneyQuestIds)
+      .flatMap((journey) => {
+        const publicQuestIds = new Set(journey.publicQuestIds ?? []);
+        return getJourneyQuestIds(journey).filter((questId) => !publicQuestIds.has(questId));
+      })
   );
 }
 
 export function getExclusiveQuestLock(
   questId: string,
   journeys: Journey[],
-  completedQuestIds: Set<string>
+  completedQuestIds: Set<string>,
+  activeJourneyIds: Set<string> = new Set()
 ) {
   const journey = journeys.find((item) => {
     if (!item.isActive || item.visibility !== "exclusive") return false;
@@ -261,18 +318,50 @@ export function getExclusiveQuestLock(
 
   if (!journey) return null;
 
+  if (!activeJourneyIds.has(journey.id)) {
+    return { journey, isLocked: true, previousQuestId: null, reason: "journey" as const };
+  }
+
+  if (journey.visibility !== "exclusive" || (journey.publicQuestIds ?? []).includes(questId)) {
+    return { journey, isLocked: false, previousQuestId: null, reason: null };
+  }
+
   const questIds = getJourneyQuestIds(journey);
   const questIndex = questIds.indexOf(questId);
   if (questIndex <= 0 || completedQuestIds.has(questId)) {
-    return { journey, isLocked: false, previousQuestId: null };
+    return { journey, isLocked: false, previousQuestId: null, reason: null };
   }
 
   const previousQuestId = questIds[questIndex - 1];
   return {
     journey,
     isLocked: !completedQuestIds.has(previousQuestId),
-    previousQuestId
+    previousQuestId,
+    reason: "previousQuest" as const
   };
+}
+
+export function useStartJourney() {
+  const { isBackendReady, user } = useAuth();
+  const queryClient = useQueryClient();
+  const startJourney = useExperienceStore((state) => state.startJourney);
+
+  return useMutation({
+    mutationFn: async (journeyId: string) => {
+      startJourney(journeyId);
+      if (!isBackendReady || !user || !supabase) return;
+
+      const { error } = await supabase
+        .from("user_journeys")
+        .upsert({ user_id: user.id, journey_id: journeyId, status: "active" }, { onConflict: "user_id,journey_id" });
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["user-journeys"] });
+      void queryClient.invalidateQueries({ queryKey: ["user-journeys-status"] });
+    }
+  });
 }
 
 // ✨ NEW: Mutation to trigger a view count increment

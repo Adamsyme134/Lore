@@ -188,6 +188,7 @@ export const previewJourneys: Journey[] = [
     nextQuestTitle: "Watch sunrise from a summit",
     nextQuestImageUrl: "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=400&q=85",
     questIds: ["sunrise-high-place", "train-no-plan"],
+    publicQuestIds: [],
     isActive: true
   },
   {
@@ -214,6 +215,7 @@ export const previewJourneys: Journey[] = [
     nextQuestTitle: "Visit a local roastery",
     nextQuestImageUrl: "https://images.unsplash.com/photo-1442512595331-e89e73853f31?auto=format&fit=crop&w=400&q=85",
     questIds: ["unknown-cafe"],
+    publicQuestIds: [],
     isActive: true
   },
   {
@@ -239,6 +241,7 @@ export const previewJourneys: Journey[] = [
     nextQuestTitle: "Try a pottery class",
     nextQuestImageUrl: "https://images.unsplash.com/photo-1565193298357-c5b2efc1de43?auto=format&fit=crop&w=400&q=85",
     questIds: ["sketch-in-public"],
+    publicQuestIds: [],
     isActive: true
   }
 ];

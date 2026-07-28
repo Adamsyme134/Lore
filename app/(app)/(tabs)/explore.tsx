@@ -8,7 +8,7 @@ import Animated, { FadeInDown } from "react-native-reanimated";
 import { useRouter } from "expo-router";
 import { Screen } from "../../../src/shared/components/Screen";
 import { AppText } from "../../../src/shared/components/AppText";
-import { Chip } from "../../../src/shared/components/Chip";
+import { CategoryIconBadge, QuestMetaPills } from "../../../src/features/quests/components/QuestMetadata";
 import { useExperienceStore } from "../../../src/features/app/store/useExperienceStore";
 import { useThemeColors } from "../../../src/shared/design/useThemeColors";
 import { getExclusiveJourneyQuestIds, useJourneys, useQuests, useSaveQuest, useUserQuestStatuses } from "../../../src/features/quests/api/questApi";
@@ -122,7 +122,7 @@ function JourneyCard({
     <Pressable
       onPress={() => router.push({ pathname: "/journey/[id]", params: { id: journey.id } })}
       className="mr-4 overflow-hidden rounded-[20px] border border-accent/40 bg-surface"
-      style={{ width: 265, height: 393 }}
+      style={{ width: 265, height: 450 }}
     >
       <Image
         source={{ uri: journey.backgroundImageUrl }}
@@ -177,7 +177,6 @@ function CuratedQuestTile({
   onToggleSaved: (questId: string) => void;
 }) {
   const router = useRouter();
-  const tags = [...(quest.categories || []), quest.length].filter(Boolean).slice(0, 2);
 
   return (
     <Pressable
@@ -197,6 +196,7 @@ function CuratedQuestTile({
         locations={[0.25, 1]}
         style={{ position: "absolute", top: 0, right: 0, bottom: 0, left: 0 }}
       />
+      <CategoryIconBadge category={quest.categories?.[0] || quest.category} className="absolute left-3 top-3" size="sm" />
       <Pressable
         onPress={(event) => {
           event.stopPropagation();
@@ -210,11 +210,7 @@ function CuratedQuestTile({
         <AppText variant="subtitle" className="mb-4 text-2xl leading-7 text-ivory">
           {quest.title}
         </AppText>
-        <View className="flex-row flex-wrap gap-2">
-          {tags.map((tag) => (
-            <Chip key={tag} label={tag} tone="light" />
-          ))}
-        </View>
+        <QuestMetaPills length={quest.length} difficulty={quest.difficulty} />
       </View>
     </Pressable>
   );
@@ -243,16 +239,13 @@ function RecommendedQuestCard({
         contentFit="cover"
         contentPosition={contentPosition(quest.imagePosition) as any}
       />
+      <CategoryIconBadge category={quest.categories?.[0] || quest.category} className="absolute left-4 top-4" size="sm" />
       <View className="flex-1 p-5">
         <AppText className="mb-1 text-tertiary">You've enjoyed nature lately.</AppText>
         <AppText variant="subtitle" className="text-2xl leading-8 text-ink">
           {quest.title}
         </AppText>
-        <View className="mt-3 flex-row flex-wrap gap-2">
-          {[...(quest.categories || []), quest.length, quest.difficulty].filter(Boolean).slice(0, 3).map((tag) => (
-            <Chip key={tag} label={tag} tone="light" />
-          ))}
-        </View>
+        <QuestMetaPills length={quest.length} difficulty={quest.difficulty} tone="surface" className="mt-3" />
       </View>
       <Pressable
         onPress={(event) => {
@@ -421,7 +414,7 @@ export default function Explore() {
         )}
 
         <View className="mb-8">
-          <SectionTitle title="Your Journeys" actionLabel="See all" onActionPress={() => router.push("/journeys")} />
+          <SectionTitle title="Explore Journeys" actionLabel="See all" onActionPress={() => router.push("/journeys")} />
           {(isLoadingJourneys || isFetchingJourneys) && filteredJourneys.length === 0 ? (
             <View className="items-center justify-center py-12">
               <ActivityIndicator size="large" color={colors.accent} />

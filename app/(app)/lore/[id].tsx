@@ -12,6 +12,7 @@ import { AppText } from "../../../src/shared/components/AppText";
 import { Button } from "../../../src/shared/components/Button";
 import { useLoreEntry, useDeleteLoreEntry } from "../../../src/features/lore/api/loreApi";
 import { LoreCard } from "../../../src/features/lore/components/LoreCard";
+import { AutoCompletedQuestGrid } from "../../../src/features/lore/components/AutoCompletedQuestGrid";
 import { useAuth } from "../../../src/features/auth/AuthProvider";
 import * as MediaLibrary from "expo-media-library/legacy";
 import { useThemeColors } from "../../../src/shared/design/useThemeColors";
@@ -160,6 +161,7 @@ export default function LoreDetailScreen() {
   const photos = entry.photos.length > 0 ? entry.photos : [{ id: `${entry.id}-cover`, uri: entry.imageUrl }];
   const likeCount = likeQuery.data?.likeCount ?? 0;
   const likedByMe = likeQuery.data?.likedByMe ?? false;
+  const autoCompletedQuests = entry.autoCompletedQuests ?? [];
   const canViewUploaderProfile = !!uploader.id;
   const openUploaderProfile = () => {
     if (!uploader.id) return;
@@ -324,6 +326,15 @@ export default function LoreDetailScreen() {
           </Pressable>
         </View>
 
+        {autoCompletedQuests.length > 0 ? (
+          <View className="mt-7 border-t border-line pt-6">
+            <AppText variant="eyebrow">Also Completed</AppText>
+            <View className="mt-4">
+              <AutoCompletedQuestGrid quests={autoCompletedQuests} />
+            </View>
+          </View>
+        ) : null}
+
         <View className="mt-4 mb-6">
           <Button
             label="View Quest"
@@ -363,8 +374,18 @@ export default function LoreDetailScreen() {
                 caption={entry.excerpt}
                 locationName={entry.location}
                 coordinates={entry.latitude && entry.longitude ? `${entry.latitude.toFixed(4)}, ${entry.longitude.toFixed(4)}` : undefined}
+                extraQuestCount={autoCompletedQuests.length}
               />
             </View>
+
+            {autoCompletedQuests.length > 0 ? (
+              <View className="mt-6 w-full">
+                <AppText className="mb-3 text-center font-sansSemi text-sm uppercase tracking-widest text-white/70">
+                  Also completed
+                </AppText>
+                <AutoCompletedQuestGrid quests={autoCompletedQuests} />
+              </View>
+            ) : null}
 
             <View className="mt-8 flex-row gap-6">
               <Pressable onPress={handleDownload} className="h-16 w-16 bg-accent rounded-full items-center justify-center">
