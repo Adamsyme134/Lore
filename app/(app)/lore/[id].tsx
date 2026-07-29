@@ -326,15 +326,6 @@ export default function LoreDetailScreen() {
           </Pressable>
         </View>
 
-        {autoCompletedQuests.length > 0 ? (
-          <View className="mt-7 border-t border-line pt-6">
-            <AppText variant="eyebrow">Also Completed</AppText>
-            <View className="mt-4">
-              <AutoCompletedQuestGrid quests={autoCompletedQuests} />
-            </View>
-          </View>
-        ) : null}
-
         <View className="mt-4 mb-6">
           <Button
             label="View Quest"
@@ -346,6 +337,18 @@ export default function LoreDetailScreen() {
             }}
           />
         </View>
+
+        {autoCompletedQuests.length > 0 ? (
+          <View className="mt-7 border-t border-line pt-6">
+            <AppText variant="eyebrow">Completing this quest also completed:</AppText>
+            <View className="mt-4">
+              <AutoCompletedQuestGrid
+                quests={autoCompletedQuests}
+                onQuestPress={(quest) => router.push({ pathname: "/quest/[id]", params: { id: quest.id } })}
+              />
+            </View>
+          </View>
+        ) : null}
       </View>
 
 

@@ -419,6 +419,7 @@ export default function QuestCompletionScreen() {
                       title={questTitle}
                       caption={caption || "No words needed."}
                       locationName={location || "UNKNOWN LOCATION"}
+                      extraQuestCount={completedSubQuests.length}
                     />
                   </ViewShot>
                 ) : (
@@ -653,7 +654,7 @@ export default function QuestCompletionScreen() {
             {completedSubQuests.length > 0 ? (
               <View className="mb-6 w-full">
                 <AppText className="mb-3 text-center font-sansSemi text-xs uppercase tracking-widest text-muted">
-                  By completing this quest you completed these quests too:
+                  By completing this quest you also completed:
                 </AppText>
                 <View className="max-h-64 w-full">
                   <ScrollView showsVerticalScrollIndicator={false}>
@@ -673,7 +674,7 @@ export default function QuestCompletionScreen() {
                 }}
                 className="py-4 mt-2 border border-line rounded-full items-center justify-center bg-transparent"
               >
-                <AppText className="text-center text-muted font-sansSemi">Maybe Later</AppText>
+                <AppText className="text-center text-muted font-sansSemi">View My Lore</AppText>
               </TouchableOpacity>
             </View>
           </View>

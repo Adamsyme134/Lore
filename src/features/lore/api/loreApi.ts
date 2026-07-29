@@ -104,16 +104,35 @@ async function fetchAutoCompletedQuestMap(rows: LoreEntryRow[]) {
   if (questIds.length === 0) return new Map<string, Quest>();
 
   const client = requireSupabase();
+  const questById = new Map<string, Quest>();
   const { data, error } = await client
     .from("v_quests_with_stats")
     .select("*")
     .in("id", questIds);
 
   if (error) throw error;
-  return new Map((data ?? []).map((row) => {
+
+  (data ?? []).forEach((row) => {
     const quest = mapQuest(row as QuestRow);
-    return [quest.id, quest] as const;
-  }));
+    questById.set(quest.id, quest);
+  });
+
+  const missingQuestIds = questIds.filter((questId) => !questById.has(questId));
+  if (missingQuestIds.length > 0) {
+    const { data: fallbackData, error: fallbackError } = await client
+      .from("quests")
+      .select("*")
+      .in("id", missingQuestIds);
+
+    if (fallbackError) throw fallbackError;
+
+    (fallbackData ?? []).forEach((row) => {
+      const quest = mapQuest(row as QuestRow);
+      questById.set(quest.id, quest);
+    });
+  }
+
+  return questById;
 }
 
 async function fetchLoreEntriesFromSupabase(userId: string): Promise<LoreEntry[]> {

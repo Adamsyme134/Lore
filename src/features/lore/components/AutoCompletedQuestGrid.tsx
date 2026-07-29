@@ -1,44 +1,51 @@
-import { View } from "react-native";
-import { Image } from "expo-image";
-import { LinearGradient } from "expo-linear-gradient";
 import type { Quest } from "../../../shared/types/domain";
-import { AppText } from "../../../shared/components/AppText";
+import { Pressable, View } from "react-native";
+import { LoreCard } from "./LoreCard";
 
 type AutoCompletedQuestGridProps = {
   quests: Quest[];
+  onQuestPress?: (quest: Quest) => void;
 };
 
-export function AutoCompletedQuestGrid({ quests }: AutoCompletedQuestGridProps) {
+export function AutoCompletedQuestGrid({ quests, onQuestPress }: AutoCompletedQuestGridProps) {
   if (quests.length === 0) return null;
 
   return (
-    <View className="w-full flex-row flex-wrap">
-      {quests.map((quest) => (
-        <View key={quest.id} className="w-1/3 p-[1px]">
-          <View className="aspect-[1/1.414] overflow-hidden bg-stone">
-            <Image
-              source={{ uri: quest.imageUrl }}
-              className="h-full w-full"
-              contentFit="cover"
-              contentPosition={(quest.imagePosition || "center") as any}
+    <View className="-mx-[1px] w-full flex-row flex-wrap">
+      {quests.map((quest) => {
+        const content = (
+          <View
+            pointerEvents="none"
+            className="w-full h-full overflow-hidden rounded-2xl"
+            style={{
+              width: "300%",
+              height: "300%",
+              transform: [{ scale: 0.3333 }]
+            }}
+          >
+            <LoreCard
+              heroImageUri={quest.imageUrl}
+              title={quest.title}
+              caption={quest.kicker || quest.description}
+              locationName={quest.locationHint}
             />
-            <LinearGradient
-              colors={["transparent", "rgba(0,0,0,0.82)"]}
-              style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: "62%" }}
-            />
-            <View className="absolute bottom-0 left-0 right-0 p-2">
-              {quest.kicker ? (
-                <AppText className="mb-1 text-[7px] uppercase tracking-widest text-ivory/75" numberOfLines={1}>
-                  {quest.kicker}
-                </AppText>
-              ) : null}
-              <AppText className="font-serif text-xs leading-4 text-ivory" numberOfLines={3}>
-                {quest.title}
-              </AppText>
-            </View>
           </View>
-        </View>
-      ))}
+        );
+
+        return onQuestPress ? (
+          <Pressable
+            key={quest.id}
+            onPress={() => onQuestPress(quest)}
+            className="w-1/3 aspect-[3/4] p-[1px] items-center justify-center overflow-hidden"
+          >
+            {content}
+          </Pressable>
+        ) : (
+          <View key={quest.id} className="w-1/3 aspect-[3/4] p-[1px] items-center justify-center overflow-hidden">
+            {content}
+          </View>
+        );
+      })}
     </View>
   );
 }
