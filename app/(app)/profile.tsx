@@ -14,15 +14,7 @@ import { useColorScheme } from "nativewind";
 import { useThemeStore } from "src/features/app/store/useThemeStore";
 import { useQuitAllActiveQuests } from "../../src/features/quests/api/questApi";
 import { useThemeColors } from "../../src/shared/design/useThemeColors";
-// Simple leveling formula: 1 level per 50 points
-function calculateLevel(points: number) {
-  
-  const level = Math.floor(points / 50) + 1;
-  const nextLevelThreshold = level * 50;
-  const pointsNeeded = nextLevelThreshold - points;
-  
-  return { level, pointsNeeded, nextLevelThreshold };
-}
+import { getExperienceProgress } from "../../src/features/points/components/ExperienceProgressCard";
 
 export default function ProfileScreen() {
   
@@ -34,7 +26,7 @@ export default function ProfileScreen() {
   const [isUpdatingAvatar, setIsUpdatingAvatar] = useState(false);
   if (!profile) return null;
 
-  const { level, pointsNeeded } = calculateLevel(profile.pointsTotal);
+  const { level, nextLevel, xpToNextLevel } = getExperienceProgress(profile.pointsTotal);
 
   const handleThemeChange = (theme: 'light' | 'dark' | 'system') => {
     setColorScheme(theme);
@@ -157,7 +149,7 @@ export default function ProfileScreen() {
             <AppText variant="subtitle" className="text-burgundy">{profile.pointsTotal} pts</AppText>
           </View>
           <AppText className="mt-4 text-muted">
-            You need <AppText className="font-sansSemi">{pointsNeeded} more points</AppText> to reach Level {level + 1}. Complete quests and add photos to your entries to level up.
+            You need <AppText className="font-sansSemi">{xpToNextLevel} more XP</AppText> to reach Level {nextLevel}. Complete quests and add photos to your entries to level up.
           </AppText>
         </View>
       </View>

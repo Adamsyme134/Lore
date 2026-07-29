@@ -13,6 +13,7 @@ import { getExclusiveJourneyQuestIds, getJourneyQuestIds, useJourneys, useQuests
 import { useFriendMoments } from "../../../src/features/social/api/socialApi"; // ✨ Added Friend API
 import { useAuth } from "../../../src/features/auth/AuthProvider";
 import { useExperienceStore } from "../../../src/features/app/store/useExperienceStore";
+import { ExperienceProgressCard } from "../../../src/features/points/components/ExperienceProgressCard";
 import { router } from "expo-router";
 import { useThemeColors } from "../../../src/shared/design/useThemeColors";
 import type { Journey, Quest } from "../../../src/shared/types/domain";
@@ -83,9 +84,6 @@ export default function TodayScreen() {
   const { data: journeyStatuses, refetch: refetchJourneyStatuses } = useUserJourneyStatuses();
 
   const points = profile?.pointsTotal ?? previewPoints;
-  const currentLevel = Math.floor(points / 100) + 1;
-  const nextLevel = currentLevel + 1;
-  const progressToNextLevel = (points % 100) / 100;
 
   const [rerollsLeft, setRerollsLeft] = useState(3);
   const [mainQuestIndex, setMainQuestIndex] = useState(0);
@@ -177,26 +175,13 @@ export default function TodayScreen() {
     >
       
       {/* --- PAGE 1: HEADER & LEVEL BAR --- */}
-      <View className="mb-6 flex-row items-center justify-between gap-4 px-5">
-        <View className="flex-1 flex-row items-center gap-3">
-          <AppText variant="body" className="font-sansBold text-ink">{currentLevel}</AppText>
-          <View className="flex-1 h-3 rounded-full bg-line overflow-hidden">
-            <View 
-              className="h-full bg-accent rounded-full" 
-              style={{ width: `${progressToNextLevel * 100}%` }} 
-            />
-          </View>
-          <AppText variant="body" className="font-sansBold text-ink">{nextLevel}</AppText>
-        </View>
-        
-        <TouchableOpacity 
-          onPress={() => router.push("/profile")}
-          className="h-10 w-10 items-center justify-center rounded-full border border-line bg-surface"
-        >
-          <AppText variant="caption" className="font-sansBold text-ink">
-            {profile?.fullName?.[0] ?? "A"}
-          </AppText>
-        </TouchableOpacity>
+      <View className="mb-6 px-0">
+        <ExperienceProgressCard
+          points={points}
+          profileImageUrl={profile?.avatarUrl}
+          profileInitial={profile?.fullName?.[0] ?? "A"}
+          onProfilePress={() => router.push("/profile")}
+        />
       </View>
 
       {/* --- PAGE 1: RECOMMENDED QUEST FOR TODAY --- */}
