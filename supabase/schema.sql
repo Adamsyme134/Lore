@@ -58,6 +58,10 @@ create table if not exists public.journeys (
   next_quest_image_url text not null default '',
   quest_ids uuid[] not null default '{}',
   public_quest_ids uuid[] not null default '{}',
+  tree_nodes jsonb not null default '[]'::jsonb,
+  tree_edges jsonb not null default '[]'::jsonb,
+  requirement_sets jsonb not null default '[]'::jsonb,
+  capability_unlocks jsonb not null default '[]'::jsonb,
   is_active boolean not null default true,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
@@ -68,6 +72,12 @@ alter table public.journeys
 
 alter table public.journeys
   add column if not exists public_quest_ids uuid[] not null default '{}';
+
+alter table public.journeys
+  add column if not exists tree_nodes jsonb not null default '[]'::jsonb,
+  add column if not exists tree_edges jsonb not null default '[]'::jsonb,
+  add column if not exists requirement_sets jsonb not null default '[]'::jsonb,
+  add column if not exists capability_unlocks jsonb not null default '[]'::jsonb;
 
 alter table public.journeys enable row level security;
 

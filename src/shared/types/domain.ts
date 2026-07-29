@@ -84,6 +84,50 @@ export type JourneyTimelineItem = {
   isComplete: boolean;
 };
 
+export type JourneyRequirementMode = "all" | "any";
+
+export type JourneyRequirementSet = {
+  id: string;
+  mode: JourneyRequirementMode;
+  questIds?: string[];
+  journeyIds?: string[];
+  capabilityIds?: string[];
+  minimumCompleted?: number;
+};
+
+export type JourneyTreeNodeKind = "quest" | "capability";
+
+export type JourneyTreeNode = {
+  id: string;
+  kind: JourneyTreeNodeKind;
+  questId?: string;
+  title?: string;
+  description?: string;
+  iconName?: string;
+  capabilityId?: string;
+  branchId?: string;
+  prerequisites?: JourneyRequirementSet[];
+  hiddenUntil?: JourneyRequirementSet[];
+};
+
+export type JourneyTreeEdge = {
+  id: string;
+  fromNodeId: string;
+  toNodeId: string;
+  requirementSetIds?: string[];
+  hiddenUntilUnlocked?: boolean;
+};
+
+export type JourneyCapabilityUnlock = {
+  id: string;
+  title: string;
+  description?: string;
+  iconName?: string;
+  nodeId?: string;
+  revealsJourneyIds?: string[];
+  revealsNodeIds?: string[];
+};
+
 export type Journey = {
   id: string;
   slug: string;
@@ -101,6 +145,10 @@ export type Journey = {
   nextQuestImageUrl: string;
   questIds: string[];
   publicQuestIds: string[];
+  treeNodes?: JourneyTreeNode[];
+  treeEdges?: JourneyTreeEdge[];
+  requirementSets?: JourneyRequirementSet[];
+  capabilityUnlocks?: JourneyCapabilityUnlock[];
   isActive: boolean;
 };
 

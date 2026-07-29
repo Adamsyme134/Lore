@@ -17,6 +17,7 @@ import type {
 import type { Accent } from "../../../shared/design/tokens";
 import { useExperienceStore } from "../../app/store/useExperienceStore";
 import { QuestCountry } from "../../../shared/types/domain";
+import { getJourneyQuestIdsFromTree } from "../utils/journeyTree";
 
 export type QuestRow = {
   id: string;
@@ -74,6 +75,10 @@ export type JourneyRow = {
   next_quest_image_url?: string;
   quest_ids?: string[];
   public_quest_ids?: string[];
+  tree_nodes?: Journey["treeNodes"];
+  tree_edges?: Journey["treeEdges"];
+  requirement_sets?: Journey["requirementSets"];
+  capability_unlocks?: Journey["capabilityUnlocks"];
   is_active?: boolean;
 };
 
@@ -140,6 +145,10 @@ export function mapJourney(row: JourneyRow): Journey {
     nextQuestImageUrl: row.next_quest_image_url || row.background_image_url,
     questIds: row.quest_ids || [],
     publicQuestIds: row.public_quest_ids || [],
+    treeNodes: row.tree_nodes || [],
+    treeEdges: row.tree_edges || [],
+    requirementSets: row.requirement_sets || [],
+    capabilityUnlocks: row.capability_unlocks || [],
     isActive: row.is_active ?? true
   };
 }
@@ -289,6 +298,11 @@ export function useUserJourneyStatuses() {
 }
 
 export function getJourneyQuestIds(journey: Journey) {
+  if (journey.treeNodes?.length) {
+    const questById = new Map<string, Quest>();
+    return getJourneyQuestIdsFromTree(journey, questById);
+  }
+
   return journey.questIds.length
     ? journey.questIds
     : journey.timeline.map((item) => item.questId).filter(Boolean) as string[];

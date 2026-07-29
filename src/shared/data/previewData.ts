@@ -189,6 +189,52 @@ export const previewJourneys: Journey[] = [
     nextQuestImageUrl: "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=400&q=85",
     questIds: ["sunrise-high-place", "train-no-plan"],
     publicQuestIds: [],
+    treeNodes: [
+      { id: "explorer-root", kind: "quest", questId: "sunrise-high-place", title: "Watch sunrise from somewhere high" },
+      {
+        id: "explorer-detour",
+        kind: "quest",
+        questId: "train-no-plan",
+        title: "Take a train without planning the destination",
+        prerequisites: [{ id: "explorer-root-complete", mode: "all", questIds: ["sunrise-high-place"] }]
+      },
+      {
+        id: "explorer-night-outside",
+        kind: "quest",
+        title: "Spend a night outside",
+        prerequisites: [{ id: "explorer-detour-complete", mode: "all", questIds: ["train-no-plan"] }]
+      },
+      {
+        id: "explorer-cross-water",
+        kind: "quest",
+        title: "Cross water without a car",
+        prerequisites: [{ id: "explorer-choice-unlock", mode: "any", questIds: ["train-no-plan"], minimumCompleted: 1 }]
+      },
+      {
+        id: "explorer-badge",
+        kind: "capability",
+        title: "Explorer",
+        description: "Core capability unlocked by completing the Explorer branch.",
+        iconName: "compass-outline",
+        capabilityId: "explorer",
+        prerequisites: [{ id: "explorer-core-complete", mode: "all", questIds: ["sunrise-high-place", "train-no-plan"] }]
+      }
+    ],
+    treeEdges: [
+      { id: "explorer-edge-1", fromNodeId: "explorer-root", toNodeId: "explorer-detour", hiddenUntilUnlocked: true },
+      { id: "explorer-edge-2", fromNodeId: "explorer-detour", toNodeId: "explorer-night-outside", hiddenUntilUnlocked: true },
+      { id: "explorer-edge-3", fromNodeId: "explorer-detour", toNodeId: "explorer-cross-water", hiddenUntilUnlocked: true },
+      { id: "explorer-edge-4", fromNodeId: "explorer-night-outside", toNodeId: "explorer-badge", hiddenUntilUnlocked: true }
+    ],
+    capabilityUnlocks: [
+      {
+        id: "explorer",
+        title: "Explorer",
+        description: "Reveals advanced outdoor journeys.",
+        iconName: "compass-outline",
+        nodeId: "explorer-badge"
+      }
+    ],
     isActive: true
   },
   {
@@ -216,6 +262,27 @@ export const previewJourneys: Journey[] = [
     nextQuestImageUrl: "https://images.unsplash.com/photo-1442512595331-e89e73853f31?auto=format&fit=crop&w=400&q=85",
     questIds: ["unknown-cafe"],
     publicQuestIds: [],
+    treeNodes: [
+      { id: "coffee-root", kind: "quest", questId: "unknown-cafe", title: "Enter a cafe you have always walked past" },
+      {
+        id: "coffee-roastery",
+        kind: "quest",
+        title: "Visit a local roastery",
+        prerequisites: [{ id: "coffee-root-complete", mode: "all", questIds: ["unknown-cafe"] }]
+      },
+      {
+        id: "coffee-badge",
+        kind: "capability",
+        title: "Coffee Person",
+        iconName: "cafe-outline",
+        capabilityId: "coffee-person",
+        prerequisites: [{ id: "coffee-choice", mode: "any", questIds: ["unknown-cafe"], minimumCompleted: 1 }]
+      }
+    ],
+    treeEdges: [
+      { id: "coffee-edge-1", fromNodeId: "coffee-root", toNodeId: "coffee-roastery", hiddenUntilUnlocked: true },
+      { id: "coffee-edge-2", fromNodeId: "coffee-roastery", toNodeId: "coffee-badge", hiddenUntilUnlocked: true }
+    ],
     isActive: true
   },
   {
@@ -242,6 +309,25 @@ export const previewJourneys: Journey[] = [
     nextQuestImageUrl: "https://images.unsplash.com/photo-1565193298357-c5b2efc1de43?auto=format&fit=crop&w=400&q=85",
     questIds: ["sketch-in-public"],
     publicQuestIds: [],
+    treeNodes: [
+      { id: "maker-root", kind: "quest", questId: "sketch-in-public", title: "Draw outside" },
+      {
+        id: "maker-pottery",
+        kind: "quest",
+        title: "Try pottery",
+        prerequisites: [{ id: "maker-root-complete", mode: "all", questIds: ["sketch-in-public"] }]
+      },
+      {
+        id: "maker-repair",
+        kind: "quest",
+        title: "Repair something by hand",
+        prerequisites: [{ id: "maker-root-choice", mode: "any", questIds: ["sketch-in-public"], minimumCompleted: 1 }]
+      }
+    ],
+    treeEdges: [
+      { id: "maker-edge-1", fromNodeId: "maker-root", toNodeId: "maker-pottery", hiddenUntilUnlocked: true },
+      { id: "maker-edge-2", fromNodeId: "maker-root", toNodeId: "maker-repair", hiddenUntilUnlocked: true }
+    ],
     isActive: true
   }
 ];

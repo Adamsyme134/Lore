@@ -9,6 +9,7 @@ import { useRouter } from "expo-router";
 import { Screen } from "../../../src/shared/components/Screen";
 import { AppText } from "../../../src/shared/components/AppText";
 import { CategoryIconBadge, QuestMetaPills } from "../../../src/features/quests/components/QuestMetadata";
+import { JourneyTreeMap } from "../../../src/features/quests/components/JourneyTreeMap";
 import { useExperienceStore } from "../../../src/features/app/store/useExperienceStore";
 import { useThemeColors } from "../../../src/shared/design/useThemeColors";
 import { getExclusiveJourneyQuestIds, getJourneyQuestIds, useJourneys, useQuests, useSaveQuest, useUserQuestStatuses } from "../../../src/features/quests/api/questApi";
@@ -268,6 +269,7 @@ export default function Explore() {
   const [showFilters, setShowFilters] = useState(false);
   const [activeCost, setActiveCost] = useState<QuestCost | "All">("All");
   const [activeLength, setActiveLength] = useState<QuestLength | "All">("All");
+  const [selectedJourneyNodeId, setSelectedJourneyNodeId] = useState<string | null>(null);
 
   const { savedQuestIds, activeQuests } = useExperienceStore();
   const saveQuest = useSaveQuest();
@@ -282,6 +284,13 @@ export default function Explore() {
   const completedQuestIds = useMemo(() => new Set(questStatuses?.completed || []), [questStatuses?.completed]);
   const questById = useMemo(() => new Map(quests.map((quest) => [quest.id, quest])), [quests]);
   const exclusiveQuestIds = useMemo(() => getExclusiveJourneyQuestIds(journeys), [journeys]);
+  const journeyTreeProgress = useMemo(
+    () => ({
+      completedQuestIds,
+      activeQuestIds
+    }),
+    [activeQuestIds, completedQuestIds]
+  );
 
   const filteredQuests = useMemo(() => {
     return quests.filter((quest) => {
@@ -438,6 +447,32 @@ export default function Explore() {
             </ScrollView>
           </Animated.View>
         )}
+
+        <View className="mb-8">
+          <SectionTitle title="Journey Tree" />
+          {(isLoadingJourneys || isFetchingJourneys) && filteredJourneys.length === 0 ? (
+            <View className="items-center justify-center py-12">
+              <ActivityIndicator size="large" color={colors.accent} />
+            </View>
+          ) : filteredJourneys.length === 0 ? (
+            <View className="mx-6 items-center justify-center rounded-card border border-dashed border-line py-12">
+              <AppText className="text-center text-muted">No journeys found.</AppText>
+            </View>
+          ) : (
+            <View className="mx-0 overflow-hidden">
+              <JourneyTreeMap
+                journeys={filteredJourneys}
+                quests={quests}
+                progress={journeyTreeProgress}
+                selectedNodeId={selectedJourneyNodeId}
+                onSelectNode={(node) => setSelectedJourneyNodeId(node.id)}
+                onDeselectNode={() => setSelectedJourneyNodeId(null)}
+                onQuestPress={(quest) => router.push({ pathname: "/quest/[id]", params: { id: quest.id } })}
+                height={520}
+              />
+            </View>
+          )}
+        </View>
 
         <View className="mb-8">
           <SectionTitle title="Explore Journeys" actionLabel="See all" onActionPress={() => router.push("/journeys")} />
