@@ -4,6 +4,7 @@ import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
 import Svg, { Circle, Line } from "react-native-svg";
 import { AppText } from "../../../shared/components/AppText";
+import { useThemeColors } from "../../../shared/design/useThemeColors";
 import type { Journey, Quest } from "../../../shared/types/domain";
 import {
   buildJourneyTreeRenderModel,
@@ -21,7 +22,7 @@ type JourneyTreeMapProps = {
   onSelectNode?: (node: JourneyTreeRenderNode) => void;
   onDeselectNode?: () => void;
   onQuestPress?: (quest: Quest) => void;
-  onAddNode?: (parentNodeId: string | null) => void;
+  onAddNode?: (parentNode: JourneyTreeRenderNode | null, placement?: "linear" | "branch") => void;
   height?: number;
 };
 
@@ -36,13 +37,14 @@ const stateTone: Record<JourneyNodeProgressState, { border: string; fill: string
 };
 
 function NodeIcon({ node }: { node: JourneyTreeRenderNode }) {
-  const tone = stateTone[node.state];
+  const visualState = node.state;
+  const tone = stateTone[visualState];
 
-  if (node.state === "completed") {
+  if (visualState === "completed") {
     return <Ionicons name="checkmark" size={22} color={tone.icon} />;
   }
-  if (node.state === "locked" || node.state === "hidden") {
-    return <Ionicons name={node.state === "hidden" ? "eye-off-outline" : "lock-closed-outline"} size={19} color={tone.icon} />;
+  if (visualState === "locked" || visualState === "hidden") {
+    return <Ionicons name={visualState === "hidden" ? "eye-off-outline" : "lock-closed-outline"} size={19} color={tone.icon} />;
   }
   if (node.kind === "capability") {
     return <Ionicons name={(node.iconName as any) || "ribbon-outline"} size={22} color={tone.icon} />;
@@ -73,9 +75,17 @@ function AddNodeButton({
   return (
     <Pressable
       accessibilityLabel={label}
-      onPress={onPress}
+      hitSlop={14}
+      onPressIn={(event) => {
+        event.stopPropagation();
+      }}
+      onPress={(event) => {
+        event.stopPropagation();
+        console.log("[JourneyTreeMap] plus node clicked", { label, x, y });
+        onPress();
+      }}
       className="absolute items-center justify-center rounded-full border-2 border-dashed border-orange bg-surface shadow-sm"
-      style={{ left: x - 23, top: y - 23, width: 46, height: 46 }}
+      style={{ left: x - 23, top: y - 23, width: 46, height: 46, zIndex: 1000, elevation: 20 }}
     >
       <Ionicons name="add" size={24} color="#C76F22" />
     </Pressable>
@@ -84,22 +94,28 @@ function AddNodeButton({
 
 function NodeButton({
   node,
+  builderMode,
   isSelected,
   isDimmed,
   onPress
 }: {
   node: JourneyTreeRenderNode;
+  builderMode: boolean;
   isSelected: boolean;
   isDimmed: boolean;
   onPress: () => void;
 }) {
-  const tone = stateTone[node.state];
+  const visualState = builderMode ? "available" : node.state;
+  const tone = stateTone[visualState];
   const size = node.kind === "capability" ? 62 : 56;
   const radius = node.kind === "capability" ? 14 : size / 2;
 
   return (
     <Pressable
-      onPress={onPress}
+      onPress={(event) => {
+        event.stopPropagation();
+        onPress();
+      }}
       accessibilityLabel={node.label}
       className="absolute items-center justify-center shadow-sm"
       style={{
@@ -111,11 +127,13 @@ function NodeButton({
         borderWidth: isSelected ? 4 : 3,
         borderColor: isSelected ? "#1C1A17" : tone.border,
         backgroundColor: tone.fill,
-        opacity: isDimmed ? 0.28 : node.state === "hidden" ? 0.16 : 1
+        opacity: isDimmed ? 0.28 : visualState === "hidden" ? 0.16 : 1,
+        zIndex: 60,
+        elevation: 6
       }}
     >
-      <NodeIcon node={node} />
-      {node.state === "newly_unlocked" ? (
+      <NodeIcon node={{ ...node, state: visualState }} />
+      {visualState === "newly_unlocked" ? (
         <View className="absolute -right-1 -top-1 h-4 w-4 rounded-full border border-surface bg-orange" />
       ) : null}
     </Pressable>
@@ -171,6 +189,7 @@ export function JourneyTreeMap({
   onAddNode,
   height = 520
 }: JourneyTreeMapProps) {
+  const colors = useThemeColors();
   const [viewport, setViewport] = useState({ width: 360, height });
   const [internalSelectedNodeId, setInternalSelectedNodeId] = useState<string | null>(null);
   const [zoom, setZoom] = useState<"overview" | "detail">("overview");
@@ -178,7 +197,8 @@ export function JourneyTreeMap({
   const panOffsetRef = useRef({ x: 0, y: 0 });
   const panStartRef = useRef({ x: 0, y: 0 });
   const questById = useMemo(() => new Map(quests.map((quest) => [quest.id, quest])), [quests]);
-  const focusedNodeId = selectedNodeId ?? internalSelectedNodeId;
+  const isSelectionControlled = selectedNodeId !== undefined;
+  const focusedNodeId = isSelectionControlled ? selectedNodeId : internalSelectedNodeId;
   const model = useMemo(
     () => buildJourneyTreeRenderModel({ journeys, questById, progress, focusedNodeId }),
     [focusedNodeId, journeys, progress, questById]
@@ -233,10 +253,21 @@ export function JourneyTreeMap({
     : null;
   const visibleNodes = model.nodes.filter((node) => builderMode || node.state !== "hidden" || relatedNodeIds?.has(node.id));
   const outgoingNodeIds = new Set(model.edges.map((edge) => edge.fromNodeId));
-  const terminalNodes = visibleNodes.filter((node) => !outgoingNodeIds.has(node.id));
+  const addableNodes = visibleNodes.filter((node) => node.kind === "quest");
   const rootPlusAngle = -38;
   const rootPlusX = model.center.x + Math.cos((rootPlusAngle * Math.PI) / 180) * model.ringRadius;
   const rootPlusY = model.center.y + Math.sin((rootPlusAngle * Math.PI) / 180) * model.ringRadius;
+  const addButtons = addableNodes.map((node, index) => {
+    const isEndpoint = !outgoingNodeIds.has(node.id);
+    const addAngle = isEndpoint ? node.angle : node.angle + (index % 2 === 0 ? 28 : -28);
+    const radians = (addAngle * Math.PI) / 180;
+    return {
+      node,
+      placement: isEndpoint ? "linear" as const : "branch" as const,
+      x: node.x + Math.cos(radians) * 86,
+      y: node.y + Math.sin(radians) * 86
+    };
+  });
 
   const handleSelect = (node: JourneyTreeRenderNode) => {
     const nextOffset = {
@@ -255,8 +286,8 @@ export function JourneyTreeMap({
 
   return (
     <View
-      className="relative overflow-hidden border-y border-line/40 bg-[#F7F2EA]"
-      style={{ height }}
+      className="relative overflow-hidden border-y border-line/40"
+      style={{ height, backgroundColor: colors.background }}
       {...panResponder.panHandlers}
       onLayout={(event) => {
         const { width, height: nextHeight } = event.nativeEvent.layout;
@@ -322,6 +353,35 @@ export function JourneyTreeMap({
               />
             );
           })}
+          {builderMode && onAddNode ? (
+            <>
+              <Line
+                x1={model.center.x}
+                y1={model.center.y}
+                x2={rootPlusX}
+                y2={rootPlusY}
+                stroke="#C76F22"
+                strokeWidth={2}
+                strokeLinecap="round"
+                strokeDasharray="4 9"
+                opacity={0.55}
+              />
+              {addButtons.map(({ node, x, y }) => (
+                <Line
+                  key={`add-line-${node.id}`}
+                  x1={node.x}
+                  y1={node.y}
+                  x2={x}
+                  y2={y}
+                  stroke="#C76F22"
+                  strokeWidth={2}
+                  strokeLinecap="round"
+                  strokeDasharray="4 9"
+                  opacity={0.55}
+                />
+              ))}
+            </>
+          ) : null}
         </Svg>
 
         <View
@@ -339,6 +399,7 @@ export function JourneyTreeMap({
             <NodeButton
               key={node.id}
               node={node}
+              builderMode={builderMode}
               isSelected={isSelected}
               isDimmed={isDimmed}
               onPress={() => handleSelect(node)}
@@ -348,16 +409,15 @@ export function JourneyTreeMap({
 
         {builderMode && onAddNode ? (
           <>
-            <AddNodeButton x={rootPlusX} y={rootPlusY} label="Add first quest to journey ring" onPress={() => onAddNode(null)} />
-            {terminalNodes.map((node) => {
-              const radians = (node.angle * Math.PI) / 180;
+            <AddNodeButton x={rootPlusX} y={rootPlusY} label="Add first quest to journey ring" onPress={() => onAddNode(null, "linear")} />
+            {addButtons.map(({ node, placement, x, y }) => {
               return (
                 <AddNodeButton
                   key={`add-${node.id}`}
-                  x={node.x + Math.cos(radians) * 92}
-                  y={node.y + Math.sin(radians) * 92}
+                  x={x}
+                  y={y}
                   label={`Add quest after ${node.label}`}
-                  onPress={() => onAddNode(node.id)}
+                  onPress={() => onAddNode(node, placement)}
                 />
               );
             })}

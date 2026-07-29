@@ -13,6 +13,7 @@ import { CardRevealWidget } from "../../src/features/quests/components/widgets/C
 import { QuestLinkWidget } from "../../src/features/quests/components/widgets/QuestLinkWidget";
 import { searchLocations, type LocationSearchResult } from "../../src/features/location/api/locationSearchApi";
 import { mapJourney, type JourneyRow } from "../../src/features/quests/api/questApi";
+import type { JourneyTreeRenderNode } from "../../src/features/quests/utils/journeyTree";
 import { previewJourneys } from "../../src/shared/data/previewData";
 import type { 
   Journey,
@@ -444,6 +445,49 @@ const buildJourneyFromTree = (baseJourney: Journey, treeNodes: JourneyTreeNode[]
   };
 };
 
+const removeQuestNodeFromJourney = (baseJourney: Journey, nodeId: string, quests: Quest[]) => {
+  const questIds = baseJourney.questIds.length
+    ? baseJourney.questIds
+    : baseJourney.timeline.map(step => step.questId).filter(Boolean) as string[];
+  const tree = baseJourney.treeNodes?.length
+    ? { nodes: baseJourney.treeNodes, edges: baseJourney.treeEdges ?? [] }
+    : buildLinearJourneyTree(baseJourney, questIds, quests);
+  const treeNodes = tree.nodes.filter(node => node.id !== nodeId);
+  const treeEdges = tree.edges.filter(edge => edge.fromNodeId !== nodeId && edge.toNodeId !== nodeId);
+  return buildJourneyFromTree(baseJourney, treeNodes, treeEdges, quests);
+};
+
+const createJourneyBranchDraft = (parentNode: JourneyTreeRenderNode | null, quests: Quest[] = [], placement: "linear" | "branch" = "branch") => {
+  const draft = createBlankJourney(quests);
+  if (!parentNode?.questId) return draft;
+
+  return {
+    ...draft,
+    title: `New path after ${parentNode.label}`,
+    slug: `new-path-after-${parentNode.questId}-${Date.now()}`,
+    description: "A connected journey unlocked from another branch.",
+    treeNodes: [
+      {
+        id: `${draft.id}-pending-root`,
+        kind: "quest" as const,
+        title: "Choose the first quest",
+        branchId: placement === "branch" ? "side-branch" : undefined,
+        prerequisites: [{ id: `${draft.id}-requires-${parentNode.questId}`, mode: "all" as const, questIds: [parentNode.questId] }],
+        hiddenUntil: [{ id: `${draft.id}-hidden-until-${parentNode.questId}`, mode: "all" as const, questIds: [parentNode.questId] }]
+      }
+    ],
+    treeEdges: [
+      {
+        id: `${draft.id}-edge-${parentNode.id}-${draft.id}-pending-root`,
+        fromNodeId: parentNode.id,
+        toNodeId: `${draft.id}-pending-root`,
+        hiddenUntilUnlocked: true
+      }
+    ],
+    nextQuestTitle: "Choose the first quest"
+  };
+};
+
 function LinkedSubQuestItem({
   quest,
   onRemove
@@ -641,6 +685,10 @@ export default function QuestBuilderAdmin() {
   const [journeyQuestSearch, setJourneyQuestSearch] = useState('');
   const [isJourneyQuestSearchOpen, setIsJourneyQuestSearchOpen] = useState(false);
   const [journeyAddParentNodeId, setJourneyAddParentNodeId] = useState<string | null>(null);
+  const [journeyAddParentNode, setJourneyAddParentNode] = useState<JourneyTreeRenderNode | null>(null);
+  const [selectedJourneyTreeNode, setSelectedJourneyTreeNode] = useState<JourneyTreeRenderNode | null>(null);
+  const [journeyAddPlacement, setJourneyAddPlacement] = useState<"linear" | "branch">("linear");
+  const [isJourneyAddChoiceOpen, setIsJourneyAddChoiceOpen] = useState(false);
   const [autoCompleteQuestSearch, setAutoCompleteQuestSearch] = useState('');
   const [isAutoCompleteQuestSearchOpen, setIsAutoCompleteQuestSearchOpen] = useState(false);
   const [journeyIconSearch, setJourneyIconSearch] = useState('');
@@ -812,8 +860,6 @@ export default function QuestBuilderAdmin() {
         public_quest_ids: generatedJourney.visibility === "exclusive" ? generatedJourney.publicQuestIds : [],
         tree_nodes: generatedJourney.treeNodes ?? [],
         tree_edges: generatedJourney.treeEdges ?? [],
-        requirement_sets: generatedJourney.requirementSets ?? [],
-        capability_unlocks: generatedJourney.capabilityUnlocks ?? [],
         is_active: true
       };
 
@@ -881,6 +927,67 @@ export default function QuestBuilderAdmin() {
       item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       item.description.toLowerCase().includes(searchQuery.toLowerCase())
     );
+    const openJourneyForEdit = (item: Journey) => {
+      setJourney(buildJourneyFromQuestIds(item, item.questIds.length ? item.questIds : (item.timeline.map(step => step.questId).filter(Boolean) as string[]), savedQuests));
+      setJourneyQuestSearch('');
+      setIsJourneyQuestSearchOpen(false);
+      setJourneyAddParentNodeId(null);
+      setJourneyAddParentNode(null);
+      setSelectedJourneyTreeNode(null);
+      setIsJourneyAddChoiceOpen(false);
+      setJourneyIconSearch('');
+      setIsJourneyIconPickerOpen(false);
+      setEditorKind('journey');
+      setView('editor');
+    };
+    const addQuestFromOverallMap = () => {
+      const parentNode = journeyAddParentNode;
+      const parentJourney = parentNode ? savedJourneys.find(item => item.id === parentNode.journeyId) : null;
+      if (!parentNode || !parentJourney) return;
+      setJourney(buildJourneyFromQuestIds(parentJourney, parentJourney.questIds.length ? parentJourney.questIds : (parentJourney.timeline.map(step => step.questId).filter(Boolean) as string[]), savedQuests));
+      setJourneyAddParentNodeId(parentNode.id);
+      setJourneyQuestSearch('');
+      setIsJourneyQuestSearchOpen(true);
+      setIsJourneyAddChoiceOpen(false);
+      setJourneyIconSearch('');
+      setIsJourneyIconPickerOpen(false);
+      setEditorKind('journey');
+      setView('editor');
+    };
+    const addJourneyFromOverallMap = () => {
+      setJourney(createJourneyBranchDraft(journeyAddParentNode, savedQuests, journeyAddPlacement));
+      setJourneyQuestSearch('');
+      setIsJourneyQuestSearchOpen(false);
+      setJourneyAddParentNodeId(null);
+      setJourneyAddParentNode(null);
+      setSelectedJourneyTreeNode(null);
+      setIsJourneyAddChoiceOpen(false);
+      setJourneyIconSearch('');
+      setIsJourneyIconPickerOpen(false);
+      setEditorKind('journey');
+      setView('editor');
+    };
+    const editSelectedNodeJourney = () => {
+      if (!selectedJourneyTreeNode) return;
+      const parentJourney = savedJourneys.find(item => item.id === selectedJourneyTreeNode.journeyId);
+      if (parentJourney) openJourneyForEdit(parentJourney);
+    };
+    const removeSelectedNodeQuest = () => {
+      if (!selectedJourneyTreeNode?.questId) return;
+      const parentJourney = savedJourneys.find(item => item.id === selectedJourneyTreeNode.journeyId);
+      if (!parentJourney) return;
+      setJourney(removeQuestNodeFromJourney(parentJourney, selectedJourneyTreeNode.id, savedQuests));
+      setSelectedJourneyTreeNode(null);
+      setJourneyQuestSearch('');
+      setIsJourneyQuestSearchOpen(false);
+      setJourneyAddParentNodeId(null);
+      setJourneyAddParentNode(null);
+      setIsJourneyAddChoiceOpen(false);
+      setJourneyIconSearch('');
+      setIsJourneyIconPickerOpen(false);
+      setEditorKind('journey');
+      setView('editor');
+    };
     
     return (
       <View className="flex-1 bg-surface p-10">
@@ -899,12 +1006,13 @@ export default function QuestBuilderAdmin() {
             <Pressable onPress={() => { setQuest(createBlankQuest()); setAutoCompleteQuestSearch(''); setIsAutoCompleteQuestSearchOpen(false); setEditorKind('quest'); setView('editor'); setPreviewMode('hero'); setActiveTab('basic'); }} className="bg-stone px-6 py-3 rounded-full border border-line">
               <AppText className="text-ink font-sansSemi">+ Create New Quest</AppText>
             </Pressable>
-            <Pressable onPress={() => { setJourney(createBlankJourney(savedQuests)); setJourneyQuestSearch(''); setIsJourneyQuestSearchOpen(false); setJourneyAddParentNodeId(null); setJourneyIconSearch(''); setIsJourneyIconPickerOpen(false); setEditorKind('journey'); setView('editor'); }} className="bg-accent px-6 py-3 rounded-full">
+            <Pressable onPress={() => { setJourney(createBlankJourney(savedQuests)); setJourneyQuestSearch(''); setIsJourneyQuestSearchOpen(false); setJourneyAddParentNodeId(null); setJourneyAddParentNode(null); setSelectedJourneyTreeNode(null); setIsJourneyAddChoiceOpen(false); setJourneyIconSearch(''); setIsJourneyIconPickerOpen(false); setEditorKind('journey'); setView('editor'); }} className="bg-accent px-6 py-3 rounded-full">
               <AppText className="text-accentText font-sansSemi">+ Create New Journey</AppText>
             </Pressable>
           </View>
         </View>
 
+        <ScrollView className="flex-1" contentContainerStyle={{ paddingBottom: 120 }}>
         <TextInput className="bg-surface border border-line rounded-lg p-4 mb-6 font-sans text-ink max-w-md" placeholder={libraryKind === 'quests' ? 'Search quests...' : 'Search journeys...'} value={searchQuery} onChangeText={setSearchQuery} />
 
         {libraryKind === 'quests' && (
@@ -919,6 +1027,112 @@ export default function QuestBuilderAdmin() {
             })}
           </ScrollView>
         )}
+
+        {libraryKind === 'journeys' ? (
+          <View className="mb-8">
+            <View className="mb-4 flex-row items-center justify-between">
+              <View>
+                <AppText variant="subtitle" className="text-2xl text-ink">Journey Tree</AppText>
+                <AppText className="mt-1 text-ink/60">All active journeys on the shared progression map.</AppText>
+              </View>
+            </View>
+            <View className="overflow-hidden rounded-[24px] border border-line bg-surface shadow-sm">
+              <JourneyTreeMap
+                journeys={filteredJourneys}
+                quests={savedQuests}
+                builderMode
+                height={560}
+                selectedNodeId={selectedJourneyTreeNode?.id ?? null}
+                onSelectNode={(node) => setSelectedJourneyTreeNode(node)}
+                onDeselectNode={() => setSelectedJourneyTreeNode(null)}
+                onAddNode={(parentNode, placement = "linear") => {
+                  console.log("[QuestBuilder] opening journey add menu", { parentNodeId: parentNode?.id, parentNodeLabel: parentNode?.label, placement });
+                  setJourneyAddParentNode(parentNode);
+                  setJourneyAddParentNodeId(parentNode?.id ?? null);
+                  setJourneyAddPlacement(placement);
+                  setSelectedJourneyTreeNode(null);
+                  setIsJourneyAddChoiceOpen(true);
+                  setIsJourneyQuestSearchOpen(false);
+                  setJourneyQuestSearch('');
+                }}
+              />
+              {selectedJourneyTreeNode?.questId ? (
+                <View className="absolute bottom-4 left-4 right-4 z-50 flex-row gap-3 rounded-xl border border-line bg-stone p-3 shadow-xl">
+                  <Pressable onPress={removeSelectedNodeQuest} className="flex-1 items-center rounded-lg border border-[#E63946] bg-[#E63946]/10 px-4 py-3">
+                    <AppText className="font-sansSemi text-[#E63946]">Remove quest</AppText>
+                  </Pressable>
+                  <Pressable onPress={editSelectedNodeJourney} className="flex-1 items-center rounded-lg border border-line bg-surface px-4 py-3">
+                    <AppText className="font-sansSemi text-ink">Edit journey</AppText>
+                  </Pressable>
+                </View>
+              ) : null}
+              {isJourneyAddChoiceOpen ? (
+                <View className="absolute right-4 top-4 z-50 w-80 rounded-xl border border-line bg-stone p-4 shadow-xl">
+                  <View className="mb-3 flex-row items-center justify-between">
+                    <View className="flex-1 pr-3">
+                      <AppText className="font-sansSemi text-ink">
+                        {journeyAddParentNode ? `Branch from ${journeyAddParentNode.label}` : "Add to the inner ring"}
+                      </AppText>
+                      <AppText className="mt-1 text-xs text-ink/50">Choose what this plus node should create.</AppText>
+                    </View>
+                    <Pressable onPress={() => { setIsJourneyAddChoiceOpen(false); setJourneyAddParentNode(null); setJourneyAddParentNodeId(null); }} className="h-8 w-8 items-center justify-center rounded-full border border-line bg-surface">
+                      <Ionicons name="close" size={16} color="#807A70" />
+                    </Pressable>
+                  </View>
+                  <View className="gap-3">
+                    <Pressable
+                      disabled={!journeyAddParentNode}
+                      onPress={addQuestFromOverallMap}
+                      className={`rounded-xl border p-4 ${journeyAddParentNode ? "border-line bg-surface" : "border-line/50 bg-surface/50 opacity-50"}`}
+                    >
+                      <View className="flex-row items-center">
+                        <Ionicons name="compass-outline" size={20} color="#C76F22" />
+                        <AppText className="ml-2 font-sansSemi text-ink">Add quest</AppText>
+                      </View>
+                    </Pressable>
+                    <Pressable onPress={addJourneyFromOverallMap} className="rounded-xl border border-line bg-surface p-4">
+                      <View className="flex-row items-center">
+                        <Ionicons name="git-branch-outline" size={20} color="#C76F22" />
+                        <AppText className="ml-2 font-sansSemi text-ink">Add journey</AppText>
+                      </View>
+                    </Pressable>
+                  </View>
+                </View>
+              ) : null}
+            </View>
+            {isJourneyAddChoiceOpen ? (
+              <View className="mt-4 rounded-xl border border-line bg-stone p-4">
+                <View className="mb-3 flex-row items-center justify-between">
+                  <View className="flex-1 pr-3">
+                    <AppText className="font-sansSemi text-ink">
+                      {journeyAddParentNode ? `Branch from ${journeyAddParentNode.label}` : "Add to the inner ring"}
+                    </AppText>
+                    <AppText className="mt-1 text-xs text-ink/50">Choose whether this plus creates another quest in the same journey or starts a connected journey.</AppText>
+                  </View>
+                  <Pressable onPress={() => { setIsJourneyAddChoiceOpen(false); setJourneyAddParentNode(null); setJourneyAddParentNodeId(null); }} className="h-8 w-8 items-center justify-center rounded-full border border-line bg-surface">
+                    <Ionicons name="close" size={16} color="#807A70" />
+                  </Pressable>
+                </View>
+                <View className="flex-row gap-3">
+                  <Pressable
+                    disabled={!journeyAddParentNode}
+                    onPress={addQuestFromOverallMap}
+                    className={`flex-1 rounded-xl border p-4 ${journeyAddParentNode ? "border-line bg-surface" : "border-line/50 bg-surface/50 opacity-50"}`}
+                  >
+                    <Ionicons name="compass-outline" size={22} color="#C76F22" />
+                    <AppText className="mt-2 font-sansSemi text-ink">Add quest</AppText>
+                    <AppText className="mt-1 text-xs leading-4 text-ink/55">Add a quest to this existing journey branch.</AppText>
+                  </Pressable>
+                  <Pressable onPress={addJourneyFromOverallMap} className="flex-1 rounded-xl border border-line bg-surface p-4">
+                    <Ionicons name="git-branch-outline" size={22} color="#C76F22" />
+                    <AppText className="mt-2 font-sansSemi text-ink">Add journey</AppText>
+                    <AppText className="mt-1 text-xs leading-4 text-ink/55">Create a new journey unlocked from here.</AppText>
+                  </Pressable>
+                </View>
+              </View>
+            ) : null}
+          </View>
+        ) : null}
 
         {libraryKind === 'quests' && filtered.length === 0 ? (
           <View className="items-center justify-center p-20 border border-dashed border-line rounded-[24px]">
@@ -979,7 +1193,7 @@ export default function QuestBuilderAdmin() {
                       </View>
                     </View>
                   </View>
-                  <Pressable onPress={() => { setJourney(buildJourneyFromQuestIds(item, item.questIds.length ? item.questIds : (item.timeline.map(step => step.questId).filter(Boolean) as string[]), savedQuests)); setJourneyQuestSearch(''); setIsJourneyQuestSearchOpen(false); setJourneyAddParentNodeId(null); setJourneyIconSearch(''); setIsJourneyIconPickerOpen(false); setEditorKind('journey'); setView('editor'); }} className="mt-3 bg-stone py-2 rounded-lg items-center border border-line hover:bg-stone-300">
+                  <Pressable onPress={() => openJourneyForEdit(item)} className="mt-3 bg-stone py-2 rounded-lg items-center border border-line hover:bg-stone-300">
                     <AppText className="text-ink font-sansSemi text-sm">Edit Journey</AppText>
                   </Pressable>
                 </View>
@@ -987,6 +1201,7 @@ export default function QuestBuilderAdmin() {
             </View>
           </ScrollView>
         )}
+        </ScrollView>
       </View>
     );
   }
@@ -1034,18 +1249,29 @@ export default function QuestBuilderAdmin() {
         const treeEdges = [...(base.treeEdges ?? [])];
         const parentNode = parentNodeId ? treeNodes.find(node => node.id === parentNodeId) : null;
         const nodeId = `${base.id}-node-${questToAdd.id}-${Date.now()}`;
+        const isPlaceholderParent = !!parentNode && !parentNode.questId;
         const nextNode: JourneyTreeNode = {
-          id: nodeId,
+          id: isPlaceholderParent ? parentNode.id : nodeId,
           kind: "quest",
           questId: questToAdd.id,
           title: questToAdd.title,
-          prerequisites: parentNode?.questId
+          branchId: parentNode && journeyAddPlacement === "branch" ? "side-branch" : undefined,
+          prerequisites: isPlaceholderParent
+            ? parentNode.prerequisites
+            : parentNode?.questId
             ? [{ id: `${nodeId}-requires-${parentNode.questId}`, mode: "all", questIds: [parentNode.questId] }]
-            : []
+            : [],
+          hiddenUntil: isPlaceholderParent ? parentNode.hiddenUntil : undefined
         };
 
-        treeNodes.push(nextNode);
-        if (parentNode) {
+        if (isPlaceholderParent) {
+          const parentIndex = treeNodes.findIndex(node => node.id === parentNode.id);
+          treeNodes[parentIndex] = nextNode;
+        } else {
+          treeNodes.push(nextNode);
+        }
+
+        if (parentNode && !isPlaceholderParent) {
           treeEdges.push({
             id: `${base.id}-edge-${parentNode.id}-${nodeId}`,
             fromNodeId: parentNode.id,
@@ -1059,6 +1285,8 @@ export default function QuestBuilderAdmin() {
       setJourneyQuestSearch('');
       setIsJourneyQuestSearchOpen(false);
       setJourneyAddParentNodeId(null);
+      setJourneyAddParentNode(null);
+      setIsJourneyAddChoiceOpen(false);
     };
     const removeQuestFromJourneyTree = (questId: string) => {
       setJourney(prev => {
@@ -1070,6 +1298,32 @@ export default function QuestBuilderAdmin() {
         const treeEdges = (base.treeEdges ?? []).filter(edge => !nodeIdsToRemove.has(edge.fromNodeId) && !nodeIdsToRemove.has(edge.toNodeId));
         return buildJourneyFromTree(base, treeNodes, treeEdges, savedQuests);
       });
+    };
+    const addQuestFromEditorMap = () => {
+      setJourneyAddParentNodeId(journeyAddParentNode?.id ?? null);
+      setJourneyQuestSearch('');
+      setIsJourneyQuestSearchOpen(true);
+      setIsJourneyAddChoiceOpen(false);
+    };
+    const addJourneyFromEditorMap = () => {
+      setJourney(createJourneyBranchDraft(journeyAddParentNode, savedQuests, journeyAddPlacement));
+      setJourneyQuestSearch('');
+      setIsJourneyQuestSearchOpen(false);
+      setJourneyAddParentNodeId(null);
+      setJourneyAddParentNode(null);
+      setSelectedJourneyTreeNode(null);
+      setIsJourneyAddChoiceOpen(false);
+      setJourneyIconSearch('');
+      setIsJourneyIconPickerOpen(false);
+    };
+    const removeSelectedNodeFromCurrentJourney = () => {
+      if (!selectedJourneyTreeNode?.questId) return;
+      setJourney(prev => removeQuestNodeFromJourney(prev, selectedJourneyTreeNode.id, savedQuests));
+      setSelectedJourneyTreeNode(null);
+    };
+    const showCurrentJourneyEditor = () => {
+      setLeftPanelVisible(true);
+      setSelectedJourneyTreeNode(null);
     };
 
     return (
@@ -1207,6 +1461,36 @@ export default function QuestBuilderAdmin() {
               </View>
             )}
 
+            {isJourneyAddChoiceOpen ? (
+              <View className="mb-4 rounded-xl border border-line bg-stone p-4">
+                <View className="mb-3 flex-row items-center justify-between">
+                  <View className="flex-1 pr-3">
+                    <AppText className="font-sansSemi text-ink">
+                      {journeyAddParentNode ? `Branch from ${journeyAddParentNode.label}` : "Add to the inner ring"}
+                    </AppText>
+                    <AppText className="mt-1 text-xs text-ink/50">Choose what this plus node should create.</AppText>
+                  </View>
+                  <Pressable onPress={() => { setIsJourneyAddChoiceOpen(false); setJourneyAddParentNode(null); setJourneyAddParentNodeId(null); }} className="h-8 w-8 items-center justify-center rounded-full border border-line bg-surface">
+                    <Ionicons name="close" size={16} color="#807A70" />
+                  </Pressable>
+                </View>
+                <View className="gap-3">
+                  <Pressable onPress={addQuestFromEditorMap} className="rounded-xl border border-line bg-surface p-4">
+                    <View className="flex-row items-center">
+                      <Ionicons name="compass-outline" size={20} color="#C76F22" />
+                      <AppText className="ml-2 font-sansSemi text-ink">Add quest to this journey</AppText>
+                    </View>
+                  </Pressable>
+                  <Pressable onPress={addJourneyFromEditorMap} className="rounded-xl border border-line bg-surface p-4">
+                    <View className="flex-row items-center">
+                      <Ionicons name="git-branch-outline" size={20} color="#C76F22" />
+                      <AppText className="ml-2 font-sansSemi text-ink">Add new journey</AppText>
+                    </View>
+                  </Pressable>
+                </View>
+              </View>
+            ) : null}
+
             {isJourneyQuestSearchOpen && (
               <View className="mb-8 rounded-xl border border-line bg-stone p-4">
                 <View className="mb-3 flex-row items-center justify-between">
@@ -1271,12 +1555,59 @@ export default function QuestBuilderAdmin() {
               quests={savedQuests}
               builderMode
               height={760}
-              onAddNode={(parentNodeId) => {
-                setJourneyAddParentNodeId(parentNodeId);
+              selectedNodeId={selectedJourneyTreeNode?.id ?? null}
+              onSelectNode={(node) => setSelectedJourneyTreeNode(node)}
+              onDeselectNode={() => setSelectedJourneyTreeNode(null)}
+              onAddNode={(parentNodeId, placement = "linear") => {
+                console.log("[QuestBuilder] opening journey add menu", { parentNodeId: parentNodeId?.id, parentNodeLabel: parentNodeId?.label, placement });
+                setJourneyAddParentNode(parentNodeId);
+                setJourneyAddParentNodeId(parentNodeId?.id ?? null);
+                setJourneyAddPlacement(placement);
+                setSelectedJourneyTreeNode(null);
                 setJourneyQuestSearch('');
-                setIsJourneyQuestSearchOpen(true);
+                setIsJourneyQuestSearchOpen(false);
+                setIsJourneyAddChoiceOpen(true);
               }}
             />
+            {selectedJourneyTreeNode?.questId ? (
+              <View className="absolute bottom-4 left-4 right-4 z-50 flex-row gap-3 rounded-xl border border-line bg-stone p-3 shadow-xl">
+                <Pressable onPress={removeSelectedNodeFromCurrentJourney} className="flex-1 items-center rounded-lg border border-[#E63946] bg-[#E63946]/10 px-4 py-3">
+                  <AppText className="font-sansSemi text-[#E63946]">Remove quest</AppText>
+                </Pressable>
+                <Pressable onPress={showCurrentJourneyEditor} className="flex-1 items-center rounded-lg border border-line bg-surface px-4 py-3">
+                  <AppText className="font-sansSemi text-ink">Edit journey</AppText>
+                </Pressable>
+              </View>
+            ) : null}
+            {isJourneyAddChoiceOpen ? (
+              <View className="absolute right-4 top-4 z-50 w-80 rounded-xl border border-line bg-stone p-4 shadow-xl">
+                <View className="mb-3 flex-row items-center justify-between">
+                  <View className="flex-1 pr-3">
+                    <AppText className="font-sansSemi text-ink">
+                      {journeyAddParentNode ? `Branch from ${journeyAddParentNode.label}` : "Add to the inner ring"}
+                    </AppText>
+                    <AppText className="mt-1 text-xs text-ink/50">Choose what this plus node should create.</AppText>
+                  </View>
+                  <Pressable onPress={() => { setIsJourneyAddChoiceOpen(false); setJourneyAddParentNode(null); setJourneyAddParentNodeId(null); }} className="h-8 w-8 items-center justify-center rounded-full border border-line bg-surface">
+                    <Ionicons name="close" size={16} color="#807A70" />
+                  </Pressable>
+                </View>
+                <View className="gap-3">
+                  <Pressable onPress={addQuestFromEditorMap} className="rounded-xl border border-line bg-surface p-4">
+                    <View className="flex-row items-center">
+                      <Ionicons name="compass-outline" size={20} color="#C76F22" />
+                      <AppText className="ml-2 font-sansSemi text-ink">Add quest to this journey</AppText>
+                    </View>
+                  </Pressable>
+                  <Pressable onPress={addJourneyFromEditorMap} className="rounded-xl border border-line bg-surface p-4">
+                    <View className="flex-row items-center">
+                      <Ionicons name="git-branch-outline" size={20} color="#C76F22" />
+                      <AppText className="ml-2 font-sansSemi text-ink">Add new journey</AppText>
+                    </View>
+                  </Pressable>
+                </View>
+              </View>
+            ) : null}
           </View>
         </View>
       </View>

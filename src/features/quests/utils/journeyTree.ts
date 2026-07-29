@@ -53,7 +53,7 @@ export type JourneyTreeProgressInput = {
   newlyUnlockedNodeIds?: Set<string>;
 };
 
-const DEFAULT_SIZE = 760;
+const DEFAULT_SIZE = 1200;
 const CENTER = DEFAULT_SIZE / 2;
 const RING_RADIUS = 142;
 const DEPTH_GAP = 108;
@@ -227,7 +227,9 @@ function assignJourneyPositions({
     const spread = Math.min(42, 16 + children.length * 12);
 
     children.forEach((child, childIndex) => {
-      const offset = children.length <= 1 ? 0 : -spread / 2 + (spread * childIndex) / (children.length - 1);
+      const offset = children.length <= 1
+        ? child.branchId === "side-branch" ? 28 : 0
+        : -spread / 2 + (spread * childIndex) / (children.length - 1);
       visit(child, depth + 1, angle + offset);
     });
   };
