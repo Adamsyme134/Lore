@@ -1,5 +1,5 @@
 import { View, Pressable, Modal, Alert, Platform, ScrollView, TextInput, TouchableOpacity } from "react-native";
-import { useState, useRef } from "react";
+import { useMemo, useState, useRef } from "react";
 import { useLocalSearchParams, router } from "expo-router";
 import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
@@ -10,9 +10,11 @@ import { Screen } from "../../../src/shared/components/Screen";
 import { TopBar } from "../../../src/shared/components/TopBar";
 import { AppText } from "../../../src/shared/components/AppText";
 import { Button } from "../../../src/shared/components/Button";
-import { useLoreEntry, useDeleteLoreEntry } from "../../../src/features/lore/api/loreApi";
+import { useLoreEntry, useDeleteLoreEntry, useLoreEntries } from "../../../src/features/lore/api/loreApi";
 import { LoreCard } from "../../../src/features/lore/components/LoreCard";
 import { AutoCompletedQuestGrid } from "../../../src/features/lore/components/AutoCompletedQuestGrid";
+import { JourneyMembershipSection } from "../../../src/features/quests/components/JourneyMembershipSection";
+import { getJourneyQuestIds, useJourneys, useUserQuestStatuses } from "../../../src/features/quests/api/questApi";
 import { useAuth } from "../../../src/features/auth/AuthProvider";
 import * as MediaLibrary from "expo-media-library/legacy";
 import { useThemeColors } from "../../../src/shared/design/useThemeColors";
@@ -22,6 +24,9 @@ export default function LoreDetailScreen() {
   const colors = useThemeColors();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { data: entry } = useLoreEntry(id);
+  const { data: journeys = [] } = useJourneys();
+  const { data: questStatuses } = useUserQuestStatuses();
+  const { data: loreEntries = [] } = useLoreEntries();
   const { profile, user } = useAuth();
   const deleteMutation = useDeleteLoreEntry();
   const commentsQuery = useLoreComments(id);
@@ -134,6 +139,22 @@ export default function LoreDetailScreen() {
     );
     setActivePhotoIndex(nextIndex);
   };
+
+  const completedQuestIds = useMemo(() => {
+    const ids = new Set(questStatuses?.completed || []);
+    loreEntries.forEach((loreEntry) => {
+      if (loreEntry.questId) ids.add(loreEntry.questId);
+      loreEntry.autoCompletedQuests?.forEach((quest) => ids.add(quest.id));
+    });
+    if (entry?.questId) ids.add(entry.questId);
+    entry?.autoCompletedQuests?.forEach((quest) => ids.add(quest.id));
+    return ids;
+  }, [entry, loreEntries, questStatuses?.completed]);
+
+  const entryJourneys = useMemo(() => {
+    if (!entry?.questId) return [];
+    return journeys.filter((journey) => journey.isActive && getJourneyQuestIds(journey).includes(entry.questId as string));
+  }, [entry?.questId, journeys]);
 
   if (!entry) {
     return (
@@ -264,6 +285,12 @@ export default function LoreDetailScreen() {
           <AppText variant="eyebrow">Caption</AppText>
           <AppText className="mt-3 text-muted">{entry.journal}</AppText>
         </View>
+
+        <JourneyMembershipSection
+          journeys={entryJourneys}
+          completedQuestIds={completedQuestIds}
+          onJourneyPress={(journey) => router.push({ pathname: "/journey/[id]", params: { id: journey.id } })}
+        />
 
         <View className="mt-7 border-t border-line pt-6">
           <AppText variant="eyebrow">Comments</AppText>

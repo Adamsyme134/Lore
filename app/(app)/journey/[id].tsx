@@ -11,6 +11,7 @@ import { Button } from "../../../src/shared/components/Button";
 import { difficultyPillClass, difficultyPillTextClass, difficultyPillTextColor } from "../../../src/shared/components/Chip";
 import { useThemeColors } from "../../../src/shared/design/useThemeColors";
 import { getJourneyQuestIds, useJourneys, useQuests, useStartJourney, useUserJourneyStatuses, useUserQuestStatuses } from "../../../src/features/quests/api/questApi";
+import { useLoreEntries } from "../../../src/features/lore/api/loreApi";
 import type { Quest } from "../../../src/shared/types/domain";
 
 function contentPosition(imagePosition?: string) {
@@ -168,11 +169,19 @@ export default function JourneyDetailScreen() {
   const { data: quests = [], isLoading: isLoadingQuests } = useQuests();
   const { data: questStatuses } = useUserQuestStatuses();
   const { data: journeyStatuses } = useUserJourneyStatuses();
+  const { data: loreEntries = [] } = useLoreEntries();
   const startJourney = useStartJourney();
 
   const journey = journeys.find((item) => item.id === id || item.slug === id);
   const questById = useMemo(() => new Map(quests.map((quest) => [quest.id, quest])), [quests]);
-  const completedQuestIds = useMemo(() => new Set(questStatuses?.completed || []), [questStatuses?.completed]);
+  const completedQuestIds = useMemo(() => {
+    const ids = new Set(questStatuses?.completed || []);
+    loreEntries.forEach((entry) => {
+      if (entry.questId) ids.add(entry.questId);
+      entry.autoCompletedQuests?.forEach((quest) => ids.add(quest.id));
+    });
+    return ids;
+  }, [loreEntries, questStatuses?.completed]);
   const orderedQuestIds = useMemo(() => {
     if (!journey) return [];
     return getJourneyQuestIds(journey);
