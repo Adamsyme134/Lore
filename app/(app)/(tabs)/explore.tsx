@@ -11,7 +11,7 @@ import { AppText } from "../../../src/shared/components/AppText";
 import { CategoryIconBadge, QuestMetaPills } from "../../../src/features/quests/components/QuestMetadata";
 import { useExperienceStore } from "../../../src/features/app/store/useExperienceStore";
 import { useThemeColors } from "../../../src/shared/design/useThemeColors";
-import { getExclusiveJourneyQuestIds, useJourneys, useQuests, useSaveQuest, useUserQuestStatuses } from "../../../src/features/quests/api/questApi";
+import { getExclusiveJourneyQuestIds, getJourneyQuestIds, useJourneys, useQuests, useSaveQuest, useUserQuestStatuses } from "../../../src/features/quests/api/questApi";
 import type {
   Journey,
   Quest,
@@ -310,13 +310,39 @@ export default function Explore() {
 
   const filteredJourneys = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
-    if (!query) return journeys.filter((journey) => journey.isActive);
-    return journeys.filter(
-      (journey) =>
-        journey.isActive &&
-        (journey.title.toLowerCase().includes(query) || journey.description.toLowerCase().includes(query))
-    );
-  }, [journeys, searchQuery]);
+    return journeys.filter((journey) => {
+      if (!journey.isActive) return false;
+
+      const includedQuests = getJourneyQuestIds(journey)
+        .map((questId) => questById.get(questId))
+        .filter(Boolean) as Quest[];
+      const matchesSearch =
+        !query ||
+        journey.title.toLowerCase().includes(query) ||
+        journey.description.toLowerCase().includes(query) ||
+        includedQuests.some(
+          (quest) =>
+            quest.title.toLowerCase().includes(query) ||
+            quest.description.toLowerCase().includes(query)
+        );
+
+      if (activeCategory === "Saved") {
+        return matchesSearch && includedQuests.some((quest) => savedQuestIds.includes(quest.id));
+      }
+
+      const matchesCategory =
+        activeCategory === "For You" ||
+        activeCategory === "All" ||
+        includedQuests.some((quest) => {
+          const safeCategories = quest.categories || (quest.category ? [quest.category] : ["Adventure"]);
+          return safeCategories.includes(activeCategory as QuestCategory);
+        });
+      const matchesCost = activeCost === "All" || includedQuests.some((quest) => quest.cost === activeCost);
+      const matchesLength = activeLength === "All" || includedQuests.some((quest) => quest.length === activeLength);
+
+      return matchesSearch && matchesCategory && matchesCost && matchesLength;
+    });
+  }, [activeCategory, activeCost, activeLength, journeys, questById, savedQuestIds, searchQuery]);
 
   const recommendedQuest = useMemo(
     () =>

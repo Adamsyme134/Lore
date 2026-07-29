@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert, Modal, Platform, View, Pressable, ScrollView, TextInput } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Image } from "expo-image";
@@ -8,7 +8,7 @@ import { AppText } from "../../../src/shared/components/AppText";
 import { Button } from "../../../src/shared/components/Button";
 import { QuestDetailBlock } from "../../../src/features/quests/components/QuestDetailBlock";
 import { useExperienceStore } from "../../../src/features/app/store/useExperienceStore";
-import { getExclusiveQuestLock, useJourneys, useQuest, useQuests, useSaveQuest, useActivateQuest, useQuitQuest, useTrackQuestView, useUserJourneyStatuses, useUserQuestStatuses } from "../../../src/features/quests/api/questApi";
+import { getExclusiveQuestLock, getJourneyQuestIds, useJourneys, useQuest, useQuests, useSaveQuest, useActivateQuest, useQuitQuest, useTrackQuestView, useUserJourneyStatuses, useUserQuestStatuses } from "../../../src/features/quests/api/questApi";
 import { useGroupQuestProgress, useUpdateQuestStepProgress, useUserQuestState, type GroupQuestParticipant } from "../../../src/features/quests/api/groupQuestApi";
 import { Ionicons } from '@expo/vector-icons'; 
 
@@ -17,6 +17,7 @@ import { QuestHero } from "../../../src/features/quests/components/QuestHero";
 import { useAddFriendGroupQuest, useCreateFriendGroup, useFriendGroups, useFriendsList } from "../../../src/features/social/api/socialApi";
 import { useThemeColors } from "../../../src/shared/design/useThemeColors";
 import { useLoreEntries } from "../../../src/features/lore/api/loreApi";
+import type { Journey } from "../../../src/shared/types/domain";
 
 function SegmentedProgressBar({ completed, total }: { completed: number; total: number }) {
   const safeTotal = Math.max(total, 1);
@@ -56,6 +57,102 @@ function notify(message: string) {
   Alert.alert("Lore", message);
 }
 
+function contentPosition(imagePosition?: string) {
+  const posMatch = imagePosition?.match(/(\d+(?:\.\d+)?)%\s+(\d+(?:\.\d+)?)%/);
+  return posMatch ? { left: `${posMatch[1]}%`, top: `${posMatch[2]}%` } : (imagePosition || "center");
+}
+
+function JourneyProgressDots({ completed, total }: { completed: number; total: number }) {
+  const visibleTotal = Math.max(Math.min(total, 8), 1);
+  const visibleCompleted = Math.min(completed, visibleTotal);
+
+  return (
+    <View className="flex-row items-center">
+      {Array.from({ length: visibleTotal }).map((_, index) => {
+        const isComplete = index < visibleCompleted;
+        return (
+          <View key={index} className="flex-row items-center">
+            <View className={`h-5 w-5 rounded-full border ${isComplete ? "border-accent bg-accent" : "border-line bg-background"}`} />
+            {index < visibleTotal - 1 ? <View className={`h-px w-5 ${index < visibleCompleted - 1 ? "bg-accent" : "bg-line"}`} /> : null}
+          </View>
+        );
+      })}
+    </View>
+  );
+}
+
+function JourneyMembershipSection({
+  journeys,
+  completedQuestIds,
+  onJourneyPress
+}: {
+  journeys: Journey[];
+  completedQuestIds: Set<string>;
+  onJourneyPress: (journey: Journey) => void;
+}) {
+  if (journeys.length === 0) return null;
+
+  return (
+    <View className="mt-7 border-t border-line pt-6">
+      <View className="mb-4 flex-row items-center">
+        <Ionicons name="trail-sign-outline" size={17} color="#D9AA62" />
+        <AppText className="ml-2 font-sansSemi text-ink">
+          This quest is part of the {journeys.length === 1 ? "journey" : "journeys"}
+        </AppText>
+      </View>
+
+      <View className="gap-3">
+        {journeys.map((journey) => {
+          const questIds = getJourneyQuestIds(journey);
+          const totalCount = Math.max(journey.totalCount || 0, questIds.length, 1);
+          const completedCount = questIds.filter((questId) => completedQuestIds.has(questId)).length;
+
+          return (
+            <Pressable
+              key={journey.id}
+              onPress={() => onJourneyPress(journey)}
+              className="overflow-hidden rounded-[14px] border border-line bg-surface active:opacity-80"
+            >
+              <View className="flex-row">
+                <Image
+                  source={{ uri: journey.backgroundImageUrl }}
+                  className="h-[112px] w-[108px] bg-stone"
+                  contentFit="cover"
+                  contentPosition={contentPosition(journey.imagePosition) as any}
+                />
+                <View className="min-w-0 flex-1 justify-between px-4 py-3">
+                  <View>
+                    <AppText variant="subtitle" className="text-xl leading-6 text-ink" numberOfLines={1}>
+                      {journey.title}
+                    </AppText>
+                    <AppText className="mt-1 text-[13px] leading-5 text-muted" numberOfLines={2}>
+                      {journey.description}
+                    </AppText>
+                  </View>
+
+                  <View className="mt-3 flex-row items-end justify-between gap-3">
+                    <View>
+                      <AppText className="font-sansSemi text-[12px] text-orange">
+                        View journey <Ionicons name="chevron-forward" size={11} color="#D9AA62" />
+                      </AppText>
+                    </View>
+                    <View className="items-end">
+                      <JourneyProgressDots completed={completedCount} total={totalCount} />
+                      <AppText className="mt-1 text-[11px] text-muted">
+                        {completedCount} / {totalCount} completed
+                      </AppText>
+                    </View>
+                  </View>
+                </View>
+              </View>
+            </Pressable>
+          );
+        })}
+      </View>
+    </View>
+  );
+}
+
 export default function QuestDetailScreen() {
   const router = useRouter();
   const colors = useThemeColors();
@@ -88,6 +185,11 @@ export default function QuestDetailScreen() {
   const stepYRefs = useRef<Record<number, number>>({});
   const groupProgress = useGroupQuestProgress(quest?.id, groupId);
   const userQuestState = useUserQuestState(quest?.id);
+  const completedQuestIds = useMemo(() => new Set(questStatuses?.completed || []), [questStatuses?.completed]);
+  const questJourneys = useMemo(() => {
+    if (!quest) return [];
+    return journeys.filter((journey) => journey.isActive && getJourneyQuestIds(journey).includes(quest.id));
+  }, [journeys, quest?.id]);
   
   // Fire exactly once when the quest ID is resolved and opened
   useEffect(() => {
@@ -137,7 +239,6 @@ export default function QuestDetailScreen() {
     );
   }
 
-  const completedQuestIds = new Set(questStatuses?.completed || []);
   const activeJourneyIds = new Set(journeyStatuses?.active || []);
   const exclusiveLock = getExclusiveQuestLock(quest.id, journeys, completedQuestIds, activeJourneyIds);
 
@@ -430,6 +531,12 @@ export default function QuestDetailScreen() {
                 detailBlockYRef.current = event.nativeEvent.layout.y;
               }}
             >
+              <JourneyMembershipSection
+                journeys={questJourneys}
+                completedQuestIds={completedQuestIds}
+                onJourneyPress={(journey) => router.push({ pathname: "/journey/[id]", params: { id: journey.id } })}
+              />
+
               <QuestDetailBlock
                 quest={quest}
                 checkedSteps={checkedSteps}
