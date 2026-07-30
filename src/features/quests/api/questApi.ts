@@ -200,7 +200,10 @@ export type UserQuestStatuses = {
   completed: string[];
   saved: string[];
   dismissed: string[];
+  completedStepIndexesByQuestId: Record<string, number[]>;
 };
+
+type UserQuestStatusKey = "active" | "completed" | "saved" | "dismissed";
 
 export type UserJourneyStatuses = {
   active: string[];
@@ -218,7 +221,8 @@ export function useUserQuestStatuses() {
     active: Object.keys(activeQuests),
     completed: completedQuestIds,
     saved: savedQuestIds,
-    dismissed: []
+    dismissed: [],
+    completedStepIndexesByQuestId: activeQuests
   };
 
   return useQuery({
@@ -235,20 +239,21 @@ export function useUserQuestStatuses() {
 
       const { data, error } = await supabase
         .from("user_quests")
-        .select("quest_id, status")
+        .select("quest_id, status, completed_step_indexes")
         .eq("user_id", user.id);
 
       if (error) throw error;
 
       return (data ?? []).reduce<UserQuestStatuses>(
         (statuses, item) => {
-          const status = item.status as keyof UserQuestStatuses;
+          const status = item.status as UserQuestStatusKey;
           if (status in statuses) {
             statuses[status].push(item.quest_id);
           }
+          statuses.completedStepIndexesByQuestId[item.quest_id] = item.completed_step_indexes ?? [];
           return statuses;
         },
-        { active: [], completed: [], saved: [], dismissed: [] }
+        { active: [], completed: [], saved: [], dismissed: [], completedStepIndexesByQuestId: {} }
       );
     },
     initialData: localStatuses
@@ -308,13 +313,39 @@ export function getJourneyQuestIds(journey: Journey) {
     : journey.timeline.map((item) => item.questId).filter(Boolean) as string[];
 }
 
+function getGloballyAvailableJourneyQuestIds(journeys: Journey[]) {
+  const globallyAvailableQuestIds = new Set<string>();
+
+  journeys
+    .filter((journey) => journey.isActive)
+    .forEach((journey) => {
+      const questIds = getJourneyQuestIds(journey);
+
+      if (journey.visibility !== "exclusive") {
+        questIds.forEach((questId) => globallyAvailableQuestIds.add(questId));
+        return;
+      }
+
+      const publicQuestIds = new Set(journey.publicQuestIds ?? []);
+      questIds
+        .filter((questId) => publicQuestIds.has(questId))
+        .forEach((questId) => globallyAvailableQuestIds.add(questId));
+    });
+
+  return globallyAvailableQuestIds;
+}
+
 export function getExclusiveJourneyQuestIds(journeys: Journey[]) {
+  const globallyAvailableQuestIds = getGloballyAvailableJourneyQuestIds(journeys);
+
   return new Set(
     journeys
       .filter((journey) => journey.isActive && journey.visibility === "exclusive")
       .flatMap((journey) => {
         const publicQuestIds = new Set(journey.publicQuestIds ?? []);
-        return getJourneyQuestIds(journey).filter((questId) => !publicQuestIds.has(questId));
+        return getJourneyQuestIds(journey).filter(
+          (questId) => !publicQuestIds.has(questId) && !globallyAvailableQuestIds.has(questId)
+        );
       })
   );
 }
@@ -325,8 +356,11 @@ export function getExclusiveQuestLock(
   completedQuestIds: Set<string>,
   activeJourneyIds: Set<string> = new Set()
 ) {
+  if (getGloballyAvailableJourneyQuestIds(journeys).has(questId)) return null;
+
   const journey = journeys.find((item) => {
     if (!item.isActive || item.visibility !== "exclusive") return false;
+    if ((item.publicQuestIds ?? []).includes(questId)) return false;
     return getJourneyQuestIds(item).includes(questId);
   });
 
@@ -477,9 +511,12 @@ export function useQuitAllActiveQuests() {
       );
       queryClient.setQueryData(
         ["user-quests-status", user?.id],
-        (current: { active: string[]; completed: string[] } | undefined) => ({
+        (current: UserQuestStatuses | undefined) => ({
           active: [],
-          completed: current?.completed ?? []
+          completed: current?.completed ?? [],
+          saved: current?.saved ?? [],
+          dismissed: current?.dismissed ?? [],
+          completedStepIndexesByQuestId: {}
         })
       );
     },

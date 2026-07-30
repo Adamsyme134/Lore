@@ -10,6 +10,7 @@ import { Screen } from "../../../src/shared/components/Screen";
 import { AppText } from "../../../src/shared/components/AppText";
 import { CategoryIconBadge, QuestMetaPills } from "../../../src/features/quests/components/QuestMetadata";
 import { JourneyTreeMap } from "../../../src/features/quests/components/JourneyTreeMap";
+import { JourneyIcon } from "../../../src/features/quests/components/JourneyIcon";
 import { useExperienceStore } from "../../../src/features/app/store/useExperienceStore";
 import { useThemeColors } from "../../../src/shared/design/useThemeColors";
 import { getExclusiveJourneyQuestIds, getJourneyQuestIds, useJourneys, useQuests, useSaveQuest, useUserQuestStatuses } from "../../../src/features/quests/api/questApi";
@@ -141,7 +142,7 @@ function JourneyCard({
       <View className="absolute inset-0 justify-between p-6">
         <View>
           <View className="mb-5 h-12 w-12 items-center justify-center rounded-full border border-accent/40 bg-background/80">
-            <Ionicons name={(journey.iconName as any) || "trail-sign-outline"} size={24} color="#F3F0EB" />
+            <JourneyIcon name={journey.iconName} size={24} color="#F3F0EB" />
           </View>
           <AppText variant="title" className="text-ivory">
             {journey.title}
@@ -448,6 +449,30 @@ export default function Explore() {
           </Animated.View>
         )}
 
+        <View className="mb-9">
+          <SectionTitle title={curatedTitle} actionLabel="See all" onActionPress={() => router.push("/quests")} />
+          {isLoadingQuests && filteredQuests.length === 0 ? (
+            <View className="items-center justify-center py-12">
+              <ActivityIndicator size="large" color={colors.accent} />
+            </View>
+          ) : filteredQuests.length === 0 ? (
+            <View className="mx-6 items-center justify-center rounded-card border border-dashed border-line py-12">
+              <AppText className="text-center text-muted">No quests found.</AppText>
+            </View>
+          ) : (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} className="pl-6" contentContainerStyle={{ paddingRight: 24 }}>
+              {filteredQuests.map((quest) => (
+                <CuratedQuestTile
+                  key={quest.id}
+                  quest={quest}
+                  isSaved={savedQuestIds.includes(quest.id)}
+                  onToggleSaved={(questId) => saveQuest.mutate(questId)}
+                />
+              ))}
+            </ScrollView>
+          )}
+        </View>
+
         <View className="mb-8">
           <SectionTitle title="Journey Tree" />
           {(isLoadingJourneys || isFetchingJourneys) && filteredJourneys.length === 0 ? (
@@ -488,30 +513,6 @@ export default function Explore() {
             <ScrollView horizontal showsHorizontalScrollIndicator={false} className="pl-6" contentContainerStyle={{ paddingRight: 24 }}>
               {filteredJourneys.map((journey) => (
                 <JourneyCard key={journey.id} journey={journey} questById={questById} completedQuestIds={completedQuestIds} />
-              ))}
-            </ScrollView>
-          )}
-        </View>
-
-        <View className="mb-9">
-          <SectionTitle title={curatedTitle} actionLabel="See all" onActionPress={() => router.push("/quests")} />
-          {isLoadingQuests && filteredQuests.length === 0 ? (
-            <View className="items-center justify-center py-12">
-              <ActivityIndicator size="large" color={colors.accent} />
-            </View>
-          ) : filteredQuests.length === 0 ? (
-            <View className="mx-6 items-center justify-center rounded-card border border-dashed border-line py-12">
-              <AppText className="text-center text-muted">No quests found.</AppText>
-            </View>
-          ) : (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} className="pl-6" contentContainerStyle={{ paddingRight: 24 }}>
-              {filteredQuests.map((quest) => (
-                <CuratedQuestTile
-                  key={quest.id}
-                  quest={quest}
-                  isSaved={savedQuestIds.includes(quest.id)}
-                  onToggleSaved={(questId) => saveQuest.mutate(questId)}
-                />
               ))}
             </ScrollView>
           )}

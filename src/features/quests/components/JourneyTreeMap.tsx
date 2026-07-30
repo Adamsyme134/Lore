@@ -1,10 +1,11 @@
-import { useMemo, useRef, useState } from "react";
-import { PanResponder, Pressable, View } from "react-native";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Animated, PanResponder, Pressable, View } from "react-native";
 import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
-import Svg, { Circle, Line } from "react-native-svg";
+import Svg, { Circle, Line, Rect } from "react-native-svg";
 import { AppText } from "../../../shared/components/AppText";
 import { useThemeColors } from "../../../shared/design/useThemeColors";
+import { JourneyIcon } from "./JourneyIcon";
 import type { Journey, Quest } from "../../../shared/types/domain";
 import {
   buildJourneyTreeRenderModel,
@@ -35,6 +36,38 @@ const stateTone: Record<JourneyNodeProgressState, { border: string; fill: string
   partially_completed: { border: "#D9B66F", fill: "#FFF1C6", icon: "#8A6415", text: "#1C1A17" },
   newly_unlocked: { border: "#F2A65A", fill: "#FFE3B9", icon: "#C76F22", text: "#1C1A17" }
 };
+const DEFAULT_SCALE = 0.72;
+const MIN_SCALE = 0.42;
+const MAX_SCALE = 1.6;
+
+function clampScale(value: number) {
+  return Math.max(MIN_SCALE, Math.min(MAX_SCALE, value));
+}
+
+function getTouchDistance(touches: Array<{ pageX: number; pageY: number }>) {
+  if (touches.length < 2) return 0;
+  const dx = touches[0].pageX - touches[1].pageX;
+  const dy = touches[0].pageY - touches[1].pageY;
+  return Math.sqrt(dx * dx + dy * dy);
+}
+
+function collectConnectedNodeIds(
+  nodeId: string,
+  edges: Array<{ fromNodeId: string; toNodeId: string }>,
+  direction: "ancestors" | "descendants",
+  collected = new Set<string>()
+) {
+  edges
+    .filter((edge) => direction === "ancestors" ? edge.toNodeId === nodeId : edge.fromNodeId === nodeId)
+    .forEach((edge) => {
+      const nextNodeId = direction === "ancestors" ? edge.fromNodeId : edge.toNodeId;
+      if (collected.has(nextNodeId)) return;
+      collected.add(nextNodeId);
+      collectConnectedNodeIds(nextNodeId, edges, direction, collected);
+    });
+
+  return collected;
+}
 
 function NodeIcon({ node }: { node: JourneyTreeRenderNode }) {
   const visualState = node.state;
@@ -43,22 +76,15 @@ function NodeIcon({ node }: { node: JourneyTreeRenderNode }) {
   if (visualState === "completed") {
     return <Ionicons name="checkmark" size={22} color={tone.icon} />;
   }
-  if (visualState === "locked" || visualState === "hidden") {
-    return <Ionicons name={visualState === "hidden" ? "eye-off-outline" : "lock-closed-outline"} size={19} color={tone.icon} />;
-  }
   if (node.kind === "capability") {
-    return <Ionicons name={(node.iconName as any) || "ribbon-outline"} size={22} color={tone.icon} />;
+    return <JourneyIcon name={node.iconName || "ribbon-outline"} size={22} color={tone.icon} />;
   }
-  if (node.quest?.categories?.includes("Food & Drink")) {
-    return <Ionicons name="cafe-outline" size={21} color={tone.icon} />;
+
+  if (node.questJourneyCount > 1) {
+    return <Ionicons name="star" size={21} color={tone.icon} />;
   }
-  if (node.quest?.categories?.includes("Skill")) {
-    return <Ionicons name="construct-outline" size={21} color={tone.icon} />;
-  }
-  if (node.quest?.categories?.includes("Culture")) {
-    return <Ionicons name="sparkles-outline" size={21} color={tone.icon} />;
-  }
-  return <Ionicons name="compass-outline" size={22} color={tone.icon} />;
+
+  return <JourneyIcon name={node.journeyIconName} size={22} color={tone.icon} />;
 }
 
 function AddNodeButton({
@@ -107,8 +133,18 @@ function NodeButton({
 }) {
   const visualState = builderMode ? "available" : node.state;
   const tone = stateTone[visualState];
+  const stateOpacity = visualState === "hidden" ? 0.24 : visualState === "locked" ? 0.42 : 1;
   const size = node.kind === "capability" ? 62 : 56;
   const radius = node.kind === "capability" ? 14 : size / 2;
+  const selectedScale = useRef(new Animated.Value(isSelected ? 1.5 : 1)).current;
+
+  useEffect(() => {
+    Animated.timing(selectedScale, {
+      toValue: isSelected ? 1.5 : 1,
+      duration: 180,
+      useNativeDriver: true
+    }).start();
+  }, [isSelected, selectedScale]);
 
   return (
     <Pressable
@@ -123,19 +159,29 @@ function NodeButton({
         top: node.y - size / 2,
         width: size,
         height: size,
-        borderRadius: radius,
-        borderWidth: isSelected ? 4 : 3,
-        borderColor: isSelected ? "#1C1A17" : tone.border,
-        backgroundColor: tone.fill,
-        opacity: isDimmed ? 0.28 : visualState === "hidden" ? 0.16 : 1,
-        zIndex: 60,
-        elevation: 6
+        zIndex: isSelected ? 90 : 60,
+        elevation: isSelected ? 10 : 6
       }}
     >
-      <NodeIcon node={{ ...node, state: visualState }} />
-      {visualState === "newly_unlocked" ? (
-        <View className="absolute -right-1 -top-1 h-4 w-4 rounded-full border border-surface bg-orange" />
-      ) : null}
+      <Animated.View
+        style={{
+          alignItems: "center",
+          justifyContent: "center",
+          width: size,
+          height: size,
+          borderRadius: radius,
+          borderWidth: isSelected ? 4 : 3,
+          borderColor: isSelected ? "#1C1A17" : tone.border,
+          backgroundColor: tone.fill,
+          opacity: isDimmed ? 0.28 : stateOpacity,
+          transform: [{ scale: selectedScale }]
+        }}
+      >
+        <NodeIcon node={{ ...node, state: visualState }} />
+        {visualState === "newly_unlocked" ? (
+          <View className="absolute -right-1 -top-1 h-4 w-4 rounded-full border border-surface bg-orange" />
+        ) : null}
+      </Animated.View>
     </Pressable>
   );
 }
@@ -192,7 +238,10 @@ export function JourneyTreeMap({
   const colors = useThemeColors();
   const [viewport, setViewport] = useState({ width: 360, height });
   const [internalSelectedNodeId, setInternalSelectedNodeId] = useState<string | null>(null);
-  const [zoom, setZoom] = useState<"overview" | "detail">("overview");
+  const [scale, setScale] = useState(DEFAULT_SCALE);
+  const scaleRef = useRef(DEFAULT_SCALE);
+  const pinchDistanceRef = useRef(0);
+  const pinchScaleRef = useRef(DEFAULT_SCALE);
   const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
   const panOffsetRef = useRef({ x: 0, y: 0 });
   const panStartRef = useRef({ x: 0, y: 0 });
@@ -204,20 +253,40 @@ export function JourneyTreeMap({
     [focusedNodeId, journeys, progress, questById]
   );
   const selectedNode = focusedNodeId ? model.nodes.find((node) => node.id === focusedNodeId) : null;
-  const scale = zoom === "detail" ? 1 : 0.72;
   const translateX = viewport.width / 2 - model.center.x * scale + panOffset.x;
   const translateY = viewport.height / 2 - model.center.y * scale + panOffset.y;
+  const updateScale = (nextScale: number) => {
+    const clampedScale = clampScale(nextScale);
+    scaleRef.current = clampedScale;
+    setScale(clampedScale);
+  };
   const panResponder = useMemo(
     () =>
       PanResponder.create({
-        onMoveShouldSetPanResponderCapture: (_, gestureState) =>
+        onMoveShouldSetPanResponderCapture: (event, gestureState) =>
+          event.nativeEvent.touches.length > 1 ||
           Math.abs(gestureState.dx) > 4 || Math.abs(gestureState.dy) > 4,
-        onMoveShouldSetPanResponder: (_, gestureState) =>
+        onMoveShouldSetPanResponder: (event, gestureState) =>
+          event.nativeEvent.touches.length > 1 ||
           Math.abs(gestureState.dx) > 4 || Math.abs(gestureState.dy) > 4,
-        onPanResponderGrant: () => {
+        onPanResponderGrant: (event) => {
+          const touches = event.nativeEvent.touches;
           panStartRef.current = panOffsetRef.current;
+          if (touches.length > 1) {
+            pinchDistanceRef.current = getTouchDistance(touches);
+            pinchScaleRef.current = scaleRef.current;
+          }
         },
-        onPanResponderMove: (_, gestureState) => {
+        onPanResponderMove: (event, gestureState) => {
+          const touches = event.nativeEvent.touches;
+          if (touches.length > 1) {
+            const nextDistance = getTouchDistance(touches);
+            if (pinchDistanceRef.current > 0) {
+              const pinchRatio = nextDistance / pinchDistanceRef.current;
+              updateScale(pinchScaleRef.current * (1 + (pinchRatio - 1) * 0.5));
+            }
+            return;
+          }
           const nextOffset = {
             x: panStartRef.current.x + gestureState.dx,
             y: panStartRef.current.y + gestureState.dy
@@ -244,11 +313,16 @@ export function JourneyTreeMap({
       }),
     []
   );
+  const handleWheel = (event: { preventDefault?: () => void; deltaY?: number; nativeEvent?: { deltaY?: number } }) => {
+    event.preventDefault?.();
+    const deltaY = event.deltaY ?? event.nativeEvent?.deltaY ?? 0;
+    updateScale(scaleRef.current * (deltaY > 0 ? 0.96 : 1.04));
+  };
   const relatedNodeIds = focusedNodeId
     ? new Set([
         focusedNodeId,
-        ...model.edges.filter((edge) => edge.from?.id === focusedNodeId).map((edge) => edge.to?.id).filter(Boolean) as string[],
-        ...model.edges.filter((edge) => edge.to?.id === focusedNodeId).map((edge) => edge.from?.id).filter(Boolean) as string[]
+        ...collectConnectedNodeIds(focusedNodeId, model.edges, "ancestors"),
+        ...collectConnectedNodeIds(focusedNodeId, model.edges, "descendants")
       ])
     : null;
   const visibleNodes = model.nodes.filter((node) => builderMode || node.state !== "hidden" || relatedNodeIds?.has(node.id));
@@ -271,7 +345,7 @@ export function JourneyTreeMap({
 
   const handleSelect = (node: JourneyTreeRenderNode) => {
     const nextOffset = {
-      x: (model.center.x - node.x) * scale - 108,
+      x: (model.center.x - node.x) * scale,
       y: (model.center.y - node.y) * scale
     };
     panOffsetRef.current = nextOffset;
@@ -289,6 +363,7 @@ export function JourneyTreeMap({
       className="relative overflow-hidden border-y border-line/40"
       style={{ height, backgroundColor: colors.background }}
       {...panResponder.panHandlers}
+      {...({ onWheel: handleWheel } as any)}
       onLayout={(event) => {
         const { width, height: nextHeight } = event.nativeEvent.layout;
         setViewport({ width, height: nextHeight });
@@ -299,24 +374,14 @@ export function JourneyTreeMap({
         onPress={handleDeselect}
         className="absolute inset-0"
       />
-      <View className="absolute left-4 top-4 z-20 flex-row rounded-full border border-line bg-surface p-1 shadow-sm">
-        {(["overview", "detail"] as const).map((mode) => {
-          const isActive = zoom === mode;
-          return (
-            <Pressable key={mode} onPress={() => setZoom(mode)} className={`rounded-full px-4 py-2 ${isActive ? "bg-accent" : ""}`}>
-              <AppText className={`text-xs capitalize ${isActive ? "font-sansSemi text-accentText" : "text-ink/60"}`}>{mode}</AppText>
-            </Pressable>
-          );
-        })}
-      </View>
-
       <View
         className="absolute"
         style={{
           width: model.width,
           height: model.height,
+          transformOrigin: "0 0",
           transform: [{ translateX }, { translateY }, { scale }]
-        }}
+        } as any}
       >
         <Pressable
           accessibilityLabel="Deselect journey node"
@@ -382,6 +447,39 @@ export function JourneyTreeMap({
               ))}
             </>
           ) : null}
+          {visibleNodes.map((node) => {
+            const visualState = builderMode ? "available" : node.state;
+            const tone = stateTone[visualState];
+            const size = node.kind === "capability" ? 62 : 56;
+            const isSelected = focusedNodeId === node.id;
+            const backerSize = size * (isSelected ? 1.5 : 1);
+            const backerRadius = node.kind === "capability" ? 14 * (isSelected ? 1.5 : 1) : backerSize / 2;
+
+            if (node.kind === "capability") {
+              return (
+                <Rect
+                  key={`node-backer-${node.id}`}
+                  x={node.x - backerSize / 2}
+                  y={node.y - backerSize / 2}
+                  width={backerSize}
+                  height={backerSize}
+                  rx={backerRadius}
+                  ry={backerRadius}
+                  fill={tone.fill}
+                />
+              );
+            }
+
+            return (
+              <Circle
+                key={`node-backer-${node.id}`}
+                cx={node.x}
+                cy={node.y}
+                r={backerRadius}
+                fill={tone.fill}
+              />
+            );
+          })}
         </Svg>
 
         <View

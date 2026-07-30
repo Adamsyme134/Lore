@@ -3,11 +3,12 @@ import { useState, useEffect, useRef } from "react";
 import { View, ScrollView, TextInput, Pressable, PanResponder } from "react-native";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
-import { Ionicons } from "@expo/vector-icons";
+import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { AppText } from "../../src/shared/components/AppText";
 import { QuestHero } from "../../src/features/quests/components/QuestHero";
 import { QuestCard } from "../../src/features/quests/components/QuestCard";
 import { JourneyTreeMap } from "../../src/features/quests/components/JourneyTreeMap";
+import { JourneyIcon } from "../../src/features/quests/components/JourneyIcon";
 import { YouTubeWidget } from "../../src/features/quests/components/widgets/YouTubeWidget";
 import { CardRevealWidget } from "../../src/features/quests/components/widgets/CardRevealWidget";
 import { QuestLinkWidget } from "../../src/features/quests/components/widgets/QuestLinkWidget";
@@ -32,7 +33,25 @@ import type {
 import { requireSupabase } from "../../src/lib/supabase";
 
 const CATEGORIES: (QuestCategory | "All")[] = ["All", "Adventure", "Skill", "Culture", "Food & Drink", "Wellness", "Social"];
-const JOURNEY_ICON_NAMES = Object.keys((Ionicons as any).glyphMap || {}).sort();
+const JOURNEY_ICON_OPTIONS = [
+  ...[
+    "mountain",
+    "summit",
+    "forest",
+    "campfire",
+    "waves",
+    "cave",
+    "compass-star",
+    "diver"
+  ].map(name => ({ id: `lore:${name}`, label: name, library: "Lore" })),
+  ...Object.keys((Ionicons as any).glyphMap || {}).map(name => ({ id: name, label: name, library: "Ionicons" })),
+  ...Object.keys((MaterialCommunityIcons as any).glyphMap || {}).map(name => ({ id: `mci:${name}`, label: name, library: "Material" }))
+].sort((a, b) => {
+  const order: Record<string, number> = { Lore: 0, Ionicons: 1, Material: 2 };
+  return order[a.library] === order[b.library]
+    ? a.label.localeCompare(b.label)
+    : order[a.library] - order[b.library];
+});
 
 // -- WIDGETS SETUP -- //
 type WidgetType = 'RANDOMISER' | 'LOCATION' | 'YOUTUBE' | 'LINK' | 'QUEST' | 'CHECKLIST' | 'MAP' | 'CARD_REVEAL';
@@ -262,6 +281,67 @@ function Dropdown({ label, value, options, onSelect }: { label: string, value: s
   );
 }
 
+const DURATION_UNITS = ["mins", "hours", "days", "months"];
+
+function normaliseDurationUnit(unit?: string) {
+  const value = unit?.toLowerCase() || "";
+  if (["min", "mins", "minute", "minutes"].includes(value)) return "mins";
+  if (["hr", "hrs", "hour", "hours"].includes(value)) return "hours";
+  if (["day", "days"].includes(value)) return "days";
+  if (["month", "months"].includes(value)) return "months";
+  return "hours";
+}
+
+function parseDurationLabel(label: string) {
+  const match = label.match(/(\d+)(?:\s*[-–]\s*(\d+))?\s*(mins?|minutes?|hrs?|hours?|days?|months?)/i);
+  return {
+    first: match?.[1] || "",
+    second: match?.[2] || "",
+    unit: normaliseDurationUnit(match?.[3])
+  };
+}
+
+function formatDurationLabel(first: string, second: string, unit: string) {
+  const start = first.replace(/\D/g, "");
+  const end = second.replace(/\D/g, "");
+  if (!start && !end) return "";
+  return `${start}${end ? `-${end}` : ""} ${unit}`;
+}
+
+function DurationInput({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+  const parsed = parseDurationLabel(value);
+  const updateDuration = (first: string, second: string, unit: string) => {
+    onChange(formatDurationLabel(first, second, unit));
+  };
+
+  return (
+    <View className="flex-1 mb-6">
+      <AppText variant="subtitle" className="mb-2 text-xs">Duration</AppText>
+      <View className="flex-row gap-2">
+        <TextInput
+          className="rounded-lg border border-line bg-surface p-3 font-sans text-ink"
+          style={{ width: 84 }}
+          keyboardType="number-pad"
+          placeholder="1"
+          value={parsed.first}
+          onChangeText={(txt) => updateDuration(txt, parsed.second, parsed.unit)}
+        />
+        <TextInput
+          className="rounded-lg border border-line bg-surface p-3 font-sans text-ink"
+          style={{ width: 84 }}
+          keyboardType="number-pad"
+          placeholder="Optional"
+          value={parsed.second}
+          onChangeText={(txt) => updateDuration(parsed.first, txt, parsed.unit)}
+        />
+        <View className="w-32">
+          <Dropdown label="" value={parsed.unit} options={DURATION_UNITS} onSelect={(unit) => updateDuration(parsed.first, parsed.second, unit)} />
+        </View>
+      </View>
+    </View>
+  );
+}
+
 function ToggleGroup({ label, options, selected, onSelect }: { label: string, options: string[], selected: string, onSelect: (val: string) => void }) {
   return (
     <View className="mb-4">
@@ -420,9 +500,34 @@ const buildJourneyFromQuestIds = (baseJourney: Journey, questIds: string[], ques
 
 const buildJourneyFromTree = (baseJourney: Journey, treeNodes: JourneyTreeNode[], treeEdges: JourneyTreeEdge[], quests: Quest[]): Journey => {
   const questById = new Map(quests.map(q => [q.id, q]));
-  const questIds = treeNodes.map(node => node.questId).filter(Boolean) as string[];
-  const childNodeIds = new Set(treeEdges.map(edge => edge.toNodeId));
-  const firstQuestNode = treeNodes.find(node => node.questId && !childNodeIds.has(node.id)) || treeNodes.find(node => node.questId);
+  const sharedRootNode = treeNodes.find(node => node.sharedAnchorNodeId || node.branchId === "shared-root");
+  let normalisedTreeNodes = treeNodes;
+  let normalisedTreeEdges = treeEdges;
+
+  if (sharedRootNode) {
+    const externalEdges = treeEdges.filter(edge => edge.toNodeId === sharedRootNode.id && edge.fromNodeId === sharedRootNode.sharedAnchorNodeId);
+    const branchNodes = treeNodes.filter(node => node.id !== sharedRootNode.id);
+    normalisedTreeNodes = [
+      sharedRootNode,
+      ...branchNodes.map((node, index) => ({
+        ...node,
+        branchId: index === 0 ? "side-branch" : undefined
+      }))
+    ];
+    normalisedTreeEdges = [
+      ...externalEdges,
+      ...normalisedTreeNodes.slice(1).map((node, index) => ({
+        id: `${baseJourney.id}-edge-${normalisedTreeNodes[index].id}-${node.id}`,
+        fromNodeId: normalisedTreeNodes[index].id,
+        toNodeId: node.id,
+        hiddenUntilUnlocked: true
+      }))
+    ];
+  }
+
+  const questIds = normalisedTreeNodes.map(node => node.questId).filter(Boolean) as string[];
+  const childNodeIds = new Set(normalisedTreeEdges.map(edge => edge.toNodeId));
+  const firstQuestNode = normalisedTreeNodes.find(node => node.questId && !childNodeIds.has(node.id)) || normalisedTreeNodes.find(node => node.questId);
   const nextQuest = firstQuestNode?.questId ? questById.get(firstQuestNode.questId) : null;
 
   return {
@@ -440,8 +545,8 @@ const buildJourneyFromTree = (baseJourney: Journey, treeNodes: JourneyTreeNode[]
     nextQuestId: firstQuestNode?.questId || null,
     nextQuestTitle: nextQuest?.title || firstQuestNode?.title || "Choose the next quest",
     nextQuestImageUrl: nextQuest?.imageUrl || baseJourney.backgroundImageUrl,
-    treeNodes,
-    treeEdges
+    treeNodes: normalisedTreeNodes,
+    treeEdges: normalisedTreeEdges
   };
 };
 
@@ -466,25 +571,37 @@ const createJourneyBranchDraft = (parentNode: JourneyTreeRenderNode | null, ques
     title: `New path after ${parentNode.label}`,
     slug: `new-path-after-${parentNode.questId}-${Date.now()}`,
     description: "A connected journey unlocked from another branch.",
+    questIds: [parentNode.questId],
+    timeline: [{
+      id: `${draft.id}-timeline-${parentNode.questId}`,
+      title: parentNode.label,
+      questId: parentNode.questId,
+      isComplete: false
+    }],
+    totalCount: 1,
+    nextQuestId: parentNode.questId,
+    nextQuestTitle: parentNode.label,
+    nextQuestImageUrl: parentNode.quest?.imageUrl || draft.backgroundImageUrl,
     treeNodes: [
       {
-        id: `${draft.id}-pending-root`,
+        id: `${draft.id}-shared-root-${parentNode.questId}`,
         kind: "quest" as const,
-        title: "Choose the first quest",
-        branchId: placement === "branch" ? "side-branch" : undefined,
-        prerequisites: [{ id: `${draft.id}-requires-${parentNode.questId}`, mode: "all" as const, questIds: [parentNode.questId] }],
-        hiddenUntil: [{ id: `${draft.id}-hidden-until-${parentNode.questId}`, mode: "all" as const, questIds: [parentNode.questId] }]
+        questId: parentNode.questId,
+        title: parentNode.label,
+        branchId: "shared-root",
+        sharedAnchorNodeId: parentNode.id,
+        layoutAngle: parentNode.angle,
+        layoutDepth: parentNode.depth
       }
     ],
     treeEdges: [
       {
-        id: `${draft.id}-edge-${parentNode.id}-${draft.id}-pending-root`,
+        id: `${draft.id}-edge-${parentNode.id}-${draft.id}-shared-root-${parentNode.questId}`,
         fromNodeId: parentNode.id,
-        toNodeId: `${draft.id}-pending-root`,
+        toNodeId: `${draft.id}-shared-root-${parentNode.questId}`,
         hiddenUntilUnlocked: true
       }
-    ],
-    nextQuestTitle: "Choose the first quest"
+    ]
   };
 };
 
@@ -792,7 +909,7 @@ export default function QuestBuilderAdmin() {
         description: quest.description,
         why_it_matters: quest.whyItMatters,
         location_hint: quest.locationHint,
-        duration_label: quest.length,
+        duration_label: quest.duration,
         mood: quest.mood,
         accent: quest.accent,
         image_url: quest.imageUrl,
@@ -1247,15 +1364,22 @@ export default function QuestBuilderAdmin() {
           : buildJourneyFromQuestIds(prev, prev.questIds, savedQuests);
         const treeNodes = [...(base.treeNodes ?? [])];
         const treeEdges = [...(base.treeEdges ?? [])];
-        const parentNode = parentNodeId ? treeNodes.find(node => node.id === parentNodeId) : null;
+        const outgoingNodeIds = new Set(treeEdges.map(edge => edge.fromNodeId));
+        const branchedJourneyEndpoint = treeNodes.some(node => node.sharedAnchorNodeId || node.branchId === "shared-root")
+          ? [...treeNodes].reverse().find(node => node.kind === "quest" && !outgoingNodeIds.has(node.id))
+          : null;
+        const parentNode = parentNodeId
+          ? treeNodes.find(node => node.id === parentNodeId)
+          : branchedJourneyEndpoint || null;
         const nodeId = `${base.id}-node-${questToAdd.id}-${Date.now()}`;
         const isPlaceholderParent = !!parentNode && !parentNode.questId;
+        const shouldBranchFromSharedRoot = parentNode?.branchId === "shared-root";
         const nextNode: JourneyTreeNode = {
           id: isPlaceholderParent ? parentNode.id : nodeId,
           kind: "quest",
           questId: questToAdd.id,
           title: questToAdd.title,
-          branchId: parentNode && journeyAddPlacement === "branch" ? "side-branch" : undefined,
+          branchId: parentNode && (journeyAddPlacement === "branch" || shouldBranchFromSharedRoot) ? "side-branch" : undefined,
           prerequisites: isPlaceholderParent
             ? parentNode.prerequisites
             : parentNode?.questId
@@ -1368,7 +1492,7 @@ export default function QuestBuilderAdmin() {
               >
                 <View className="flex-row items-center">
                   <View className="mr-3 h-10 w-10 items-center justify-center rounded-full bg-stone">
-                    <Ionicons name={(journey.iconName as any) || "trail-sign-outline"} size={22} color="#1C1A17" />
+                    <JourneyIcon name={journey.iconName} size={22} color="#1C1A17" />
                   </View>
                   <AppText className="font-sansSemi text-ink">{journey.iconName || "trail-sign-outline"}</AppText>
                 </View>
@@ -1385,20 +1509,20 @@ export default function QuestBuilderAdmin() {
                   />
                   <ScrollView nestedScrollEnabled className="max-h-80">
                     <View className="flex-row flex-wrap gap-2">
-                      {JOURNEY_ICON_NAMES
-                        .filter(name => !journeyIconSearch.trim() || name.includes(journeyIconSearch.trim().toLowerCase()))
-                        .map(name => {
-                          const isSelected = journey.iconName === name;
+                      {JOURNEY_ICON_OPTIONS
+                        .filter(option => !journeyIconSearch.trim() || option.label.includes(journeyIconSearch.trim().toLowerCase()) || option.library.toLowerCase().includes(journeyIconSearch.trim().toLowerCase()))
+                        .map(option => {
+                          const isSelected = journey.iconName === option.id;
                           return (
                             <Pressable
-                              key={name}
+                              key={option.id}
                               onPress={() => {
-                                updateJourneyField("iconName", name);
+                                updateJourneyField("iconName", option.id);
                                 setIsJourneyIconPickerOpen(false);
                               }}
                               className={`h-12 w-12 items-center justify-center rounded-xl border ${isSelected ? 'border-accent bg-accent' : 'border-line bg-surface'}`}
                             >
-                              <Ionicons name={name as any} size={22} color={isSelected ? "#183431" : "#1C1A17"} />
+                              <JourneyIcon name={option.id} size={22} color={isSelected ? "#183431" : "#1C1A17"} />
                             </Pressable>
                           );
                         })}
@@ -1703,7 +1827,7 @@ export default function QuestBuilderAdmin() {
               )}
               <View className="z-40 mb-2"><MultiToggleGroup label="Categories" options={["Adventure", "Skill", "Culture", "Food & Drink", "Wellness", "Social"]} selected={quest.categories} onSelect={(val) => updateField("categories", val)} /></View>
               <View className="mb-6 z-40"><Dropdown label="Cost" value={quest.cost} options={["Free", "£", "££", "£££"]} onSelect={(val) => updateField("cost", val)} /></View>
-              <View className="flex-row gap-4 z-30"><Dropdown label="Length" value={quest.length} options={["A few hours", "Full day", "Multi-day", "Long-term"]} onSelect={(val) => updateField("length", val)} /><Dropdown label="Difficulty" value={quest.difficulty} options={["Easy", "Medium", "Challenging"]} onSelect={(val) => updateField("difficulty", val)} /></View>
+              <View className="flex-row gap-4 z-30"><DurationInput value={quest.duration} onChange={(val) => updateField("duration", val)} /><Dropdown label="Difficulty" value={quest.difficulty} options={["Easy", "Medium", "Challenging"]} onSelect={(val) => updateField("difficulty", val)} /></View>
               <View className="flex-row gap-4 z-20"><View className="flex-1 mb-6"><AppText variant="subtitle" className="mb-2">Points Awarded</AppText><TextInput className="bg-surface border border-line rounded-lg p-4 font-sans text-ink" value={quest.pointsValue.toString()} keyboardType="number-pad" onChangeText={(txt) => updateField("pointsValue", parseInt(txt) || 10)} /></View><View className="flex-1" /></View>
             </View>
           )}

@@ -1,19 +1,18 @@
-import { View, ActivityIndicator, RefreshControl, ScrollView, TouchableOpacity } from "react-native";
+import { View, ActivityIndicator, RefreshControl, ScrollView, TouchableOpacity, useWindowDimensions } from "react-native";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
-import { Ionicons } from "@expo/vector-icons";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { useState, useMemo, useCallback } from "react";
 import { Screen } from "../../../src/shared/components/Screen";
 import { AppText } from "../../../src/shared/components/AppText";
-import { QuestHero } from "../../../src/features/quests/components/QuestHero";
-import { QuestCard } from "../../../src/features/quests/components/QuestCard";
 import { FriendLoreFeed } from "../../../src/features/social/components/FriendLoreFeed";
-import { getExclusiveJourneyQuestIds, getJourneyQuestIds, useJourneys, useQuests, useUserJourneyStatuses, useUserQuestStatuses } from "../../../src/features/quests/api/questApi";
+import { getJourneyQuestIds, useJourneys, useQuests, useUserJourneyStatuses, useUserQuestStatuses } from "../../../src/features/quests/api/questApi";
 import { useFriendMoments } from "../../../src/features/social/api/socialApi"; // ✨ Added Friend API
 import { useAuth } from "../../../src/features/auth/AuthProvider";
 import { useExperienceStore } from "../../../src/features/app/store/useExperienceStore";
 import { ExperienceProgressCard } from "../../../src/features/points/components/ExperienceProgressCard";
+import { JourneyIcon } from "../../../src/features/quests/components/JourneyIcon";
+import { CategoryIconBadge } from "../../../src/features/quests/components/QuestMetadata";
 import { router } from "expo-router";
 import { useThemeColors } from "../../../src/shared/design/useThemeColors";
 import type { Journey, Quest } from "../../../src/shared/types/domain";
@@ -56,7 +55,7 @@ function CompactJourneyCard({
       />
       <View className="absolute inset-0 justify-between p-4">
         <View className="h-9 w-9 items-center justify-center rounded-full border border-accent/35 bg-background/80">
-          <Ionicons name={(journey.iconName as any) || "trail-sign-outline"} size={18} color="#F3F0EB" />
+          <JourneyIcon name={journey.iconName} size={18} color="#F3F0EB" />
         </View>
         <View>
           <AppText variant="subtitle" className="text-ivory leading-7" numberOfLines={2}>
@@ -71,8 +70,75 @@ function CompactJourneyCard({
   );
 }
 
+function TodayQuestProgressCard({
+  quest,
+  completedStepIndexes,
+  width
+}: {
+  quest: Quest;
+  completedStepIndexes: number[];
+  width: number;
+}) {
+  const totalSteps = Math.max(quest.steps.length, 1);
+  const completedSteps = new Set(
+    completedStepIndexes.filter((stepIndex) => stepIndex >= 0 && stepIndex < quest.steps.length)
+  ).size;
+  const progress = Math.min(completedSteps / totalSteps, 1);
+  const posMatch = quest.imagePosition?.match(/(\d+(?:\.\d+)?)%\s+(\d+(?:\.\d+)?)%/);
+  const contentPos = posMatch ? { left: `${posMatch[1]}%`, top: `${posMatch[2]}%` } : (quest.imagePosition || "center");
+
+  return (
+    <View style={{ width }}>
+      <TouchableOpacity
+        onPress={() => router.push({ pathname: "/quest/[id]", params: { id: quest.id } })}
+        activeOpacity={0.86}
+      >
+        <View
+          style={{
+            height: width,
+            borderRadius: 18,
+            shadowColor: "#000",
+            shadowOffset: { width: 0, height: 10 },
+            shadowOpacity: 0.16,
+            shadowRadius: 16,
+            elevation: 5
+          }}
+        >
+          <View className="relative overflow-hidden rounded-[18px] bg-stone" style={{ height: width }}>
+            <Image
+              source={{ uri: quest.imageUrl }}
+              style={{ height: "100%", width: "100%" }}
+              contentFit="cover"
+              contentPosition={contentPos as any}
+              transition={300}
+            />
+            <LinearGradient
+              colors={["rgba(0,0,0,0)", "rgba(0,0,0,0.26)", "rgba(0,0,0,0.86)"]}
+              locations={[0.38, 0.68, 1]}
+              style={{ position: "absolute", top: 0, right: 0, bottom: 0, left: 0 }}
+            />
+            <CategoryIconBadge category={quest.categories?.[0] || quest.category} className="absolute left-3 top-3" size="sm" />
+            <View className="absolute bottom-0 left-0 right-0 px-4 pb-4">
+              <AppText variant="subtitle" className="text-ivory leading-7" numberOfLines={2}>
+                {quest.title}
+              </AppText>
+              <View className="relative mt-3 h-2 overflow-hidden rounded-full bg-ivory/30">
+                <View className="h-full rounded-full bg-[#FFE0A3]" style={{ width: `${progress * 100}%` }} />
+              </View>
+            </View>
+          </View>
+        </View>
+        <AppText className="mt-3 px-1 text-sm leading-5 text-ivory" numberOfLines={1}>
+          {quest.duration} • {quest.cost} • {quest.difficulty}
+        </AppText>
+      </TouchableOpacity>
+    </View>
+  );
+}
+
 export default function TodayScreen() {
   const colors = useThemeColors();
+  const { width } = useWindowDimensions();
   const { data: quests = [], isLoading: isLoadingQuests, refetch: refetchQuests } = useQuests();
   const { data: journeys = [], refetch: refetchJourneys } = useJourneys();
   const { data: friendMoments = [], refetch: refetchFriendMoments } = useFriendMoments(); // ✨ Get actual friends
@@ -85,16 +151,13 @@ export default function TodayScreen() {
 
   const points = profile?.pointsTotal ?? previewPoints;
 
-  const [rerollsLeft, setRerollsLeft] = useState(3);
-  const [mainQuestIndex, setMainQuestIndex] = useState(0);
-
   // ✨ NEW: Calculate exactly which quests go where based on Supabase truth
   const activeQuestIds = questStatuses?.active || [];
   const completedQuestIds = questStatuses?.completed || [];
   const activeJourneyIds = journeyStatuses?.active || [];
-  const exclusiveQuestIds = useMemo(() => getExclusiveJourneyQuestIds(journeys), [journeys]);
   const questById = useMemo(() => new Map(quests.map((quest) => [quest.id, quest])), [quests]);
   const completedQuestIdSet = useMemo(() => new Set(completedQuestIds), [completedQuestIds]);
+  const inProgressTileSize = Math.min(176, Math.max(148, (width - 64) / 2.15)) * 1.1;
 
   // In Progress = Only quests explicitly marked as "active"
   const inProgressQuests = useMemo(() => 
@@ -105,14 +168,6 @@ export default function TodayScreen() {
     () => journeys.filter((journey) => activeJourneyIds.includes(journey.id)),
     [activeJourneyIds, journeys]
   );
-
-  // Unstarted = Quests that are NOT active AND NOT completed
-  const unstartedQuests = useMemo(() => 
-    quests.filter((q) => !exclusiveQuestIds.has(q.id) && !activeQuestIds.includes(q.id) && !completedQuestIds.includes(q.id)),
-  [quests, activeQuestIds, completedQuestIds, exclusiveQuestIds]);
-
-  const displayQuests = unstartedQuests.length > 0 ? unstartedQuests : quests.filter((quest) => !exclusiveQuestIds.has(quest.id));
-  const todayQuest = displayQuests[mainQuestIndex % displayQuests.length];
 
   const handleRefresh = useCallback(async () => {
     setIsRefreshing(true);
@@ -130,34 +185,10 @@ export default function TodayScreen() {
   }, [refetchFriendMoments, refetchJourneyStatuses, refetchQuests, refetchJourneys, refetchQuestStatuses]);
 
 
-  const handleReroll = () => {
-    if (rerollsLeft > 0) {
-      setMainQuestIndex((prev) => prev + 1); 
-      setRerollsLeft((prev) => prev - 1);
-    }
-  };
-
   if (isLoadingQuests && quests.length === 0) {
     return (
       <Screen contentClassName="flex-1 items-center justify-center">
         <ActivityIndicator color={colors.accent} />
-      </Screen>
-    );
-  }
-
-  if (!todayQuest) {
-    return (
-      <Screen
-        contentClassName="pt-3 px-5"
-        refreshControl={
-          <RefreshControl
-            refreshing={isRefreshing}
-            onRefresh={handleRefresh}
-            tintColor={colors.accent}
-          />
-        }
-      >
-        <AppText variant="title" className="mt-8 text-center text-muted">No quests available.</AppText>
       </Screen>
     );
   }
@@ -173,9 +204,7 @@ export default function TodayScreen() {
         />
       }
     >
-      
-      {/* --- PAGE 1: HEADER & LEVEL BAR --- */}
-      <View className="mb-6 px-0">
+      <View className="mb-3 px-0">
         <ExperienceProgressCard
           points={points}
           profileImageUrl={profile?.avatarUrl}
@@ -184,33 +213,8 @@ export default function TodayScreen() {
         />
       </View>
 
-      {/* --- PAGE 1: RECOMMENDED QUEST FOR TODAY --- */}
-      <Animated.View entering={FadeInDown.delay(120).duration(420)} className="px-2 mb-10">
-        <View className="items-center mb-4">
-          <AppText variant="eyebrow" className="text-muted mb-2 uppercase tracking-widest text-center">
-            Recommended Quest For Today
-          </AppText>
-        </View>
-        
-        <View className="rounded-[32px] border border-line bg-surface overflow-hidden shadow-sm shadow-charcoal/5">
-          <QuestHero quest={todayQuest} className="rounded-none" variant="recommended" />
-          
-          {rerollsLeft > 0 && (
-            <TouchableOpacity 
-              onPress={handleReroll}
-              className="w-full border-t border-line py-4 items-center bg-surface active:bg-line/30"
-            >
-              <AppText variant="caption" className="font-sansSemi text-ink">
-                Different vibe ({rerollsLeft})
-              </AppText>
-            </TouchableOpacity>
-          )}
-        </View>
-      </Animated.View>
-
-      {/* --- PAGE 2: IN PROGRESS HORIZONTAL SCROLL --- */}
-      <View className="mb-8 pt-2">
-        <View className="px-5 mb-4">
+      <Animated.View entering={FadeInDown.delay(120).duration(420)} className="mb-8 pt-1">
+        <View className="mb-4" style={{ paddingLeft: 10, paddingRight: 20 }}>
           <AppText variant="title">In Progress</AppText>
         </View>
         
@@ -218,26 +222,31 @@ export default function TodayScreen() {
           <ScrollView 
             horizontal 
             showsHorizontalScrollIndicator={false}
-            contentContainerStyle={{ paddingHorizontal: 8, gap: 12 }}
+            contentContainerStyle={{ paddingLeft: 10, paddingRight: 20, gap: 12 }}
           >
             {inProgressQuests.map((quest) => (
-              <QuestCard key={quest.id} quest={quest} compact />
+              <TodayQuestProgressCard
+                key={quest.id}
+                quest={quest}
+                width={inProgressTileSize}
+                completedStepIndexes={questStatuses?.completedStepIndexesByQuestId[quest.id] ?? []}
+              />
             ))}
           </ScrollView>
         ) : (
-          <View className="px-5 py-2">
+          <View className="py-2" style={{ paddingLeft: 10, paddingRight: 20 }}>
             <AppText className="text-muted font-sansMedium">No quests in progress</AppText>
           </View>
         )}
 
-        <View className="mt-6 px-5 mb-4">
+        <View className="mt-6 mb-4" style={{ paddingLeft: 10, paddingRight: 20 }}>
           <AppText variant="eyebrow" className="text-muted">Journeys</AppText>
         </View>
         {inProgressJourneys.length > 0 ? (
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
-            contentContainerStyle={{ paddingHorizontal: 8, gap: 12 }}
+            contentContainerStyle={{ paddingLeft: 10, paddingRight: 20, gap: 12 }}
           >
             {inProgressJourneys.map((journey) => (
               <CompactJourneyCard
@@ -249,11 +258,11 @@ export default function TodayScreen() {
             ))}
           </ScrollView>
         ) : (
-          <View className="px-5 py-2">
+          <View className="py-2" style={{ paddingLeft: 10, paddingRight: 20 }}>
             <AppText className="text-muted font-sansMedium">No journeys in progress</AppText>
           </View>
         )}
-      </View>
+      </Animated.View>
 
       {/* --- PAGE 3: FRIEND'S LORE --- */}
       <View className="-mx-5"> 

@@ -10,6 +10,7 @@ import { AppText } from "../../../src/shared/components/AppText";
 import { Button } from "../../../src/shared/components/Button";
 import { difficultyPillClass, difficultyPillTextClass, difficultyPillTextColor } from "../../../src/shared/components/Chip";
 import { useThemeColors } from "../../../src/shared/design/useThemeColors";
+import { JourneyIcon } from "../../../src/features/quests/components/JourneyIcon";
 import { getJourneyQuestIds, useJourneys, useQuests, useStartJourney, useUserJourneyStatuses, useUserQuestStatuses } from "../../../src/features/quests/api/questApi";
 import { useLoreEntries } from "../../../src/features/lore/api/loreApi";
 import type { Quest } from "../../../src/shared/types/domain";
@@ -155,8 +156,9 @@ function isJourneyQuestLocked(
   publicQuestIds: string[],
   isJourneyStarted: boolean
 ) {
+  if (!isExclusive || (publicQuestIds ?? []).includes(questId) || completedQuestIds.has(questId)) return false;
   if (!isJourneyStarted) return true;
-  if (!isExclusive || (publicQuestIds ?? []).includes(questId) || index <= 0 || completedQuestIds.has(questId)) return false;
+  if (index <= 0) return false;
   return !completedQuestIds.has(questIds[index - 1]);
 }
 
@@ -245,7 +247,7 @@ export default function JourneyDetailScreen() {
           />
           <View className="absolute bottom-0 left-0 right-0 px-6 pb-8">
             <View className="mb-5 h-14 w-14 items-center justify-center rounded-full border border-accent/40 bg-background/80">
-              <Ionicons name={(journey.iconName as any) || "trail-sign-outline"} size={25} color="#F3F0EB" />
+              <JourneyIcon name={journey.iconName} size={25} color="#F3F0EB" />
             </View>
             <AppText variant="display" className="text-ivory">
               {journey.title}
@@ -270,7 +272,7 @@ export default function JourneyDetailScreen() {
             <AppText variant="subtitle" className="text-2xl text-ink">
               Your path
             </AppText>
-            {!isJourneyStarted ? (
+            {isExclusive && !isJourneyStarted ? (
               <View className="rounded-full border border-line bg-surface px-3 py-1.5">
                 <AppText variant="caption" className="font-sansSemi text-muted">Locked</AppText>
               </View>

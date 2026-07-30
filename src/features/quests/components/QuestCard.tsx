@@ -10,20 +10,23 @@ import { CategoryIconBadge, QuestMetaPills } from "./QuestMetadata";
 type QuestCardProps = {
   quest: Quest;
   compact?: boolean;
+  compactSize?: number;
   groupId?: string;
   onRemove?: () => void;
 };
 
-export function QuestCard({ quest, compact = false, groupId, onRemove }: QuestCardProps) {
+export function QuestCard({ quest, compact = false, compactSize, groupId, onRemove }: QuestCardProps) {
   const isGroup = quest.maxParticipants > 1;
   const borderClass = isGroup ? 'border-[3px] border-[#2D6A4F]' : 'border border-line/20';
   const posMatch = quest.imagePosition?.match(/(\d+(?:\.\d+)?)%\s+(\d+(?:\.\d+)?)%/);
   const contentPos = posMatch ? { left: `${posMatch[1]}%`, top: `${posMatch[2]}%` } : (quest.imagePosition || 'center');
+  const compactHeight = compactSize ?? 160;
+  const compactWidth = compactSize ?? 260;
   return (
     <Pressable
       onPress={() => router.push({ pathname: "/quest/[id]", params: groupId ? { id: quest.id, groupId } : { id: quest.id } })}
       className={`overflow-hidden rounded-[24px] bg-stone relative ${borderClass}`}
-      style={{ height: compact ? 160 : 280, width: compact ? 260 : 'auto' }} // ✨ FIX 1: Width explicitly set for horizontal lists
+      style={{ height: compact ? compactHeight : 280, width: compact ? compactWidth : 'auto' }}
     >
       <Image
         source={{ uri: quest.imageUrl }}
@@ -59,6 +62,7 @@ export function QuestCard({ quest, compact = false, groupId, onRemove }: QuestCa
         <AppText
           variant={compact ? "subtitle" : "display"}
           className={compact ? "text-ivory leading-7" : "text-ivory leading-[52px]"}
+          numberOfLines={compact ? 2 : undefined}
         >
           {quest.title}
         </AppText>

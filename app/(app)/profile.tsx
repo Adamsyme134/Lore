@@ -3,6 +3,7 @@ import { Alert, Platform, Pressable, TouchableOpacity, View } from "react-native
 import * as ImagePicker from "expo-image-picker";
 import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
+import { router } from "expo-router";
 import { Screen } from "../../src/shared/components/Screen";
 import { AppText } from "../../src/shared/components/AppText";
 import { TopBar } from "../../src/shared/components/TopBar";
@@ -26,6 +27,7 @@ export default function ProfileScreen() {
   const [isUpdatingAvatar, setIsUpdatingAvatar] = useState(false);
   if (!profile) return null;
 
+  const canOpenQuestBuilder = user?.email?.toLowerCase() === "adamsyme134@gmail.com";
   const { level, nextLevel, xpToNextLevel } = getExperienceProgress(profile.pointsTotal);
 
   const handleThemeChange = (theme: 'light' | 'dark' | 'system') => {
@@ -170,6 +172,11 @@ export default function ProfileScreen() {
           ))}
         </View>
       </View>
+      {canOpenQuestBuilder ? (
+        <View className="mt-6 px-5">
+          <Button label="Open Quest Builder" variant="secondary" onPress={() => router.push("/admin/quest-builder")} />
+        </View>
+      ) : null}
       <View className="mt-auto px-5 pb-8 pt-10">
         <Button label="Sign Out" variant="secondary" onPress={signOut} />
       </View>

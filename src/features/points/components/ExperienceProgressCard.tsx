@@ -170,8 +170,8 @@ const styles = StyleSheet.create({
   },
   levelValue: {
     fontFamily: "PlayfairDisplay_700Bold",
-    fontSize: 4590,
-    lineHeight: 474
+    fontSize: 45,
+    lineHeight: 47
   },
   meterBlock: {
     flex: 1,

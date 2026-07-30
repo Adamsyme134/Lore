@@ -106,6 +106,9 @@ export type JourneyTreeNode = {
   iconName?: string;
   capabilityId?: string;
   branchId?: string;
+  sharedAnchorNodeId?: string;
+  layoutAngle?: number;
+  layoutDepth?: number;
   prerequisites?: JourneyRequirementSet[];
   hiddenUntil?: JourneyRequirementSet[];
 };

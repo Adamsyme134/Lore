@@ -8,6 +8,7 @@ import { useRouter } from "expo-router";
 import { Screen } from "../../../src/shared/components/Screen";
 import { AppText } from "../../../src/shared/components/AppText";
 import { TopBar } from "../../../src/shared/components/TopBar";
+import { JourneyIcon } from "../../../src/features/quests/components/JourneyIcon";
 import { getJourneyQuestIds, useJourneys, useQuests, useUserQuestStatuses } from "../../../src/features/quests/api/questApi";
 import { useThemeColors } from "../../../src/shared/design/useThemeColors";
 import type { QuestCategory, QuestCost, QuestLength } from "../../../src/shared/types/domain";
@@ -174,7 +175,7 @@ export default function JourneysIndexScreen() {
                 />
                 <View className="absolute inset-0 justify-between p-4">
                   <View className="h-11 w-11 items-center justify-center rounded-full border border-accent/40 bg-background/80">
-                    <Ionicons name={(journey.iconName as any) || "trail-sign-outline"} size={21} color="#F3F0EB" />
+                    <JourneyIcon name={journey.iconName} size={21} color="#F3F0EB" />
                   </View>
                   <View>
                     <AppText variant="subtitle" className="text-2xl leading-7 text-ivory" numberOfLines={2}>
