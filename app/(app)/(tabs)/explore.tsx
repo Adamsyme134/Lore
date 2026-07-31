@@ -1,6 +1,6 @@
 // app/(app)/(tabs)/explore.tsx
 import { useState, useMemo } from "react";
-import { View, ScrollView, TextInput, Pressable, ActivityIndicator } from "react-native";
+import { View, ScrollView, TextInput, Pressable, ActivityIndicator, TouchableOpacity, useWindowDimensions } from "react-native";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
@@ -8,7 +8,7 @@ import Animated, { FadeInDown } from "react-native-reanimated";
 import { useRouter } from "expo-router";
 import { Screen } from "../../../src/shared/components/Screen";
 import { AppText } from "../../../src/shared/components/AppText";
-import { CategoryIconBadge, QuestMetaPills } from "../../../src/features/quests/components/QuestMetadata";
+import { CategoryIconBadge } from "../../../src/features/quests/components/QuestMetadata";
 import { JourneyTreeMap } from "../../../src/features/quests/components/JourneyTreeMap";
 import { JourneyIcon } from "../../../src/features/quests/components/JourneyIcon";
 import { useExperienceStore } from "../../../src/features/app/store/useExperienceStore";
@@ -172,99 +172,143 @@ function JourneyCard({
 function CuratedQuestTile({
   quest,
   isSaved,
-  onToggleSaved
+  onToggleSaved,
+  width
 }: {
   quest: Quest;
   isSaved: boolean;
   onToggleSaved: (questId: string) => void;
+  width: number;
 }) {
   const router = useRouter();
 
   return (
-    <Pressable
-      onPress={() => router.push({ pathname: "/quest/[id]", params: { id: quest.id } })}
-      className="mr-4 overflow-hidden rounded-[18px] border border-line/25 bg-stone"
-      style={{ width: 196, height: 286 }}
-    >
-      <Image
-        source={{ uri: quest.imageUrl }}
-        style={{ height: "100%", width: "100%" }}
-        contentFit="cover"
-        contentPosition={contentPosition(quest.imagePosition) as any}
-        transition={300}
-      />
-      <LinearGradient
-        colors={["rgba(0,0,0,0.08)", "rgba(0,0,0,0.86)"]}
-        locations={[0.25, 1]}
-        style={{ position: "absolute", top: 0, right: 0, bottom: 0, left: 0 }}
-      />
-      <CategoryIconBadge category={quest.categories?.[0] || quest.category} className="absolute left-3 top-3" size="sm" />
-      <Pressable
-        onPress={(event) => {
-          event.stopPropagation();
-          onToggleSaved(quest.id);
-        }}
-        className="absolute right-3 top-3 h-11 w-11 items-center justify-center rounded-xl border border-ivory/20 bg-background/70"
+    <View className="mr-4" style={{ width }}>
+      <TouchableOpacity
+        onPress={() => router.push({ pathname: "/quest/[id]", params: { id: quest.id } })}
+        activeOpacity={0.86}
       >
-        <Ionicons name={isSaved ? "bookmark" : "bookmark-outline"} size={22} color="#F3F0EB" />
-      </Pressable>
-      <View className="absolute bottom-0 left-0 right-0 p-5">
-        <AppText variant="subtitle" className="mb-4 text-2xl leading-7 text-ivory">
-          {quest.title}
+        <View
+          style={{
+            height: width,
+            borderRadius: 18,
+            shadowColor: "#000",
+            shadowOffset: { width: 0, height: 10 },
+            shadowOpacity: 0.16,
+            shadowRadius: 16,
+            elevation: 5
+          }}
+        >
+          <View className="relative overflow-hidden rounded-[18px] bg-stone" style={{ height: width }}>
+            <Image
+              source={{ uri: quest.imageUrl }}
+              style={{ height: "100%", width: "100%" }}
+              contentFit="cover"
+              contentPosition={contentPosition(quest.imagePosition) as any}
+              transition={300}
+            />
+            <LinearGradient
+              colors={["rgba(0,0,0,0)", "rgba(0,0,0,0.26)", "rgba(0,0,0,0.86)"]}
+              locations={[0.38, 0.68, 1]}
+              style={{ position: "absolute", top: 0, right: 0, bottom: 0, left: 0 }}
+            />
+            <CategoryIconBadge category={quest.categories?.[0] || quest.category} className="absolute left-3 top-3" size="sm" />
+            <Pressable
+              onPress={(event) => {
+                event.stopPropagation();
+                onToggleSaved(quest.id);
+              }}
+              className="absolute right-3 top-3 h-11 w-11 items-center justify-center rounded-xl border border-ivory/20 bg-background/70"
+            >
+              <Ionicons name={isSaved ? "bookmark" : "bookmark-outline"} size={22} color="#F3F0EB" />
+            </Pressable>
+            <View className="absolute bottom-0 left-0 right-0 px-4 pb-4">
+              <AppText variant="subtitle" className="text-ivory leading-7" numberOfLines={2}>
+                {quest.title}
+              </AppText>
+            </View>
+          </View>
+        </View>
+        <AppText className="mt-3 px-1 text-sm leading-5 text-ivory" numberOfLines={1}>
+          {quest.duration} • {quest.cost} • {quest.difficulty}
         </AppText>
-        <QuestMetaPills length={quest.length} difficulty={quest.difficulty} />
-      </View>
-    </Pressable>
+      </TouchableOpacity>
+    </View>
   );
 }
 
 function RecommendedQuestCard({
   quest,
   isSaved,
-  onToggleSaved
+  onToggleSaved,
+  width
 }: {
   quest: Quest;
   isSaved: boolean;
   onToggleSaved: (questId: string) => void;
+  width: number;
 }) {
   const router = useRouter();
 
   return (
-    <Pressable
-      onPress={() => router.push({ pathname: "/quest/[id]", params: { id: quest.id } })}
-      className="mx-6 flex-row overflow-hidden rounded-[20px] border border-line/50 bg-surface"
-      style={{ minHeight: 136 }}
-    >
-      <Image
-        source={{ uri: quest.imageUrl }}
-        style={{ width: 132, minHeight: 136 }}
-        contentFit="cover"
-        contentPosition={contentPosition(quest.imagePosition) as any}
-      />
-      <CategoryIconBadge category={quest.categories?.[0] || quest.category} className="absolute left-4 top-4" size="sm" />
-      <View className="flex-1 p-5">
-        <AppText className="mb-1 text-tertiary">You've enjoyed nature lately.</AppText>
-        <AppText variant="subtitle" className="text-2xl leading-8 text-ink">
-          {quest.title}
-        </AppText>
-        <QuestMetaPills length={quest.length} difficulty={quest.difficulty} tone="surface" className="mt-3" />
-      </View>
-      <Pressable
-        onPress={(event) => {
-          event.stopPropagation();
-          onToggleSaved(quest.id);
-        }}
-        className="absolute right-4 top-4"
+    <View className="mx-6" style={{ width }}>
+      <TouchableOpacity
+        onPress={() => router.push({ pathname: "/quest/[id]", params: { id: quest.id } })}
+        activeOpacity={0.86}
       >
-        <Ionicons name={isSaved ? "bookmark" : "bookmark-outline"} size={26} color="#B0B4B1" />
-      </Pressable>
-    </Pressable>
+        <View
+          style={{
+            height: width,
+            borderRadius: 18,
+            shadowColor: "#000",
+            shadowOffset: { width: 0, height: 10 },
+            shadowOpacity: 0.16,
+            shadowRadius: 16,
+            elevation: 5
+          }}
+        >
+          <View className="relative overflow-hidden rounded-[18px] bg-stone" style={{ height: width }}>
+            <Image
+              source={{ uri: quest.imageUrl }}
+              style={{ height: "100%", width: "100%" }}
+              contentFit="cover"
+              contentPosition={contentPosition(quest.imagePosition) as any}
+              transition={300}
+            />
+            <LinearGradient
+              colors={["rgba(0,0,0,0)", "rgba(0,0,0,0.26)", "rgba(0,0,0,0.86)"]}
+              locations={[0.38, 0.68, 1]}
+              style={{ position: "absolute", top: 0, right: 0, bottom: 0, left: 0 }}
+            />
+            <CategoryIconBadge category={quest.categories?.[0] || quest.category} className="absolute left-3 top-3" size="sm" />
+            <Pressable
+              onPress={(event) => {
+                event.stopPropagation();
+                onToggleSaved(quest.id);
+              }}
+              className="absolute right-3 top-3 h-11 w-11 items-center justify-center rounded-xl border border-ivory/20 bg-background/70"
+            >
+              <Ionicons name={isSaved ? "bookmark" : "bookmark-outline"} size={22} color="#F3F0EB" />
+            </Pressable>
+            <View className="absolute bottom-0 left-0 right-0 px-4 pb-4">
+              <AppText variant="subtitle" className="text-ivory leading-7" numberOfLines={2}>
+                {quest.title}
+              </AppText>
+            </View>
+          </View>
+        </View>
+        <AppText className="mt-3 px-1 text-sm leading-5 text-ivory" numberOfLines={1}>
+          {quest.duration} • {quest.cost} • {quest.difficulty}
+        </AppText>
+      </TouchableOpacity>
+    </View>
   );
 }
 
 export default function Explore() {
   const router = useRouter();
   const colors = useThemeColors();
+  const { width } = useWindowDimensions();
   const [searchQuery, setSearchQuery] = useState("");
   const [activeCategory, setActiveCategory] = useState<QuestCategory | "For You" | "All" | "Saved">("For You");
   const [showFilters, setShowFilters] = useState(false);
@@ -361,6 +405,7 @@ export default function Explore() {
       quests.find((quest) => !activeQuestIds.has(quest.id)),
     [activeQuestIds, filteredQuests, quests]
   );
+  const questTileSize = Math.min(176, Math.max(148, (width - 64) / 2.15)) * 1.1;
 
   const curatedTitle = searchQuery
     ? "Search Results"
@@ -467,6 +512,7 @@ export default function Explore() {
                   quest={quest}
                   isSaved={savedQuestIds.includes(quest.id)}
                   onToggleSaved={(questId) => saveQuest.mutate(questId)}
+                  width={questTileSize}
                 />
               ))}
             </ScrollView>
@@ -533,6 +579,7 @@ export default function Explore() {
               quest={recommendedQuest}
               isSaved={savedQuestIds.includes(recommendedQuest.id)}
               onToggleSaved={(questId) => saveQuest.mutate(questId)}
+              width={questTileSize}
             />
           </View>
         ) : null}

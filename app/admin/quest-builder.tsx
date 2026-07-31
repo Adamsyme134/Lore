@@ -9,6 +9,7 @@ import { QuestHero } from "../../src/features/quests/components/QuestHero";
 import { QuestCard } from "../../src/features/quests/components/QuestCard";
 import { JourneyTreeMap } from "../../src/features/quests/components/JourneyTreeMap";
 import { JourneyIcon } from "../../src/features/quests/components/JourneyIcon";
+import { JOURNEY_COLOR_SCHEMES } from "../../src/features/quests/constants/journeyColorSchemes";
 import { YouTubeWidget } from "../../src/features/quests/components/widgets/YouTubeWidget";
 import { CardRevealWidget } from "../../src/features/quests/components/widgets/CardRevealWidget";
 import { QuestLinkWidget } from "../../src/features/quests/components/widgets/QuestLinkWidget";
@@ -431,6 +432,7 @@ const createBlankJourney = (quests: Quest[] = []): Journey => {
     backgroundImageUrl: nextQuest?.imageUrl || "https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&w=1200&q=85",
     imagePosition: "50% 50%",
     iconName: "trail-sign-outline",
+    colorSchemeId: "forest",
     timeline: [],
     completedCount: 0,
     totalCount: 0,
@@ -967,6 +969,7 @@ export default function QuestBuilderAdmin() {
         background_image_url: generatedJourney.backgroundImageUrl,
         image_position: generatedJourney.imagePosition,
         icon_name: generatedJourney.iconName,
+        color_scheme_id: generatedJourney.colorSchemeId,
         timeline: generatedJourney.timeline,
         completed_count: generatedJourney.completedCount,
         total_count: generatedJourney.totalCount,
@@ -1365,12 +1368,10 @@ export default function QuestBuilderAdmin() {
         const treeNodes = [...(base.treeNodes ?? [])];
         const treeEdges = [...(base.treeEdges ?? [])];
         const outgoingNodeIds = new Set(treeEdges.map(edge => edge.fromNodeId));
-        const branchedJourneyEndpoint = treeNodes.some(node => node.sharedAnchorNodeId || node.branchId === "shared-root")
-          ? [...treeNodes].reverse().find(node => node.kind === "quest" && !outgoingNodeIds.has(node.id))
-          : null;
+        const journeyEndpoint = [...treeNodes].reverse().find(node => node.kind === "quest" && !outgoingNodeIds.has(node.id));
         const parentNode = parentNodeId
           ? treeNodes.find(node => node.id === parentNodeId)
-          : branchedJourneyEndpoint || null;
+          : journeyEndpoint || null;
         const nodeId = `${base.id}-node-${questToAdd.id}-${Date.now()}`;
         const isPlaceholderParent = !!parentNode && !parentNode.questId;
         const shouldBranchFromSharedRoot = parentNode?.branchId === "shared-root";
@@ -1530,6 +1531,45 @@ export default function QuestBuilderAdmin() {
                   </ScrollView>
                 </View>
               )}
+            </View>
+
+            <AppText variant="subtitle" className="mb-2">Colour Scheme</AppText>
+            <View className="mb-6 flex-row flex-wrap gap-3">
+              {JOURNEY_COLOR_SCHEMES.map((scheme) => {
+                const isSelected = (journey.colorSchemeId || "forest") === scheme.id;
+                return (
+                  <Pressable
+                    key={scheme.id}
+                    onPress={() => updateJourneyField("colorSchemeId", scheme.id)}
+                    className={`w-[47%] rounded-xl border bg-surface p-3 ${isSelected ? "border-ink" : "border-line"}`}
+                  >
+                    <View className="mb-3 flex-row items-center">
+                      <View
+                        className="mr-3 h-10 w-10 items-center justify-center rounded-full"
+                        style={{
+                          backgroundColor: scheme.rimDark,
+                          borderWidth: 5,
+                          borderColor: scheme.rim
+                        }}
+                      >
+                        <View
+                          className="h-5 w-5 rounded-full"
+                          style={{
+                            backgroundColor: scheme.rimLight,
+                            opacity: 0.9
+                          }}
+                        />
+                      </View>
+                      <View className="flex-1">
+                        <AppText className="font-sansSemi uppercase tracking-widest" style={{ color: scheme.text }}>
+                          {scheme.number} {scheme.label}
+                        </AppText>
+                        <AppText className="mt-1 text-xs text-ink/50" numberOfLines={1}>{scheme.description}</AppText>
+                      </View>
+                    </View>
+                  </Pressable>
+                );
+              })}
             </View>
 
             <View className="mb-6 rounded-xl border border-line bg-stone p-4">

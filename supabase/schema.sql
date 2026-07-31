@@ -50,6 +50,7 @@ create table if not exists public.journeys (
   background_image_url text not null,
   image_position text default '50% 50%',
   icon_name text default 'trail-sign-outline',
+  color_scheme_id text not null default 'forest' check (color_scheme_id in ('forest', 'ocean', 'terracotta', 'sandstone', 'slate', 'plum')),
   timeline jsonb not null default '[]'::jsonb,
   completed_count integer not null default 0,
   total_count integer not null default 0,
@@ -72,6 +73,16 @@ alter table public.journeys
 
 alter table public.journeys
   add column if not exists public_quest_ids uuid[] not null default '{}';
+
+alter table public.journeys
+  add column if not exists color_scheme_id text not null default 'forest';
+
+alter table public.journeys
+  drop constraint if exists journeys_color_scheme_id_check;
+
+alter table public.journeys
+  add constraint journeys_color_scheme_id_check
+  check (color_scheme_id in ('forest', 'ocean', 'terracotta', 'sandstone', 'slate', 'plum'));
 
 alter table public.journeys
   add column if not exists tree_nodes jsonb not null default '[]'::jsonb,

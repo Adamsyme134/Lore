@@ -19,10 +19,13 @@ export type JourneyTreeRenderNode = JourneyTreeNode & {
   journeyId: string;
   journeyTitle: string;
   journeyIconName?: string;
+  journeyColorSchemeId?: Journey["colorSchemeId"];
+  journeyImageUrl?: string;
   questJourneyCount: number;
   quest?: Quest;
   label: string;
   state: JourneyNodeProgressState;
+  activeProgress: number;
   x: number;
   y: number;
   depth: number;
@@ -50,10 +53,55 @@ export type JourneyTreeProgressInput = {
   completedQuestIds?: Set<string>;
   activeQuestIds?: Set<string>;
   partiallyCompletedQuestIds?: Set<string>;
+  completedStepIndexesByQuestId?: Record<string, number[]>;
   completedJourneyIds?: Set<string>;
   unlockedCapabilityIds?: Set<string>;
   newlyUnlockedNodeIds?: Set<string>;
 };
+
+function getJourneyTreeQuestIds(journey: Journey, questById: Map<string, Quest>) {
+  const { nodes, edges } = getJourneyTree(journey, questById);
+  const nodesById = new Map(nodes.map((node) => [node.id, node]));
+  const childNodeIds = new Set(edges.map((edge) => edge.toNodeId));
+  const childrenByNodeId = new Map<string, JourneyTreeNode[]>();
+  edges.forEach((edge) => {
+    const child = nodesById.get(edge.toNodeId);
+    if (!child) return;
+    childrenByNodeId.set(edge.fromNodeId, [...(childrenByNodeId.get(edge.fromNodeId) ?? []), child]);
+  });
+
+  const orderedQuestIds: string[] = [];
+  const visitedNodeIds = new Set<string>();
+  const visit = (node: JourneyTreeNode) => {
+    if (visitedNodeIds.has(node.id)) return;
+    visitedNodeIds.add(node.id);
+    if (node.questId) orderedQuestIds.push(node.questId);
+    (childrenByNodeId.get(node.id) ?? []).forEach(visit);
+  };
+
+  nodes.filter((node) => !childNodeIds.has(node.id)).forEach(visit);
+  nodes.forEach(visit);
+  return orderedQuestIds;
+}
+
+function getGloballyAvailableQuestIds(journeys: Journey[], questById: Map<string, Quest>) {
+  const questIds = new Set<string>();
+
+  journeys.forEach((journey) => {
+    const journeyQuestIds = getJourneyTreeQuestIds(journey, questById);
+    if (journey.visibility !== "exclusive") {
+      journeyQuestIds.forEach((questId) => questIds.add(questId));
+      return;
+    }
+
+    const publicQuestIds = new Set(journey.publicQuestIds ?? []);
+    journeyQuestIds
+      .filter((questId) => publicQuestIds.has(questId))
+      .forEach((questId) => questIds.add(questId));
+  });
+
+  return questIds;
+}
 
 const DEFAULT_SIZE = 1200;
 const CENTER = DEFAULT_SIZE / 2;
@@ -132,32 +180,46 @@ export function areRequirementSetsMet(
 }
 
 function inferredRequirementsForNode(node: JourneyTreeNode, incomingEdges: JourneyTreeEdge[], nodesById: Map<string, JourneyTreeNode>) {
-  if (node.prerequisites?.length) return node.prerequisites;
-
   const parentQuestIds = incomingEdges
     .map((edge) => nodesById.get(edge.fromNodeId)?.questId)
     .filter(Boolean) as string[];
 
-  if (parentQuestIds.length === 0) return [];
-  return [{ id: `${node.id}-parents`, mode: "all" as const, questIds: parentQuestIds }];
+  if (parentQuestIds.length > 0) {
+    return [
+      { id: `${node.id}-parents`, mode: "all" as const, questIds: parentQuestIds },
+      ...(node.prerequisites ?? []).filter((requirement) => !requirement.questIds?.length)
+    ];
+  }
+
+  if (node.prerequisites?.length) return node.prerequisites;
+  return [];
 }
 
 export function resolveJourneyNodeState(
   node: JourneyTreeNode,
   incomingEdges: JourneyTreeEdge[],
   nodesById: Map<string, JourneyTreeNode>,
-  progress: JourneyTreeProgressInput
+  progress: JourneyTreeProgressInput,
+  globallyAvailableQuestIds = new Set<string>()
 ): JourneyNodeProgressState {
-  if (node.hiddenUntil?.length && !areRequirementSetsMet(node.hiddenUntil, progress)) return "hidden";
+  const isGloballyAvailableQuest = !!node.questId && globallyAvailableQuestIds.has(node.questId);
+  if (!isGloballyAvailableQuest && node.hiddenUntil?.length && !areRequirementSetsMet(node.hiddenUntil, progress)) return "hidden";
 
   if (node.kind === "quest" && node.questId) {
     if (progress.completedQuestIds?.has(node.questId)) return "completed";
-    if (progress.partiallyCompletedQuestIds?.has(node.questId)) return "partially_completed";
-    if (progress.activeQuestIds?.has(node.questId)) return "active";
+    if (isGloballyAvailableQuest) {
+      if (progress.partiallyCompletedQuestIds?.has(node.questId)) return "partially_completed";
+      if (progress.activeQuestIds?.has(node.questId)) return "active";
+      return progress.newlyUnlockedNodeIds?.has(node.id) ? "newly_unlocked" : "available";
+    }
   }
 
   const requirements = inferredRequirementsForNode(node, incomingEdges, nodesById);
   if (!areRequirementSetsMet(requirements, progress)) return "locked";
+  if (node.kind === "quest" && node.questId) {
+    if (progress.partiallyCompletedQuestIds?.has(node.questId)) return "partially_completed";
+    if (progress.activeQuestIds?.has(node.questId)) return "active";
+  }
   if (progress.newlyUnlockedNodeIds?.has(node.id)) return "newly_unlocked";
   return "available";
 }
@@ -195,7 +257,8 @@ function assignJourneyPositions({
   questById,
   progress,
   questJourneyCounts,
-  externallyAnchoredNodeIds
+  externallyAnchoredNodeIds,
+  globallyAvailableQuestIds
 }: {
   journey: Journey;
   journeyIndex: number;
@@ -206,6 +269,7 @@ function assignJourneyPositions({
   progress: JourneyTreeProgressInput;
   questJourneyCounts: Map<string, number>;
   externallyAnchoredNodeIds: Set<string>;
+  globallyAvailableQuestIds: Set<string>;
 }) {
   const nodesById = new Map(nodes.map((node) => [node.id, node]));
   const incomingByNode = new Map<string, JourneyTreeEdge[]>();
@@ -274,7 +338,7 @@ function assignJourneyPositions({
 
   return nodes.map<JourneyTreeRenderNode>((node, index) => {
     const incomingEdges = incomingByNode.get(node.id) ?? [];
-    const state = resolveJourneyNodeState(node, incomingEdges, nodesById, progress);
+    const state = resolveJourneyNodeState(node, incomingEdges, nodesById, progress, globallyAvailableQuestIds);
     const angle = angleByNode.get(node.id) ?? baseAngle + index * 8;
     const depth = depthByNode.get(node.id) ?? 0;
     const radius = RING_RADIUS + depth * DEPTH_GAP + (node.kind === "capability" ? 34 : 0);
@@ -286,10 +350,15 @@ function assignJourneyPositions({
       journeyId: journey.id,
       journeyTitle: journey.title,
       journeyIconName: journey.iconName,
+      journeyColorSchemeId: journey.colorSchemeId,
+      journeyImageUrl: journey.backgroundImageUrl,
       questJourneyCount: node.questId ? questJourneyCounts.get(node.questId) ?? 1 : 1,
       quest,
       label: node.title || quest?.title || (node.kind === "capability" ? "Capability" : "Quest"),
       state,
+      activeProgress: node.questId && quest?.steps?.length
+        ? Math.min(1, (progress.completedStepIndexesByQuestId?.[node.questId]?.length ?? 0) / quest.steps.length)
+        : 0,
       x: CENTER + Math.cos(radians) * radius,
       y: CENTER + Math.sin(radians) * radius,
       depth,
@@ -371,6 +440,7 @@ export function buildJourneyTreeRenderModel({
   focusedNodeId?: string | null;
 }): JourneyTreeRenderModel {
   const activeJourneys = journeys.filter((journey) => journey.isActive);
+  const globallyAvailableQuestIds = getGloballyAvailableQuestIds(activeJourneys, questById);
   const treesByJourneyId = new Map(activeJourneys.map((journey) => [journey.id, getJourneyTree(journey, questById)]));
   const allNodeIds = new Set(activeJourneys.flatMap((journey) => treesByJourneyId.get(journey.id)?.nodes.map((node) => node.id) ?? []));
   const nodeJourneyIds = new Map<string, string>();
@@ -402,7 +472,8 @@ export function buildJourneyTreeRenderModel({
       questById,
       progress,
       questJourneyCounts,
-      externallyAnchoredNodeIds
+      externallyAnchoredNodeIds,
+      globallyAvailableQuestIds
     });
   });
   const renderNodeById = new Map(renderNodes.map((node) => [node.id, node]));
@@ -468,6 +539,5 @@ export function buildJourneyTreeRenderModel({
 }
 
 export function getJourneyQuestIdsFromTree(journey: Journey, questById: Map<string, Quest>) {
-  const { nodes } = getJourneyTree(journey, questById);
-  return nodes.map((node) => node.questId).filter(Boolean) as string[];
+  return getJourneyTreeQuestIds(journey, questById);
 }

@@ -131,6 +131,19 @@ export type JourneyCapabilityUnlock = {
   revealsNodeIds?: string[];
 };
 
+export type JourneyColorSchemeId =
+  | "forest"
+  | "ocean"
+  | "terracotta"
+  | "sandstone"
+  | "slate"
+  | "plum"
+  | "coastal"
+  | "dawn"
+  | "midnight"
+  | "blossom"
+  | "aurora";
+
 export type Journey = {
   id: string;
   slug: string;
@@ -140,6 +153,7 @@ export type Journey = {
   backgroundImageUrl: string;
   imagePosition?: string;
   iconName?: string;
+  colorSchemeId?: JourneyColorSchemeId;
   timeline: JourneyTimelineItem[];
   completedCount: number;
   totalCount: number;

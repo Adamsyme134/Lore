@@ -67,6 +67,7 @@ export type JourneyRow = {
   background_image_url: string;
   image_position?: string;
   icon_name?: string;
+  color_scheme_id?: Journey["colorSchemeId"] | null;
   timeline?: JourneyTimelineItem[] | null;
   completed_count?: number;
   total_count?: number;
@@ -137,6 +138,7 @@ export function mapJourney(row: JourneyRow): Journey {
     backgroundImageUrl: row.background_image_url,
     imagePosition: row.image_position || "50% 50%",
     iconName: row.icon_name || "trail-sign-outline",
+    colorSchemeId: row.color_scheme_id || "forest",
     timeline,
     completedCount,
     totalCount: row.total_count || Math.max(timeline.length, completedCount),

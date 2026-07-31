@@ -1,24 +1,34 @@
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import type { StyleProp, TextStyle } from "react-native";
 import Svg, { Circle, Line, Path, Polyline } from "react-native-svg";
 
 type JourneyIconProps = {
   name?: string | null;
   size: number;
   color: string;
+  style?: StyleProp<TextStyle>;
 };
 
-export function JourneyIcon({ name, size, color }: JourneyIconProps) {
+export function JourneyIcon({ name, size, color, style }: JourneyIconProps) {
   const safeName = name || "trail-sign-outline";
+  const common = {
+    stroke: color,
+    strokeWidth: 2.2,
+    strokeLinecap: "round" as const,
+    strokeLinejoin: "round" as const,
+    fill: "none"
+  };
+
+  if (safeName === "trail-sign-outline") {
+    return (
+      <Svg width={size} height={size} viewBox="0 0 24 24">
+        <Path d="m15.8 6.8-3 10.4-4.6-1.9 3-10.4 4.6 1.9Z" {...common} />
+      </Svg>
+    );
+  }
 
   if (safeName.startsWith("lore:")) {
     const iconName = safeName.replace("lore:", "");
-    const common = {
-      stroke: color,
-      strokeWidth: 2.2,
-      strokeLinecap: "round" as const,
-      strokeLinejoin: "round" as const,
-      fill: "none"
-    };
 
     if (iconName === "mountain") {
       return (
@@ -105,8 +115,8 @@ export function JourneyIcon({ name, size, color }: JourneyIconProps) {
   }
 
   if (safeName.startsWith("mci:")) {
-    return <MaterialCommunityIcons name={safeName.replace("mci:", "") as any} size={size} color={color} />;
+    return <MaterialCommunityIcons name={safeName.replace("mci:", "") as any} size={size} color={color} style={style} />;
   }
 
-  return <Ionicons name={safeName as any} size={size} color={color} />;
+  return <Ionicons name={safeName as any} size={size} color={color} style={style} />;
 }
