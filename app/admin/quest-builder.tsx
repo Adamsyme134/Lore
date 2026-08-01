@@ -441,6 +441,8 @@ const createBlankJourney = (quests: Quest[] = []): Journey => {
     nextQuestImageUrl: nextQuest?.imageUrl || "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=400&q=85",
     questIds: [],
     publicQuestIds: [],
+    rootQuestIds: [],
+    ringOrder: null,
     treeNodes: [],
     treeEdges: [],
     requirementSets: [],
@@ -484,6 +486,8 @@ const buildJourneyFromQuestIds = (baseJourney: Journey, questIds: string[], ques
     ...baseJourney,
     questIds,
     publicQuestIds: (baseJourney.publicQuestIds ?? []).filter((questId) => questIds.includes(questId)),
+    rootQuestIds: baseJourney.rootQuestIds ?? [],
+    ringOrder: baseJourney.ringOrder ?? null,
     timeline: questIds.map((questId, index) => ({
       id: `${baseJourney.id}-timeline-${questId}`,
       title: questById.get(questId)?.title || baseJourney.timeline.find(item => item.questId === questId)?.title || `Experience ${index + 1}`,
@@ -536,6 +540,8 @@ const buildJourneyFromTree = (baseJourney: Journey, treeNodes: JourneyTreeNode[]
     ...baseJourney,
     questIds,
     publicQuestIds: (baseJourney.publicQuestIds ?? []).filter((questId) => questIds.includes(questId)),
+    rootQuestIds: baseJourney.rootQuestIds ?? [],
+    ringOrder: baseJourney.ringOrder ?? null,
     timeline: questIds.map((questId, index) => ({
       id: `${baseJourney.id}-timeline-${questId}`,
       title: questById.get(questId)?.title || `Experience ${index + 1}`,
@@ -573,37 +579,15 @@ const createJourneyBranchDraft = (parentNode: JourneyTreeRenderNode | null, ques
     title: `New path after ${parentNode.label}`,
     slug: `new-path-after-${parentNode.questId}-${Date.now()}`,
     description: "A connected journey unlocked from another branch.",
-    questIds: [parentNode.questId],
-    timeline: [{
-      id: `${draft.id}-timeline-${parentNode.questId}`,
-      title: parentNode.label,
-      questId: parentNode.questId,
-      isComplete: false
-    }],
-    totalCount: 1,
-    nextQuestId: parentNode.questId,
-    nextQuestTitle: parentNode.label,
+    questIds: [],
+    rootQuestIds: [parentNode.questId],
+    timeline: [],
+    totalCount: 0,
+    nextQuestId: null,
+    nextQuestTitle: "Choose the first quest",
     nextQuestImageUrl: parentNode.quest?.imageUrl || draft.backgroundImageUrl,
-    treeNodes: [
-      {
-        id: `${draft.id}-shared-root-${parentNode.questId}`,
-        kind: "quest" as const,
-        questId: parentNode.questId,
-        title: parentNode.label,
-        branchId: "shared-root",
-        sharedAnchorNodeId: parentNode.id,
-        layoutAngle: parentNode.angle,
-        layoutDepth: parentNode.depth
-      }
-    ],
-    treeEdges: [
-      {
-        id: `${draft.id}-edge-${parentNode.id}-${draft.id}-shared-root-${parentNode.questId}`,
-        fromNodeId: parentNode.id,
-        toNodeId: `${draft.id}-shared-root-${parentNode.questId}`,
-        hiddenUntilUnlocked: true
-      }
-    ]
+    treeNodes: [],
+    treeEdges: []
   };
 };
 
@@ -772,6 +756,77 @@ function JourneyQuestOrderItem({
   );
 }
 
+function JourneyRingOrderItem({
+  journey,
+  index,
+  count,
+  onMove
+}: {
+  journey: Journey;
+  index: number;
+  count: number;
+  onMove: (fromIndex: number, toIndex: number) => void;
+}) {
+  const [dragY, setDragY] = useState(0);
+  const [isDragging, setIsDragging] = useState(false);
+  const indexRef = useRef(index);
+  const countRef = useRef(count);
+  const onMoveRef = useRef(onMove);
+
+  useEffect(() => {
+    indexRef.current = index;
+    countRef.current = count;
+    onMoveRef.current = onMove;
+  }, [count, index, onMove]);
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_, gestureState) => Math.abs(gestureState.dy) > 6,
+      onPanResponderGrant: () => setIsDragging(true),
+      onPanResponderMove: (_, gestureState) => setDragY(gestureState.dy),
+      onPanResponderRelease: (_, gestureState) => {
+        const offset = Math.round(gestureState.dy / 68);
+        const fromIndex = indexRef.current;
+        const targetIndex = Math.max(0, Math.min(countRef.current - 1, fromIndex + offset));
+        setDragY(0);
+        setIsDragging(false);
+        if (targetIndex !== fromIndex) onMoveRef.current(fromIndex, targetIndex);
+      },
+      onPanResponderTerminate: () => {
+        setDragY(0);
+        setIsDragging(false);
+      }
+    })
+  ).current;
+
+  return (
+    <View
+      className={`mb-2 rounded-xl border bg-surface p-3 shadow-sm ${isDragging ? 'border-accent z-50' : 'border-line'}`}
+      style={{ transform: [{ translateY: dragY }], opacity: isDragging ? 0.92 : 1, userSelect: "none" } as any}
+    >
+      <View className="flex-row items-center" style={{ userSelect: "none" } as any}>
+        <View
+          className="mr-3 h-10 w-7 items-center justify-center rounded-lg bg-stone"
+          style={{ cursor: "grab", userSelect: "none", WebkitUserSelect: "none", touchAction: "none" } as any}
+          {...panResponder.panHandlers}
+        >
+          <AppText className="text-ink/50 text-lg">=</AppText>
+        </View>
+        <Image source={{ uri: journey.backgroundImageUrl }} className="mr-3 h-12 w-12 rounded-lg bg-stone" contentFit="cover" />
+        <View className="mr-3 h-10 w-10 items-center justify-center rounded-full border border-line bg-stone">
+          <JourneyIcon name={journey.iconName} size={20} color="#1C1A17" />
+        </View>
+        <View className="flex-1">
+          <AppText className="font-sansSemi text-ink" numberOfLines={1}>{journey.title}</AppText>
+          <AppText className="mt-1 text-xs text-ink/50" numberOfLines={1}>
+            Position {index + 1} of {count}
+          </AppText>
+        </View>
+      </View>
+    </View>
+  );
+}
+
 export default function QuestBuilderAdmin() {
   const [leftPanelVisible, setLeftPanelVisible] = useState(true); // <-- ADD THIS
   const [view, setView] = useState<'grid' | 'editor'>('grid');
@@ -802,7 +857,10 @@ export default function QuestBuilderAdmin() {
   const [savedJourneys, setSavedJourneys] = useState<Journey[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [journeyQuestSearch, setJourneyQuestSearch] = useState('');
+  const [journeyRootQuestSearch, setJourneyRootQuestSearch] = useState('');
+  const [isJourneyRootQuestSearchOpen, setIsJourneyRootQuestSearchOpen] = useState(false);
   const [isJourneyQuestSearchOpen, setIsJourneyQuestSearchOpen] = useState(false);
+  const [isRingOrderOpen, setIsRingOrderOpen] = useState(false);
   const [journeyAddParentNodeId, setJourneyAddParentNodeId] = useState<string | null>(null);
   const [journeyAddParentNode, setJourneyAddParentNode] = useState<JourneyTreeRenderNode | null>(null);
   const [selectedJourneyTreeNode, setSelectedJourneyTreeNode] = useState<JourneyTreeRenderNode | null>(null);
@@ -881,6 +939,7 @@ export default function QuestBuilderAdmin() {
           .from('journeys')
           .select('*')
           .eq('is_active', true)
+          .order('ring_order', { ascending: true, nullsFirst: false })
           .order('created_at', { ascending: false });
         if (error) throw error;
 
@@ -978,6 +1037,8 @@ export default function QuestBuilderAdmin() {
         next_quest_image_url: generatedJourney.nextQuestImageUrl,
         quest_ids: generatedJourney.questIds,
         public_quest_ids: generatedJourney.visibility === "exclusive" ? generatedJourney.publicQuestIds : [],
+        root_quest_ids: generatedJourney.rootQuestIds ?? [],
+        ring_order: generatedJourney.ringOrder,
         tree_nodes: generatedJourney.treeNodes ?? [],
         tree_edges: generatedJourney.treeEdges ?? [],
         is_active: true
@@ -1047,10 +1108,19 @@ export default function QuestBuilderAdmin() {
       item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       item.description.toLowerCase().includes(searchQuery.toLowerCase())
     );
+    const orderedRingJourneys = [...savedJourneys]
+      .filter(item => item.isActive)
+      .sort((a, b) => {
+        const aOrder = typeof a.ringOrder === "number" ? a.ringOrder : Number.MAX_SAFE_INTEGER;
+        const bOrder = typeof b.ringOrder === "number" ? b.ringOrder : Number.MAX_SAFE_INTEGER;
+        return aOrder === bOrder ? a.title.localeCompare(b.title) : aOrder - bOrder;
+      });
     const openJourneyForEdit = (item: Journey) => {
       setJourney(buildJourneyFromQuestIds(item, item.questIds.length ? item.questIds : (item.timeline.map(step => step.questId).filter(Boolean) as string[]), savedQuests));
       setJourneyQuestSearch('');
+      setJourneyRootQuestSearch('');
       setIsJourneyQuestSearchOpen(false);
+      setIsJourneyRootQuestSearchOpen(false);
       setJourneyAddParentNodeId(null);
       setJourneyAddParentNode(null);
       setSelectedJourneyTreeNode(null);
@@ -1067,7 +1137,9 @@ export default function QuestBuilderAdmin() {
       setJourney(buildJourneyFromQuestIds(parentJourney, parentJourney.questIds.length ? parentJourney.questIds : (parentJourney.timeline.map(step => step.questId).filter(Boolean) as string[]), savedQuests));
       setJourneyAddParentNodeId(parentNode.id);
       setJourneyQuestSearch('');
+      setJourneyRootQuestSearch('');
       setIsJourneyQuestSearchOpen(true);
+      setIsJourneyRootQuestSearchOpen(false);
       setIsJourneyAddChoiceOpen(false);
       setJourneyIconSearch('');
       setIsJourneyIconPickerOpen(false);
@@ -1077,7 +1149,9 @@ export default function QuestBuilderAdmin() {
     const addJourneyFromOverallMap = () => {
       setJourney(createJourneyBranchDraft(journeyAddParentNode, savedQuests, journeyAddPlacement));
       setJourneyQuestSearch('');
+      setJourneyRootQuestSearch('');
       setIsJourneyQuestSearchOpen(false);
+      setIsJourneyRootQuestSearchOpen(false);
       setJourneyAddParentNodeId(null);
       setJourneyAddParentNode(null);
       setSelectedJourneyTreeNode(null);
@@ -1099,7 +1173,9 @@ export default function QuestBuilderAdmin() {
       setJourney(removeQuestNodeFromJourney(parentJourney, selectedJourneyTreeNode.id, savedQuests));
       setSelectedJourneyTreeNode(null);
       setJourneyQuestSearch('');
+      setJourneyRootQuestSearch('');
       setIsJourneyQuestSearchOpen(false);
+      setIsJourneyRootQuestSearchOpen(false);
       setJourneyAddParentNodeId(null);
       setJourneyAddParentNode(null);
       setIsJourneyAddChoiceOpen(false);
@@ -1107,6 +1183,29 @@ export default function QuestBuilderAdmin() {
       setIsJourneyIconPickerOpen(false);
       setEditorKind('journey');
       setView('editor');
+    };
+    const handleReorderJourneys = (orderedJourneyIds: string[]) => {
+      const orderById = new Map(orderedJourneyIds.map((id, index) => [id, index]));
+      const nextJourneys = savedJourneys.map((item) => (
+        orderById.has(item.id) ? { ...item, ringOrder: orderById.get(item.id) ?? null } : item
+      ));
+      setSavedJourneys(nextJourneys);
+      try {
+        const client = requireSupabase();
+        void Promise.all(
+          orderedJourneyIds.map((id, index) =>
+            client.from('journeys').update({ ring_order: index }).eq('id', id)
+          )
+        );
+      } catch (error) {
+        console.error("Failed to persist journey ring order:", error);
+      }
+    };
+    const moveRingJourney = (fromIndex: number, toIndex: number) => {
+      const nextJourneys = [...orderedRingJourneys];
+      const [movedJourney] = nextJourneys.splice(fromIndex, 1);
+      nextJourneys.splice(toIndex, 0, movedJourney);
+      handleReorderJourneys(nextJourneys.map(item => item.id));
     };
     
     return (
@@ -1126,7 +1225,7 @@ export default function QuestBuilderAdmin() {
             <Pressable onPress={() => { setQuest(createBlankQuest()); setAutoCompleteQuestSearch(''); setIsAutoCompleteQuestSearchOpen(false); setEditorKind('quest'); setView('editor'); setPreviewMode('hero'); setActiveTab('basic'); }} className="bg-stone px-6 py-3 rounded-full border border-line">
               <AppText className="text-ink font-sansSemi">+ Create New Quest</AppText>
             </Pressable>
-            <Pressable onPress={() => { setJourney(createBlankJourney(savedQuests)); setJourneyQuestSearch(''); setIsJourneyQuestSearchOpen(false); setJourneyAddParentNodeId(null); setJourneyAddParentNode(null); setSelectedJourneyTreeNode(null); setIsJourneyAddChoiceOpen(false); setJourneyIconSearch(''); setIsJourneyIconPickerOpen(false); setEditorKind('journey'); setView('editor'); }} className="bg-accent px-6 py-3 rounded-full">
+            <Pressable onPress={() => { setJourney(createBlankJourney(savedQuests)); setJourneyQuestSearch(''); setJourneyRootQuestSearch(''); setIsJourneyQuestSearchOpen(false); setIsJourneyRootQuestSearchOpen(false); setJourneyAddParentNodeId(null); setJourneyAddParentNode(null); setSelectedJourneyTreeNode(null); setIsJourneyAddChoiceOpen(false); setJourneyIconSearch(''); setIsJourneyIconPickerOpen(false); setEditorKind('journey'); setView('editor'); }} className="bg-accent px-6 py-3 rounded-full">
               <AppText className="text-accentText font-sansSemi">+ Create New Journey</AppText>
             </Pressable>
           </View>
@@ -1173,6 +1272,7 @@ export default function QuestBuilderAdmin() {
                   setSelectedJourneyTreeNode(null);
                   setIsJourneyAddChoiceOpen(true);
                   setIsJourneyQuestSearchOpen(false);
+                  setIsJourneyRootQuestSearchOpen(false);
                   setJourneyQuestSearch('');
                 }}
               />
@@ -1217,6 +1317,36 @@ export default function QuestBuilderAdmin() {
                       </View>
                     </Pressable>
                   </View>
+                </View>
+              ) : null}
+            </View>
+            <View className="mt-4 rounded-xl border border-line bg-stone">
+              <Pressable
+                onPress={() => setIsRingOrderOpen(value => !value)}
+                className="flex-row items-center justify-between p-4"
+                style={{ userSelect: "none", WebkitUserSelect: "none" } as any}
+              >
+                <View>
+                  <AppText className="font-sansSemi text-ink">Ring order</AppText>
+                  <AppText className="mt-1 text-xs text-ink/50">Drag journeys to change their positions around the ring.</AppText>
+                </View>
+                <Ionicons name={isRingOrderOpen ? "chevron-up" : "chevron-down"} size={20} color="#807A70" />
+              </Pressable>
+              {isRingOrderOpen ? (
+                <View className="border-t border-line p-4" style={{ userSelect: "none", WebkitUserSelect: "none" } as any}>
+                  {orderedRingJourneys.length === 0 ? (
+                    <AppText className="py-4 text-center text-ink/50">No active journeys to order.</AppText>
+                  ) : (
+                    orderedRingJourneys.map((item, index) => (
+                      <JourneyRingOrderItem
+                        key={item.id}
+                        journey={item}
+                        index={index}
+                        count={orderedRingJourneys.length}
+                        onMove={moveRingJourney}
+                      />
+                    ))
+                  )}
                 </View>
               ) : null}
             </View>
@@ -1332,10 +1462,18 @@ export default function QuestBuilderAdmin() {
       : buildJourneyFromQuestIds(journey, journey.questIds, savedQuests);
     const includedQuests = generatedJourney.questIds.map(id => savedQuests.find(q => q.id === id)).filter(Boolean) as Quest[];
     const questSearch = journeyQuestSearch.trim().toLowerCase();
+    const rootQuestSearch = journeyRootQuestSearch.trim().toLowerCase();
+    const selectedRootQuests = (generatedJourney.rootQuestIds ?? []).map(id => savedQuests.find(q => q.id === id)).filter(Boolean) as Quest[];
     const addableQuests = savedQuests.filter(q => {
       if (generatedJourney.questIds.includes(q.id)) return false;
       if (!questSearch) return true;
       return q.title.toLowerCase().includes(questSearch) || q.description.toLowerCase().includes(questSearch);
+    });
+    const addableRootQuests = savedQuests.filter(q => {
+      if ((generatedJourney.rootQuestIds ?? []).includes(q.id)) return false;
+      if (generatedJourney.questIds.includes(q.id)) return false;
+      if (!rootQuestSearch) return true;
+      return q.title.toLowerCase().includes(rootQuestSearch) || q.description.toLowerCase().includes(rootQuestSearch);
     });
     const updateJourneyQuestIds = (questIds: string[]) => {
       setJourney(prev => buildJourneyFromQuestIds(prev, questIds, savedQuests));
@@ -1359,6 +1497,20 @@ export default function QuestBuilderAdmin() {
           publicQuestIds: Array.from(publicQuestIds).filter(id => generatedJourney.questIds.includes(id))
         };
       });
+    };
+    const addRootQuestToJourney = (questToAdd: Quest) => {
+      setJourney(prev => ({
+        ...prev,
+        rootQuestIds: Array.from(new Set([...(prev.rootQuestIds ?? []), questToAdd.id]))
+      }));
+      setJourneyRootQuestSearch('');
+      setIsJourneyRootQuestSearchOpen(false);
+    };
+    const removeRootQuestFromJourney = (questId: string) => {
+      setJourney(prev => ({
+        ...prev,
+        rootQuestIds: (prev.rootQuestIds ?? []).filter(id => id !== questId)
+      }));
     };
     const addQuestToJourneyTree = (questToAdd: Quest, parentNodeId: string | null) => {
       setJourney(prev => {
@@ -1408,7 +1560,9 @@ export default function QuestBuilderAdmin() {
         return buildJourneyFromTree(base, treeNodes, treeEdges, savedQuests);
       });
       setJourneyQuestSearch('');
+      setJourneyRootQuestSearch('');
       setIsJourneyQuestSearchOpen(false);
+      setIsJourneyRootQuestSearchOpen(false);
       setJourneyAddParentNodeId(null);
       setJourneyAddParentNode(null);
       setIsJourneyAddChoiceOpen(false);
@@ -1428,6 +1582,7 @@ export default function QuestBuilderAdmin() {
       setJourneyAddParentNodeId(journeyAddParentNode?.id ?? null);
       setJourneyQuestSearch('');
       setIsJourneyQuestSearchOpen(true);
+      setIsJourneyRootQuestSearchOpen(false);
       setIsJourneyAddChoiceOpen(false);
     };
     const addJourneyFromEditorMap = () => {
@@ -1591,10 +1746,86 @@ export default function QuestBuilderAdmin() {
             </View>
 
             <View className="mb-3 flex-row items-center justify-between">
+              <View className="flex-1 pr-3">
+                <AppText variant="subtitle">Root Quests</AppText>
+                <AppText className="mt-1 text-xs text-ink/50">If selected, all roots must be completed before this journey starts.</AppText>
+              </View>
+              <Pressable
+                onPress={() => {
+                  setIsJourneyRootQuestSearchOpen(value => !value);
+                  setIsJourneyQuestSearchOpen(false);
+                  setJourneyAddParentNodeId(null);
+                  setJourneyAddParentNode(null);
+                }}
+                className="h-10 w-10 items-center justify-center rounded-full border border-line bg-accent"
+              >
+                <AppText className="text-accentText text-xl">+</AppText>
+              </Pressable>
+            </View>
+
+            {selectedRootQuests.length === 0 ? (
+              <View className="mb-4 rounded-xl border border-dashed border-line bg-stone p-5">
+                <AppText className="text-center text-ink/50">No root quests selected. This journey starts from the central circle.</AppText>
+              </View>
+            ) : (
+              <View className="mb-4">
+                {selectedRootQuests.map((q) => (
+                  <LinkedSubQuestItem
+                    key={q.id}
+                    quest={q}
+                    onRemove={() => removeRootQuestFromJourney(q.id)}
+                  />
+                ))}
+              </View>
+            )}
+
+            {isJourneyRootQuestSearchOpen && (
+              <View className="mb-8 rounded-xl border border-line bg-stone p-4">
+                <View className="mb-3 flex-row items-center justify-between">
+                  <View className="flex-1 pr-3">
+                    <AppText className="font-sansSemi text-ink">Choose root quests</AppText>
+                    <AppText className="mt-1 text-xs text-ink/50">Every selected root quest must be completed before this journey unlocks.</AppText>
+                  </View>
+                  <Pressable onPress={() => setIsJourneyRootQuestSearchOpen(false)} className="h-8 w-8 items-center justify-center rounded-full bg-surface border border-line">
+                    <Ionicons name="close" size={16} color="#807A70" />
+                  </Pressable>
+                </View>
+                <TextInput
+                  className="mb-3 rounded-lg border border-line bg-surface p-3 font-sans text-ink"
+                  placeholder="Search root quests..."
+                  value={journeyRootQuestSearch}
+                  onChangeText={setJourneyRootQuestSearch}
+                />
+                <View className="max-h-80 gap-2">
+                  <ScrollView nestedScrollEnabled>
+                    {addableRootQuests.length === 0 ? (
+                      <AppText className="py-4 text-center text-ink/50">No matching quests.</AppText>
+                    ) : addableRootQuests.map(q => (
+                      <Pressable
+                        key={q.id}
+                        onPress={() => addRootQuestToJourney(q)}
+                        className="mb-2 flex-row items-center rounded-xl border border-line bg-surface p-3"
+                      >
+                        <Image source={{ uri: q.imageUrl }} className="mr-3 h-12 w-12 rounded-lg bg-stone" contentFit="cover" />
+                        <View className="flex-1">
+                          <AppText className="font-sansSemi text-ink" numberOfLines={1}>{q.title}</AppText>
+                          <AppText className="mt-1 text-xs text-ink/50" numberOfLines={1}>{q.length} · {q.difficulty}</AppText>
+                        </View>
+                        <AppText className="text-orange font-sansSemi">Add</AppText>
+                      </Pressable>
+                    ))}
+                  </ScrollView>
+                </View>
+              </View>
+            )}
+
+            <View className="mb-3 flex-row items-center justify-between">
               <AppText variant="subtitle">Included Quests</AppText>
               <Pressable
                 onPress={() => {
                   setJourneyAddParentNodeId(null);
+                  setJourneyAddParentNode(null);
+                  setIsJourneyRootQuestSearchOpen(false);
                   setIsJourneyQuestSearchOpen(value => !value);
                 }}
                 className="h-10 w-10 items-center justify-center rounded-full border border-line bg-accent"
@@ -1666,7 +1897,7 @@ export default function QuestBuilderAdmin() {
                       {journeyAddParentNodeId ? "This quest will unlock after the selected branch endpoint." : "This quest becomes a first step on the shared ring."}
                     </AppText>
                   </View>
-                  <Pressable onPress={() => { setIsJourneyQuestSearchOpen(false); setJourneyAddParentNodeId(null); }} className="h-8 w-8 items-center justify-center rounded-full bg-surface border border-line">
+                  <Pressable onPress={() => { setIsJourneyQuestSearchOpen(false); setJourneyAddParentNodeId(null); setJourneyAddParentNode(null); }} className="h-8 w-8 items-center justify-center rounded-full bg-surface border border-line">
                     <Ionicons name="close" size={16} color="#807A70" />
                   </Pressable>
                 </View>

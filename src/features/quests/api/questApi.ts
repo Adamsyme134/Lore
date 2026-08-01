@@ -76,6 +76,8 @@ export type JourneyRow = {
   next_quest_image_url?: string;
   quest_ids?: string[];
   public_quest_ids?: string[];
+  root_quest_ids?: string[];
+  ring_order?: number | null;
   tree_nodes?: Journey["treeNodes"];
   tree_edges?: Journey["treeEdges"];
   requirement_sets?: Journey["requirementSets"];
@@ -147,6 +149,8 @@ export function mapJourney(row: JourneyRow): Journey {
     nextQuestImageUrl: row.next_quest_image_url || row.background_image_url,
     questIds: row.quest_ids || [],
     publicQuestIds: row.public_quest_ids || [],
+    rootQuestIds: row.root_quest_ids || [],
+    ringOrder: row.ring_order ?? null,
     treeNodes: row.tree_nodes || [],
     treeEdges: row.tree_edges || [],
     requirementSets: row.requirement_sets || [],
@@ -173,6 +177,7 @@ async function fetchJourneysFromSupabase() {
     .from("journeys")
     .select("*")
     .eq("is_active", true)
+    .order("ring_order", { ascending: true, nullsFirst: false })
     .order("created_at", { ascending: false });
 
   if (error) throw error;
@@ -358,6 +363,21 @@ export function getExclusiveQuestLock(
   completedQuestIds: Set<string>,
   activeJourneyIds: Set<string> = new Set()
 ) {
+  const rootLockedJourney = journeys.find((item) => {
+    if (!item.isActive || !(item.rootQuestIds ?? []).length || (item.publicQuestIds ?? []).includes(questId)) return false;
+    const questIds = getJourneyQuestIds(item);
+    return questIds[0] === questId && (item.rootQuestIds ?? []).some((rootQuestId) => !completedQuestIds.has(rootQuestId));
+  });
+
+  if (rootLockedJourney && !completedQuestIds.has(questId)) {
+    return {
+      journey: rootLockedJourney,
+      isLocked: true,
+      previousQuestId: (rootLockedJourney.rootQuestIds ?? []).find((rootQuestId) => !completedQuestIds.has(rootQuestId)) ?? null,
+      reason: "previousQuest" as const
+    };
+  }
+
   if (getGloballyAvailableJourneyQuestIds(journeys).has(questId)) return null;
 
   const journey = journeys.find((item) => {
@@ -378,8 +398,18 @@ export function getExclusiveQuestLock(
 
   const questIds = getJourneyQuestIds(journey);
   const questIndex = questIds.indexOf(questId);
-  if (questIndex <= 0 || completedQuestIds.has(questId)) {
+  if (completedQuestIds.has(questId)) {
     return { journey, isLocked: false, previousQuestId: null, reason: null };
+  }
+
+  if (questIndex <= 0) {
+    const unmetRootQuestId = (journey.rootQuestIds ?? []).find((rootQuestId) => !completedQuestIds.has(rootQuestId));
+    return {
+      journey,
+      isLocked: !!unmetRootQuestId,
+      previousQuestId: unmetRootQuestId ?? null,
+      reason: unmetRootQuestId ? "previousQuest" as const : null
+    };
   }
 
   const previousQuestId = questIds[questIndex - 1];

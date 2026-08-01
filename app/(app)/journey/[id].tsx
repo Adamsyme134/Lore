@@ -13,6 +13,7 @@ import { useThemeColors } from "../../../src/shared/design/useThemeColors";
 import { JourneyIcon } from "../../../src/features/quests/components/JourneyIcon";
 import { getJourneyQuestIds, useJourneys, useQuests, useStartJourney, useUserJourneyStatuses, useUserQuestStatuses } from "../../../src/features/quests/api/questApi";
 import { useLoreEntries } from "../../../src/features/lore/api/loreApi";
+import { buildJourneyTreeRenderModel } from "../../../src/features/quests/utils/journeyTree";
 import type { Quest } from "../../../src/shared/types/domain";
 
 function contentPosition(imagePosition?: string) {
@@ -63,6 +64,7 @@ function JourneyTimeline({
 
 function JourneyQuestRow({
   quest,
+  displayTitle,
   index,
   isComplete,
   isNext,
@@ -71,6 +73,7 @@ function JourneyQuestRow({
   onPress
 }: {
   quest: Quest;
+  displayTitle?: string;
   index: number;
   isComplete: boolean;
   isNext: boolean;
@@ -119,7 +122,7 @@ function JourneyQuestRow({
         <View className="absolute inset-0 flex-row items-center px-4 py-3">
           <View className="flex-1 pr-3">
             <AppText variant="subtitle" className="text-xl leading-6 text-ivory" numberOfLines={2}>
-              {quest.title}
+              {displayTitle ?? quest.title}
             </AppText>
             <AppText className="mt-1 text-xs text-ivory/75" numberOfLines={1}>
               <Ionicons name="location-outline" size={11} color="#F3F0EB" /> {quest.locationHint}
@@ -154,11 +157,12 @@ function isJourneyQuestLocked(
   completedQuestIds: Set<string>,
   isExclusive: boolean,
   publicQuestIds: string[],
-  isJourneyStarted: boolean
+  isJourneyStarted: boolean,
+  rootQuestIds: string[] = []
 ) {
   if (!isExclusive || (publicQuestIds ?? []).includes(questId) || completedQuestIds.has(questId)) return false;
   if (!isJourneyStarted) return true;
-  if (index <= 0) return false;
+  if (index <= 0) return rootQuestIds.some((rootQuestId) => !completedQuestIds.has(rootQuestId));
   return !completedQuestIds.has(questIds[index - 1]);
 }
 
@@ -184,16 +188,47 @@ export default function JourneyDetailScreen() {
     });
     return ids;
   }, [loreEntries, questStatuses?.completed]);
+  const activeQuestIds = useMemo(() => new Set(questStatuses?.active || []), [questStatuses?.active]);
   const orderedQuestIds = useMemo(() => {
     if (!journey) return [];
     return getJourneyQuestIds(journey);
   }, [journey]);
   const orderedQuests = orderedQuestIds.map((questId) => questById.get(questId)).filter(Boolean) as Quest[];
+  const hiddenQuestIds = useMemo(() => {
+    if (!journey) return new Set<string>();
+    const model = buildJourneyTreeRenderModel({
+      journeys,
+      questById,
+      progress: {
+        completedQuestIds,
+        activeQuestIds,
+        completedStepIndexesByQuestId: questStatuses?.completedStepIndexesByQuestId
+      }
+    });
+    const unlockedNodeIds = new Set(
+      model.nodes
+        .filter((node) => node.state !== "hidden" && node.state !== "locked")
+        .map((node) => node.id)
+    );
+    const previewLockedNodeIds = new Set(
+      model.edges
+        .filter((edge) => edge.from && edge.to?.state === "locked" && unlockedNodeIds.has(edge.from.id))
+        .map((edge) => edge.toNodeId)
+    );
+    const visibleNodeIds = new Set([...unlockedNodeIds, ...previewLockedNodeIds]);
+
+    return new Set(
+      model.nodes
+        .filter((node) => node.journeyId === journey.id && node.questId && !visibleNodeIds.has(node.id))
+        .map((node) => node.questId as string)
+    );
+  }, [activeQuestIds, completedQuestIds, journey, journeys, questById, questStatuses?.completedStepIndexesByQuestId]);
   const completedCount = orderedQuestIds.filter((questId) => completedQuestIds.has(questId)).length;
   const nextQuestId = orderedQuestIds.find((questId) => !completedQuestIds.has(questId)) || orderedQuestIds[0];
   const isExclusive = journey?.visibility === "exclusive";
   const activeJourneyIds = useMemo(() => new Set(journeyStatuses?.active || []), [journeyStatuses?.active]);
   const isJourneyStarted = journey ? activeJourneyIds.has(journey.id) : false;
+  const areRootQuestsComplete = journey ? (journey.rootQuestIds ?? []).every((questId) => completedQuestIds.has(questId)) : true;
 
   if ((isLoadingJourneys || isLoadingQuests) && !journey) {
     return (
@@ -258,9 +293,9 @@ export default function JourneyDetailScreen() {
             <JourneyTimeline total={orderedQuestIds.length} completedCount={completedCount} />
             {!isJourneyStarted ? (
               <Button
-                label={startJourney.isPending ? "Starting..." : "Start journey"}
+                label={!areRootQuestsComplete ? "Complete root quests to unlock" : startJourney.isPending ? "Starting..." : "Start journey"}
                 className="mt-6 self-start"
-                disabled={startJourney.isPending}
+                disabled={startJourney.isPending || !areRootQuestsComplete}
                 onPress={() => startJourney.mutate(journey.id)}
               />
             ) : null}
@@ -272,7 +307,7 @@ export default function JourneyDetailScreen() {
             <AppText variant="subtitle" className="text-2xl text-ink">
               Your path
             </AppText>
-            {isExclusive && !isJourneyStarted ? (
+            {isExclusive && (!isJourneyStarted || !areRootQuestsComplete) ? (
               <View className="rounded-full border border-line bg-surface px-3 py-1.5">
                 <AppText variant="caption" className="font-sansSemi text-muted">Locked</AppText>
               </View>
@@ -287,13 +322,14 @@ export default function JourneyDetailScreen() {
               <JourneyQuestRow
                 key={quest.id}
                 quest={quest}
+                displayTitle={hiddenQuestIds.has(quest.id) ? "??" : quest.title}
                 index={index}
                 isComplete={completedQuestIds.has(quest.id)}
                 isNext={isJourneyStarted && quest.id === nextQuestId}
-                isLocked={isJourneyQuestLocked(index, quest.id, orderedQuestIds, completedQuestIds, isExclusive, journey.publicQuestIds, isJourneyStarted)}
+                isLocked={isJourneyQuestLocked(index, quest.id, orderedQuestIds, completedQuestIds, isExclusive, journey.publicQuestIds, isJourneyStarted, journey.rootQuestIds ?? [])}
                 total={orderedQuests.length}
                 onPress={() => {
-                  if (isJourneyQuestLocked(index, quest.id, orderedQuestIds, completedQuestIds, isExclusive, journey.publicQuestIds, isJourneyStarted)) return;
+                  if (isJourneyQuestLocked(index, quest.id, orderedQuestIds, completedQuestIds, isExclusive, journey.publicQuestIds, isJourneyStarted, journey.rootQuestIds ?? [])) return;
                   router.push({ pathname: "/quest/[id]", params: { id: quest.id } });
                 }}
               />

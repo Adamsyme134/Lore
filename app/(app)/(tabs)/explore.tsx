@@ -14,6 +14,7 @@ import { JourneyIcon } from "../../../src/features/quests/components/JourneyIcon
 import { useExperienceStore } from "../../../src/features/app/store/useExperienceStore";
 import { useThemeColors } from "../../../src/shared/design/useThemeColors";
 import { getExclusiveJourneyQuestIds, getJourneyQuestIds, useJourneys, useQuests, useSaveQuest, useUserQuestStatuses } from "../../../src/features/quests/api/questApi";
+import { useLoreEntries } from "../../../src/features/lore/api/loreApi";
 import type {
   Journey,
   Quest,
@@ -321,12 +322,20 @@ export default function Explore() {
   const { data: quests = [], isLoading: isLoadingQuests } = useQuests();
   const { data: journeys = [], isLoading: isLoadingJourneys, isFetching: isFetchingJourneys } = useJourneys();
   const { data: questStatuses } = useUserQuestStatuses();
+  const { data: loreEntries = [] } = useLoreEntries();
 
   const activeQuestIds = useMemo(
     () => new Set([...(questStatuses?.active || []), ...Object.keys(activeQuests)]),
     [activeQuests, questStatuses?.active]
   );
-  const completedQuestIds = useMemo(() => new Set(questStatuses?.completed || []), [questStatuses?.completed]);
+  const completedQuestIds = useMemo(() => {
+    const ids = new Set(questStatuses?.completed || []);
+    loreEntries.forEach((entry) => {
+      if (entry.questId) ids.add(entry.questId);
+      entry.autoCompletedQuests?.forEach((quest) => ids.add(quest.id));
+    });
+    return ids;
+  }, [loreEntries, questStatuses?.completed]);
   const questById = useMemo(() => new Map(quests.map((quest) => [quest.id, quest])), [quests]);
   const exclusiveQuestIds = useMemo(() => getExclusiveJourneyQuestIds(journeys), [journeys]);
   const journeyTreeProgress = useMemo(
@@ -539,6 +548,11 @@ export default function Explore() {
                 onSelectNode={(node) => setSelectedJourneyNodeId(node.id)}
                 onDeselectNode={() => setSelectedJourneyNodeId(null)}
                 onQuestPress={(quest) => router.push({ pathname: "/quest/[id]", params: { id: quest.id } })}
+                onEntryPress={(entry) => router.push({ pathname: "/lore/[id]", params: { id: entry.id } })}
+                onJourneyPress={(journeyId) => router.push({ pathname: "/journey/[id]", params: { id: journeyId } })}
+                onSaveQuest={(quest) => saveQuest.mutate(quest.id)}
+                savedQuestIds={savedQuestIds}
+                completedLoreEntries={loreEntries}
                 height={520}
               />
             </View>

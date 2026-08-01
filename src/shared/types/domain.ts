@@ -162,6 +162,8 @@ export type Journey = {
   nextQuestImageUrl: string;
   questIds: string[];
   publicQuestIds: string[];
+  rootQuestIds?: string[];
+  ringOrder?: number | null;
   treeNodes?: JourneyTreeNode[];
   treeEdges?: JourneyTreeEdge[];
   requirementSets?: JourneyRequirementSet[];

@@ -7,7 +7,7 @@ import Svg, { Circle, Line } from "react-native-svg";
 import { AppText } from "../../../shared/components/AppText";
 import { useThemeColors } from "../../../shared/design/useThemeColors";
 import { JourneyIcon } from "./JourneyIcon";
-import type { Journey, Quest } from "../../../shared/types/domain";
+import type { Journey, LoreEntry, Quest } from "../../../shared/types/domain";
 import { getJourneyColorScheme } from "../constants/journeyColorSchemes";
 import {
   buildJourneyTreeRenderModel,
@@ -25,6 +25,11 @@ type JourneyTreeMapProps = {
   onSelectNode?: (node: JourneyTreeRenderNode) => void;
   onDeselectNode?: () => void;
   onQuestPress?: (quest: Quest) => void;
+  onEntryPress?: (entry: LoreEntry) => void;
+  onJourneyPress?: (journeyId: string) => void;
+  onSaveQuest?: (quest: Quest) => void;
+  savedQuestIds?: string[];
+  completedLoreEntries?: LoreEntry[];
   onAddNode?: (parentNode: JourneyTreeRenderNode | null, placement?: "linear" | "branch") => void;
   height?: number;
 };
@@ -40,6 +45,7 @@ const stateTone: Record<JourneyNodeProgressState, { border: string; fill: string
 };
 const DEFAULT_SCALE = 0.72;
 const SELECTED_NODE_ZOOM_SCALE = 1.00;
+const SELECTED_NODE_FOCUS_Y_RATIO = 0.4;
 const MIN_SCALE = 0.42;
 const MAX_SCALE = 1.6;
 
@@ -158,7 +164,7 @@ function NodeButton({
   isDimmed: boolean;
   onPress: () => void;
 }) {
-  const visualState = builderMode ? "available" : node.state;
+  const visualState = builderMode && node.state !== "completed" ? "available" : node.state;
   const scheme = getJourneyColorScheme(node.journeyColorSchemeId);
   const isLocked = visualState === "locked" || visualState === "hidden";
   const isCompleted = visualState === "completed";
@@ -185,7 +191,7 @@ function NodeButton({
   }, [isSelected, selectedScale]);
   return (
     <Pressable
-      disabled={!builderMode && isLocked}
+      disabled={!builderMode && visualState === "hidden"}
       onPress={(event) => {
         event.stopPropagation();
         onPress();
@@ -235,20 +241,22 @@ elevation: isSelected ? 12 : 7,
           }}
         />
         {/* Lower side */}
-<View
-  pointerEvents="none"
-  style={{
-    position: "absolute",
-    left: 0,
-    top: size * 0.14,
-    width: size,
-    height: size,
-    borderRadius: radius,
-    backgroundColor: isLocked ? "#3F3F3F" : scheme.rimDark,
-    zIndex: 0,
-    elevation: 0
-  }}
-/>
+{!isCompleted ? (
+  <View
+    pointerEvents="none"
+    style={{
+      position: "absolute",
+      left: 0,
+      top: size * 0.14,
+      width: size,
+      height: size,
+      borderRadius: radius,
+      backgroundColor: isLocked ? "#3F3F3F" : scheme.rimDark,
+      zIndex: 0,
+      elevation: 0
+    }}
+  />
+) : null}
 
 {/* Top face */}
 <View
@@ -405,39 +413,198 @@ elevation: 5,
   );
 }
 
-function QuestPopup({ node, onQuestPress }: { node: JourneyTreeRenderNode; onQuestPress?: (quest: Quest) => void }) {
+function QuestPopup({
+  node,
+  viewport,
+  savedQuestIds = [],
+  completedLoreEntries = [],
+  onQuestPress,
+  onEntryPress,
+  onJourneyPress,
+  onSaveQuest
+}: {
+  node: JourneyTreeRenderNode;
+  viewport: { width: number; height: number };
+  savedQuestIds?: string[];
+  completedLoreEntries?: LoreEntry[];
+  onQuestPress?: (quest: Quest) => void;
+  onEntryPress?: (entry: LoreEntry) => void;
+  onJourneyPress?: (journeyId: string) => void;
+  onSaveQuest?: (quest: Quest) => void;
+}) {
+  const colors = useThemeColors();
   const quest = node.quest;
+  const scheme = getJourneyColorScheme(node.journeyColorSchemeId);
+  const isLocked = node.state === "locked" || node.state === "hidden";
+  const completedEntry = quest
+    ? completedLoreEntries.find((entry) =>
+        entry.questId === quest.id || entry.autoCompletedQuests?.some((completedQuest) => completedQuest.id === quest.id)
+      )
+    : undefined;
+  const isCompleted = node.state === "completed" || !!completedEntry;
+  const isSaved = quest ? savedQuestIds.includes(quest.id) : false;
+  const popupWidth = Math.min(Math.max(viewport.width - 32, 300), 520);
+  const isCompact = popupWidth < 430;
+  const popupLeft = Math.max((viewport.width - popupWidth) / 2, 8);
+  const imageSize = isCompact ? 92 : 170;
+  const panelPadding = isCompact ? 12 : 18;
+  const panelHeight = imageSize + panelPadding * 2;
+  const popupTop = Math.min(viewport.height - panelHeight, viewport.height * SELECTED_NODE_FOCUS_Y_RATIO + 44);
+  const progressTotal = Math.max(node.journeyTotalCount || 1, 1);
+  const progressCompleted = Math.min(node.journeyCompletedCount || 0, progressTotal);
+  const progressSegments = Array.from({ length: progressTotal });
+  const buttonLabel = isCompleted ? "View Entry" : "View Quest";
+  const canOpenAction = !!quest && !isLocked && (!isCompleted || !!completedEntry || !onEntryPress);
+
+  const handleActionPress = () => {
+    if (!quest || isLocked) return;
+    if (isCompleted && completedEntry && onEntryPress) {
+      onEntryPress(completedEntry);
+      return;
+    }
+    onQuestPress?.(quest);
+  };
 
   return (
-    <View className="absolute bottom-4 right-4 top-4 w-[250px] rounded-[14px] border border-line bg-surface p-4 shadow-lg">
-      <View className="mb-3 flex-row items-center">
-        <View className="mr-3 h-10 w-10 items-center justify-center rounded-xl bg-stone">
-          <Ionicons name={node.kind === "capability" ? "ribbon-outline" : "compass-outline"} size={20} color="#1C1A17" />
-        </View>
-        <View className="flex-1">
-          <AppText className="text-[10px] uppercase tracking-widest text-ink/50">{node.journeyTitle}</AppText>
-          <AppText className="font-sansSemi text-ink" numberOfLines={1}>{node.state.replace("_", " ")}</AppText>
-        </View>
-      </View>
-      {quest?.imageUrl ? <Image source={{ uri: quest.imageUrl }} className="mb-4 h-24 w-full rounded-lg bg-stone" contentFit="cover" /> : null}
-      <AppText variant="subtitle" className="text-xl leading-6 text-ink" numberOfLines={3}>
-        {node.label}
-      </AppText>
-      <AppText className="mt-2 text-sm leading-5 text-ink/65" numberOfLines={5}>
-        {quest?.description || node.description || "Complete the connected requirements to reveal what this unlocks next."}
-      </AppText>
-      {quest ? (
-        <Pressable
-          disabled={node.state === "locked" || node.state === "hidden"}
-          onPress={() => onQuestPress?.(quest)}
-          className={`mt-auto flex-row items-center justify-center rounded-full px-4 py-3 ${node.state === "locked" || node.state === "hidden" ? "bg-stone" : "bg-accent"}`}
-        >
-          <AppText className={`font-sansSemi ${node.state === "locked" || node.state === "hidden" ? "text-ink/45" : "text-accentText"}`}>
-            Open quest
-          </AppText>
-          <Ionicons name="chevron-forward" size={17} color={node.state === "locked" || node.state === "hidden" ? "#B0B4B1" : "#183431"} />
-        </Pressable>
+    <View
+      className="absolute flex-row border shadow-lg"
+      style={{
+        left: popupLeft,
+        top: Math.max(popupTop, 8),
+        width: popupWidth,
+        height: panelHeight,
+        borderRadius: 24,
+        borderWidth: 3,
+        borderColor: "#0A3830",
+        backgroundColor: colors.background,
+        padding: panelPadding,
+        zIndex: 110,
+        elevation: 24,
+        gap: isCompact ? 12 : 16
+      }}
+    >
+      {quest?.imageUrl ? (
+        <Image
+          source={{ uri: quest.imageUrl }}
+          contentFit="cover"
+          contentPosition={parseImageContentPosition(quest.imagePosition || "50% 50%") as any}
+          style={{
+            width: imageSize,
+            height: imageSize,
+            maxWidth: popupWidth * (isCompact ? 0.38 : 0.43),
+            borderRadius: 16,
+            backgroundColor: "#123832"
+          }}
+        />
       ) : null}
+
+      <View className="flex-1">
+        <View className="flex-row items-start">
+          <View className="flex-1 pr-4">
+            <AppText
+              className="font-serifSemi text-[18px] leading-[22px] text-[#F5F0E7]"
+              numberOfLines={2}
+              adjustsFontSizeToFit
+            >
+              {node.label}
+            </AppText>
+            {isCompleted ? (
+              <AppText className="text-[11px] uppercase leading-4 text-[#F5F0E7]" style={{ paddingVertical: 1 }}>
+                COMPLETED
+              </AppText>
+            ) : quest ? (
+              <AppText className="mt-0.5 text-[12px] leading-4 text-[#F5F0E7]/65" numberOfLines={1} adjustsFontSizeToFit>
+                {quest.duration} • {quest.cost} • {quest.difficulty}
+              </AppText>
+            ) : null}
+          </View>
+          {quest ? (
+            <Pressable
+              accessibilityLabel={isCompleted ? "Completed" : isSaved ? "Unsave quest" : "Save quest"}
+              disabled={isCompleted || !onSaveQuest}
+              onPress={() => onSaveQuest?.(quest)}
+              className="items-center justify-center"
+              style={{
+                width: isCompleted ? 30 : 32,
+                height: isCompleted ? 30 : 30,
+                borderRadius: isCompleted ? 15 : 0,
+                backgroundColor: isCompleted ? scheme.rim : "transparent"
+              }}
+            >
+              <Ionicons
+                name={isCompleted ? "checkmark" : isSaved ? "bookmark" : "bookmark-outline"}
+                size={isCompleted ? 22 : 31}
+                color={isCompleted ? "#F5F0E7" : "#C6C6BC"}
+              />
+            </Pressable>
+          ) : null}
+        </View>
+
+        <View className="my-0.5 h-px bg-[#F5F0E7]/55" />
+
+        <View className="flex-row items-center">
+          <View className="mr-1.5 h-5 w-5 items-center justify-center rounded-full border-2 border-[#F5F0E7] bg-[#8D9E7F]">
+            <Ionicons name="compass-outline" size={12} color="#F5F0E7" />
+          </View>
+          <AppText className="text-[11px] uppercase leading-4 text-[#F5F0E7]/70">
+            PART OF
+          </AppText>
+        </View>
+
+        <Pressable
+          disabled={!onJourneyPress}
+          onPress={() => onJourneyPress?.(node.journeyId)}
+          className="mt-1 flex-row items-center"
+        >
+          <AppText className="font-serifSemi text-[16px] leading-5 text-[#F5F0E7]" numberOfLines={1} adjustsFontSizeToFit>
+            {node.journeyTitle}
+          </AppText>
+          <Ionicons name="arrow-forward" size={17} color="#F5F0E7" style={{ marginLeft: 6 }} />
+        </Pressable>
+
+        <View className="mt-1.5 flex-row gap-1" style={{ width: 204, maxWidth: "100%" }}>
+          {progressSegments.map((_, index) => (
+            <View
+              key={`${node.id}-progress-${index}`}
+              style={{
+                flex: 1,
+                height: 3,
+                borderRadius: 4,
+                backgroundColor: index < progressCompleted ? "#E6D1B5" : "#30433E"
+              }}
+            />
+          ))}
+        </View>
+
+        {quest ? (
+          <View
+            style={{
+              marginTop: 12,
+              borderRadius: 15,
+              backgroundColor: isLocked ? "#3F3F3F" : scheme.rimDark,
+              paddingBottom: 6,
+              elevation: 8,
+              opacity: canOpenAction ? 1 : 0.58
+            } as any}
+          >
+            <Pressable
+              disabled={!canOpenAction}
+              onPress={handleActionPress}
+              className="flex-row items-center justify-center"
+              style={{
+                minHeight: 42,
+                borderRadius: 15,
+                backgroundColor: isLocked ? "#5E635D" : scheme.rim
+              }}
+            >
+              <AppText className="font-sansSemi text-[15px] leading-5 text-[#FFFFFF]">
+                {buttonLabel}
+              </AppText>
+              <Ionicons name="arrow-forward" size={18} color="#FFFFFF" style={{ marginLeft: 30 }} />
+            </Pressable>
+          </View>
+        ) : null}
+      </View>
     </View>
   );
 }
@@ -451,6 +618,11 @@ export function JourneyTreeMap({
   onSelectNode,
   onDeselectNode,
   onQuestPress,
+  onEntryPress,
+  onJourneyPress,
+  onSaveQuest,
+  savedQuestIds,
+  completedLoreEntries,
   onAddNode,
   height = 520
 }: JourneyTreeMapProps) {
@@ -556,7 +728,19 @@ export function JourneyTreeMap({
         ...collectConnectedNodeIds(focusedNodeId, model.edges, "descendants")
       ])
     : null;
-  const visibleNodes = model.nodes.filter((node) => builderMode || node.state !== "hidden" || relatedNodeIds?.has(node.id));
+  const unlockedNodeIds = new Set(
+    model.nodes
+      .filter((node) => node.state !== "hidden" && node.state !== "locked")
+      .map((node) => node.id)
+  );
+  const previewLockedNodeIds = new Set(
+    model.edges
+      .filter((edge) => edge.from && edge.to?.state === "locked" && unlockedNodeIds.has(edge.from.id))
+      .map((edge) => edge.toNodeId)
+  );
+  const userVisibleNodeIds = new Set([...unlockedNodeIds, ...previewLockedNodeIds]);
+  const visibleNodes = model.nodes.filter((node) => builderMode || userVisibleNodeIds.has(node.id));
+  const visibleNodeIds = new Set(visibleNodes.map((node) => node.id));
   const outgoingNodeIds = new Set(model.edges.map((edge) => edge.fromNodeId));
   const addableNodes = visibleNodes.filter((node) => node.kind === "quest");
   const rootPlusAngle = -38;
@@ -573,12 +757,11 @@ export function JourneyTreeMap({
       y: node.y + Math.sin(radians) * 86
     };
   });
-
   const handleSelect = (node: JourneyTreeRenderNode) => {
     const nextScale = clampScale(SELECTED_NODE_ZOOM_SCALE);
     const nextOffset = {
       x: (model.center.x - node.x) * nextScale,
-      y: (model.center.y - node.y) * nextScale
+      y: (model.center.y - node.y) * nextScale - viewport.height * (0.5 - SELECTED_NODE_FOCUS_Y_RATIO)
     };
     scaleRef.current = nextScale;
     panOffsetRef.current = nextOffset;
@@ -646,7 +829,7 @@ export function JourneyTreeMap({
           <Circle cx={model.center.x} cy={model.center.y} r={34} fill="#F3F0EB" stroke="#D9D0C4" strokeWidth={2} />
           {model.edges.map((edge) => {
             if (!edge.from || !edge.to) return null;
-            if (!builderMode && (edge.from.state === "hidden" || edge.to.state === "hidden")) return null;
+            if (!builderMode && (!visibleNodeIds.has(edge.from.id) || !visibleNodeIds.has(edge.to.id))) return null;
             return (
               <Line
                 key={edge.id}
@@ -734,7 +917,18 @@ export function JourneyTreeMap({
         ) : null}
       </Animated.View>
 
-      {selectedNode ? <QuestPopup node={selectedNode} onQuestPress={onQuestPress} /> : null}
+      {selectedNode ? (
+        <QuestPopup
+          node={selectedNode}
+          viewport={viewport}
+          savedQuestIds={savedQuestIds}
+          completedLoreEntries={completedLoreEntries}
+          onQuestPress={onQuestPress}
+          onEntryPress={onEntryPress}
+          onJourneyPress={onJourneyPress}
+          onSaveQuest={onSaveQuest}
+        />
+      ) : null}
     </View>
   );
 }
