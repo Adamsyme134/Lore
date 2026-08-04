@@ -1,6 +1,8 @@
 // src/shared/components/LoreTabBar.tsx
 import { Pressable, View } from "react-native";
+import { Files, GitBranch, Home, Search, Users } from "lucide-react-native";
 import { AppText } from "./AppText";
+import { useThemeColors } from "../design/useThemeColors";
 
 type LoreTabRoute = {
   key: string;
@@ -18,27 +20,40 @@ type LoreTabBarProps = {
   };
 };
 
-// ✨ Updated labels to match Sketch 1 Bottom Tab Bar exactly
 const labels: Record<string, string> = {
-  today: "Today",
+  today: "Home",
+  journeys: "Tree",
   explore: "Explore",
-  archive: "My Lore", 
-  map: "Map",
+  archive: "My Lore",
   friends: "Friends"
 };
 
+const icons: Record<string, typeof Home> = {
+  today: Home,
+  journeys: GitBranch,
+  explore: Search,
+  archive: Files,
+  friends: Users
+};
+
 export function LoreTabBar({ state, navigation }: LoreTabBarProps) {
-  // We can filter out map if you only want the 4 tabs shown in the sketch
+  const colors = useThemeColors();
   const visibleRoutes = state.routes.filter(route => route.name !== 'map');
+  const barBackground = colors.isDark ? "#000000" : colors.background;
+  const barBorder = colors.isDark ? "#2B2B2B" : colors.secondaryUi;
+  const inactiveColor = colors.isDark ? "#FFFFFF" : "#000000";
 
   return (
-    <View className="absolute bottom-6 left-5 right-5 rounded-full border border-line bg-surface px-2 py-2 shadow-lg shadow-charcoal/10">
+    <View
+      className="absolute bottom-0 left-0 right-0 border-t px-3 shadow-lg shadow-charcoal/20"
+      style={{ backgroundColor: barBackground, borderColor: barBorder, height: 85, paddingBottom: 6 }}
+    >
       <View className="flex-row items-center justify-between">
-        {visibleRoutes.map((route, index) => {
-          // adjust active index check since we filtered routes
-          const originalIndex = state.routes.findIndex(r => r.key === route.key);
-          const focused = state.index === originalIndex;
+        {visibleRoutes.map((route) => {
+          const focused = state.index === state.routes.findIndex((item) => item.key === route.key);
           const label = labels[route.name] ?? route.name;
+          const Icon = icons[route.name] ?? Home;
+          const itemColor = focused ? colors.accent : inactiveColor;
 
           const onPress = () => {
             const event = navigation.emit({ type: "tabPress", target: route.key, canPreventDefault: true });
@@ -50,8 +65,9 @@ export function LoreTabBar({ state, navigation }: LoreTabBarProps) {
           return (
             <Pressable key={route.key} onPress={onPress} className="flex-1 overflow-hidden rounded-full">
               {({ pressed }) => (
-                <View className={focused ? "items-center rounded-full bg-accent px-2 py-3" : pressed ? "items-center rounded-full bg-elevated px-2 py-3" : "items-center rounded-full px-2 py-3"}>
-                  <AppText variant="caption" className={focused ? "font-sansSemi text-accentText" : "font-sansSemi text-muted"} style={focused ? { color: "#183431" } : undefined}>
+                <View className="items-center justify-center px-1" style={{ height: 77, opacity: pressed ? 0.72 : 1 }}>
+                  <Icon size={31} color={itemColor} strokeWidth={1.62} />
+                  <AppText variant="caption" className="font-sans" style={{ color: itemColor, fontSize: 12.6, lineHeight: 15.3, marginTop: 7 }}>
                     {label}
                   </AppText>
                 </View>

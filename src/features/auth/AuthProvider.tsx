@@ -25,7 +25,8 @@ function mapProfile(row: any): Profile {
     fullName: row.full_name ?? "New explorer",
     avatarUrl: row.avatar_url ?? null,
     homeCity: row.home_city ?? null,
-    pointsTotal: row.points_total ?? 0
+    pointsTotal: row.points_total ?? 0,
+    currentStreak: row.current_streak ?? 0
   };
 }
 
@@ -54,7 +55,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
     const { data, error } = await supabase
       .from("profiles")
-      .select("id, handle, full_name, avatar_url, home_city, points_total")
+      .select("id, handle, full_name, avatar_url, home_city, points_total, current_streak")
       .eq("id", userId)
       .single();
 

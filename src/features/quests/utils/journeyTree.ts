@@ -110,6 +110,10 @@ const CENTER = DEFAULT_SIZE / 2;
 const RING_RADIUS = 142;
 const DEPTH_GAP = 108;
 
+function connectsToJourneyRing(journey: Pick<Journey, "rootQuestIds">) {
+  return !(journey.rootQuestIds ?? []).length;
+}
+
 function getQuestTitle(questId: string | undefined, questById: Map<string, Quest>) {
   if (!questId) return undefined;
   return questById.get(questId)?.title;
@@ -339,7 +343,7 @@ function getInferredVisualEdges(journey: Journey, tree: { nodes: JourneyTreeNode
     );
   });
   const inferredEdgeKeys = new Set(prerequisiteEdges.map((edge) => `${edge.fromNodeId}->${edge.toNodeId}`));
-  const orderedLocalNodes = tree.nodes.filter((node) => !node.sharedAnchorNodeId);
+  const orderedLocalNodes = tree.nodes.filter((node) => !node.sharedAnchorNodeId && node.branchId !== "side-branch");
   const orderedFallbackEdges = orderedLocalNodes.slice(1).flatMap<JourneyTreeEdge>((node, index) => {
     const previousNode = orderedLocalNodes[index];
     const edgeKey = `${previousNode.id}->${node.id}`;
@@ -643,6 +647,80 @@ function repositionSubtreeFromPoint({
   });
 }
 
+function repositionSingleRootBranch({
+  anchor,
+  node,
+  side,
+  continuesStraight,
+  edgesByParent,
+  nodeById,
+  visited = new Set<string>()
+}: {
+  anchor: JourneyTreeRenderNode;
+  node: JourneyTreeRenderNode;
+  side: Journey["rootBranchSide"];
+  continuesStraight: boolean;
+  edgesByParent: Map<string, JourneyTreeEdge[]>;
+  nodeById: Map<string, JourneyTreeRenderNode>;
+  visited?: Set<string>;
+}) {
+  const sideSign = side === "left" ? -1 : 1;
+  const branchAngle = continuesStraight ? anchor.angle : anchor.angle + sideSign * 44;
+  const branchRadians = (branchAngle * Math.PI) / 180;
+  const runRadians = (anchor.angle * Math.PI) / 180;
+  const branchDistance = continuesStraight ? DEPTH_GAP : DEPTH_GAP * 1.45;
+
+  const placeParallelNode = (
+    currentNode: JourneyTreeRenderNode,
+    x: number,
+    y: number,
+    angle: number,
+    depth: number
+  ) => {
+    if (visited.has(currentNode.id)) return;
+    visited.add(currentNode.id);
+
+    currentNode.x = x;
+    currentNode.y = y;
+    currentNode.angle = angle;
+    currentNode.depth = depth;
+
+    const childEdges = edgesByParent.get(currentNode.id) ?? [];
+    const children = childEdges
+      .map((edge) => nodeById.get(edge.toNodeId))
+      .filter(Boolean) as JourneyTreeRenderNode[];
+
+    children.forEach((child) => {
+      if (child.branchId === "side-branch") {
+        repositionSubtreeFromParent({
+          parent: currentNode,
+          node: child,
+          edgesByParent,
+          nodeById,
+          visited
+        });
+        return;
+      }
+
+      placeParallelNode(
+        child,
+        currentNode.x + Math.cos(runRadians) * DEPTH_GAP,
+        currentNode.y + Math.sin(runRadians) * DEPTH_GAP,
+        anchor.angle,
+        currentNode.depth + 1
+      );
+    });
+  };
+
+  placeParallelNode(
+    node,
+    anchor.x + Math.cos(branchRadians) * branchDistance,
+    anchor.y + Math.sin(branchRadians) * branchDistance,
+    branchAngle,
+    anchor.depth + 1
+  );
+}
+
 export function buildJourneyTreeRenderModel({
   journeys,
   questById,
@@ -663,6 +741,8 @@ export function buildJourneyTreeRenderModel({
       return aOrder === bOrder ? a.index - b.index : aOrder - bOrder;
     })
     .map(({ journey }) => journey);
+  const ringJourneys = activeJourneys.filter(connectsToJourneyRing);
+  const ringJourneyIndexById = new Map(ringJourneys.map((journey, index) => [journey.id, index]));
   const globallyAvailableQuestIds = getGloballyAvailableQuestIds(activeJourneys, questById);
   const treesByJourneyId = new Map(activeJourneys.map((journey) => [journey.id, getJourneyTreeWithInferredEdges(journey, questById)]));
   const allNodeIds = new Set(activeJourneys.flatMap((journey) => treesByJourneyId.get(journey.id)?.nodes.map((node) => node.id) ?? []));
@@ -686,10 +766,11 @@ export function buildJourneyTreeRenderModel({
   });
   const renderNodes = activeJourneys.flatMap((journey, index) => {
     const tree = treesByJourneyId.get(journey.id) ?? getJourneyTree(journey, questById);
+    const ringJourneyIndex = ringJourneyIndexById.get(journey.id);
     return assignJourneyPositions({
       journey,
-      journeyIndex: index,
-      journeyCount: activeJourneys.length,
+      journeyIndex: ringJourneyIndex ?? index,
+      journeyCount: ringJourneyIndex === undefined ? activeJourneys.length : Math.max(ringJourneys.length, 1),
       nodes: tree.nodes,
       edges: tree.edges,
       questById,
@@ -740,6 +821,25 @@ export function buildJourneyTreeRenderModel({
     if (!anchorNodes.length || !firstJourneyNodes.length) return;
 
     const firstAnchor = anchorNodes[0];
+    if (anchorNodes.length === 1) {
+      const anchorMainChildren = (edgesByParent.get(firstAnchor.id) ?? [])
+        .map((edge) => renderNodeById.get(edge.toNodeId))
+        .filter((child) => child?.journeyId === firstAnchor.journeyId && child.branchId !== "side-branch");
+      const continuesStraight = anchorMainChildren.length === 0;
+
+      firstJourneyNodes.forEach((node) => {
+        repositionSingleRootBranch({
+          anchor: firstAnchor,
+          node,
+          side: journey.rootBranchSide ?? "right",
+          continuesStraight,
+          edgesByParent,
+          nodeById: renderNodeById
+        });
+      });
+      return;
+    }
+
     const targetAngle = anchorNodes.length === 1
       ? firstAnchor.angle
       : averageAngle(anchorNodes.map((node) => node.angle));

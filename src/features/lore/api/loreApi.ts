@@ -301,6 +301,7 @@ export function useCreateLoreEntry() {
       const client = requireSupabase();
       const pointsAwarded = input.quest.pointsValue + Math.min(3, input.photoAssets.length) * 2;
       let uploadedPhotos: Array<{ storagePath: string; publicUrl: string }> = [];
+      let completionStreak: number | undefined;
       const linkedQuestIds = Array.from(new Set([
         ...(input.quest.autoCompleteQuestIds ?? []),
         ...(input.autoCompletedQuests ?? []).map((quest) => quest.id)
@@ -414,6 +415,24 @@ export function useCreateLoreEntry() {
         if (pointsError) {
           throw pointsError;
         }
+
+        const now = new Date();
+        const completionDate = [
+          now.getFullYear(),
+          String(now.getMonth() + 1).padStart(2, "0"),
+          String(now.getDate()).padStart(2, "0")
+        ].join("-");
+        const { data: streakData, error: streakError } = await client.rpc("record_quest_completion_streak", {
+          completion_date: completionDate
+        });
+
+        if (streakError) {
+          throw streakError;
+        }
+
+        completionStreak = Array.isArray(streakData)
+          ? Number(streakData[0]?.current_streak ?? streakData[0]?.streak_count ?? streakData[0] ?? 0)
+          : Number((streakData as any)?.current_streak ?? (streakData as any)?.streak_count ?? streakData ?? 0);
       } catch (error) {
         if (uploadedPhotos.length > 0) {
           await client.storage.from("lore-photos").remove(uploadedPhotos.map((photo) => photo.storagePath));
@@ -432,6 +451,7 @@ export function useCreateLoreEntry() {
 
       return {
         ...savedEntry,
+        completionStreak,
         people: input.people,
         tags: input.tags,
         autoCompletedQuests: savedEntry.autoCompletedQuests?.length

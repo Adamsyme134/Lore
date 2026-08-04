@@ -9,11 +9,10 @@ import { useRouter } from "expo-router";
 import { Screen } from "../../../src/shared/components/Screen";
 import { AppText } from "../../../src/shared/components/AppText";
 import { CategoryIconBadge } from "../../../src/features/quests/components/QuestMetadata";
-import { JourneyTreeMap } from "../../../src/features/quests/components/JourneyTreeMap";
 import { JourneyIcon } from "../../../src/features/quests/components/JourneyIcon";
 import { useExperienceStore } from "../../../src/features/app/store/useExperienceStore";
 import { useThemeColors } from "../../../src/shared/design/useThemeColors";
-import { getExclusiveJourneyQuestIds, getJourneyQuestIds, useJourneys, useQuests, useSaveQuest, useUserQuestStatuses } from "../../../src/features/quests/api/questApi";
+import { getExclusiveJourneyQuestIds, getJourneyLock, getJourneyQuestIds, getSideQuestLock, useJourneys, useQuests, useSaveQuest, useUserJourneyStatuses, useUserQuestStatuses } from "../../../src/features/quests/api/questApi";
 import { useLoreEntries } from "../../../src/features/lore/api/loreApi";
 import type {
   Journey,
@@ -31,7 +30,7 @@ const CATEGORIES: (QuestCategory | "For You" | "All" | "Saved")[] = [
   "Skill",
   "Culture",
   "Food & Drink",
-  "Wellness",
+  "Fitness",
   "Social"
 ];
 const COSTS: (QuestCost | "All")[] = ["All", "Free", "£", "££", "£££"];
@@ -315,13 +314,13 @@ export default function Explore() {
   const [showFilters, setShowFilters] = useState(false);
   const [activeCost, setActiveCost] = useState<QuestCost | "All">("All");
   const [activeLength, setActiveLength] = useState<QuestLength | "All">("All");
-  const [selectedJourneyNodeId, setSelectedJourneyNodeId] = useState<string | null>(null);
 
   const { savedQuestIds, activeQuests } = useExperienceStore();
   const saveQuest = useSaveQuest();
   const { data: quests = [], isLoading: isLoadingQuests } = useQuests();
   const { data: journeys = [], isLoading: isLoadingJourneys, isFetching: isFetchingJourneys } = useJourneys();
   const { data: questStatuses } = useUserQuestStatuses();
+  const { data: journeyStatuses } = useUserJourneyStatuses();
   const { data: loreEntries = [] } = useLoreEntries();
 
   const activeQuestIds = useMemo(
@@ -336,15 +335,9 @@ export default function Explore() {
     });
     return ids;
   }, [loreEntries, questStatuses?.completed]);
+  const completedJourneyIds = useMemo(() => new Set(journeyStatuses?.completed || []), [journeyStatuses?.completed]);
   const questById = useMemo(() => new Map(quests.map((quest) => [quest.id, quest])), [quests]);
   const exclusiveQuestIds = useMemo(() => getExclusiveJourneyQuestIds(journeys), [journeys]);
-  const journeyTreeProgress = useMemo(
-    () => ({
-      completedQuestIds,
-      activeQuestIds
-    }),
-    [activeQuestIds, completedQuestIds]
-  );
 
   const filteredQuests = useMemo(() => {
     return quests.filter((quest) => {
@@ -354,6 +347,7 @@ export default function Explore() {
 
       if (activeQuestIds.has(quest.id)) return false;
       if (exclusiveQuestIds.has(quest.id)) return false;
+      if (getSideQuestLock(quest, quests, completedQuestIds)?.isLocked) return false;
 
       if (activeCategory === "Saved") {
         return matchesSearch && savedQuestIds.includes(quest.id);
@@ -369,12 +363,13 @@ export default function Explore() {
 
       return matchesSearch && matchesCategory && matchesCost && matchesLength;
     });
-  }, [activeCategory, activeCost, activeLength, activeQuestIds, exclusiveQuestIds, quests, savedQuestIds, searchQuery]);
+  }, [activeCategory, activeCost, activeLength, activeQuestIds, completedQuestIds, exclusiveQuestIds, quests, savedQuestIds, searchQuery]);
 
   const filteredJourneys = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
     return journeys.filter((journey) => {
       if (!journey.isActive) return false;
+      if (getJourneyLock(journey, completedQuestIds, completedJourneyIds)?.isLocked) return false;
 
       const includedQuests = getJourneyQuestIds(journey)
         .map((questId) => questById.get(questId))
@@ -405,14 +400,18 @@ export default function Explore() {
 
       return matchesSearch && matchesCategory && matchesCost && matchesLength;
     });
-  }, [activeCategory, activeCost, activeLength, journeys, questById, savedQuestIds, searchQuery]);
+  }, [activeCategory, activeCost, activeLength, completedJourneyIds, completedQuestIds, journeys, questById, savedQuestIds, searchQuery]);
 
   const recommendedQuest = useMemo(
     () =>
       filteredQuests.find((quest) => quest.categories?.includes("Adventure")) ||
       filteredQuests[0] ||
-      quests.find((quest) => !activeQuestIds.has(quest.id)),
-    [activeQuestIds, filteredQuests, quests]
+      quests.find((quest) =>
+        !activeQuestIds.has(quest.id) &&
+        !exclusiveQuestIds.has(quest.id) &&
+        !getSideQuestLock(quest, quests, completedQuestIds)?.isLocked
+      ),
+    [activeQuestIds, completedQuestIds, exclusiveQuestIds, filteredQuests, quests]
   );
   const questTileSize = Math.min(176, Math.max(148, (width - 64) / 2.15)) * 1.1;
 
@@ -525,37 +524,6 @@ export default function Explore() {
                 />
               ))}
             </ScrollView>
-          )}
-        </View>
-
-        <View className="mb-8">
-          <SectionTitle title="Journey Tree" />
-          {(isLoadingJourneys || isFetchingJourneys) && filteredJourneys.length === 0 ? (
-            <View className="items-center justify-center py-12">
-              <ActivityIndicator size="large" color={colors.accent} />
-            </View>
-          ) : filteredJourneys.length === 0 ? (
-            <View className="mx-6 items-center justify-center rounded-card border border-dashed border-line py-12">
-              <AppText className="text-center text-muted">No journeys found.</AppText>
-            </View>
-          ) : (
-            <View className="mx-0 overflow-hidden">
-              <JourneyTreeMap
-                journeys={filteredJourneys}
-                quests={quests}
-                progress={journeyTreeProgress}
-                selectedNodeId={selectedJourneyNodeId}
-                onSelectNode={(node) => setSelectedJourneyNodeId(node.id)}
-                onDeselectNode={() => setSelectedJourneyNodeId(null)}
-                onQuestPress={(quest) => router.push({ pathname: "/quest/[id]", params: { id: quest.id } })}
-                onEntryPress={(entry) => router.push({ pathname: "/lore/[id]", params: { id: entry.id } })}
-                onJourneyPress={(journeyId) => router.push({ pathname: "/journey/[id]", params: { id: journeyId } })}
-                onSaveQuest={(quest) => saveQuest.mutate(quest.id)}
-                savedQuestIds={savedQuestIds}
-                completedLoreEntries={loreEntries}
-                height={520}
-              />
-            </View>
           )}
         </View>
 

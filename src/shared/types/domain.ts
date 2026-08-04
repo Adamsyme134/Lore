@@ -61,7 +61,7 @@ export type QuestTextNode = {
 export type QuestContentBlock = QuestTextNode | QuestWidget;
 
 // --- NEW ENUMS & TYPES ---
-export type QuestCategory = "Adventure" | "Skill" | "Culture" | "Food & Drink" | "Wellness" | "Social";
+export type QuestCategory = "Adventure" | "Skill" | "Culture" | "Food & Drink" | "Fitness" | "Social";
 export type QuestCost = "Free" | "£" | "££" | "£££";
 export type QuestLength = "A few hours" | "Full day" | "Multi-day" | "Long-term";
 export type QuestDifficulty = "Easy" | "Medium" | "Challenging";
@@ -163,6 +163,7 @@ export type Journey = {
   questIds: string[];
   publicQuestIds: string[];
   rootQuestIds?: string[];
+  rootBranchSide?: "left" | "right";
   ringOrder?: number | null;
   treeNodes?: JourneyTreeNode[];
   treeEdges?: JourneyTreeEdge[];
@@ -191,6 +192,8 @@ export type Quest = {
   pointsValue: number;
   galleryUrls?: string[];
   autoCompleteQuestIds?: string[];
+  unlockQuestIds?: string[];
+  unlockedByQuestIds?: string[];
 
   // --- VISIBLE TAGS ---
   categories: QuestCategory[];
@@ -245,6 +248,7 @@ export type LoreEntry = {
   accent: Accent;
   pointsAwarded: number;
   autoCompletedQuests?: Quest[];
+  completionStreak?: number;
 };
 
 export type FriendMoment = {
@@ -271,6 +275,7 @@ export type Profile = {
   avatarUrl?: string | null;
   homeCity?: string | null;
   pointsTotal: number;
+  currentStreak?: number;
 };
 
 export type FriendRequest = {

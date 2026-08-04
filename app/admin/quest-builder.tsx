@@ -33,7 +33,7 @@ import type {
 } from "../../src/shared/types/domain";
 import { requireSupabase } from "../../src/lib/supabase";
 
-const CATEGORIES: (QuestCategory | "All")[] = ["All", "Adventure", "Skill", "Culture", "Food & Drink", "Wellness", "Social"];
+const CATEGORIES: (QuestCategory | "All")[] = ["All", "Adventure", "Skill", "Culture", "Food & Drink", "Fitness", "Social"];
 const JOURNEY_ICON_OPTIONS = [
   ...[
     "mountain",
@@ -409,6 +409,9 @@ const createBlankQuest = (): Quest => ({
   pointsValue: 15,
   imagePosition: "50% 50%",
   galleryUrls: [],
+  autoCompleteQuestIds: [],
+  unlockQuestIds: [],
+  unlockedByQuestIds: [],
   categories: ["Adventure"],
   cost: "Free" as QuestCost,
   length: "A few hours" as QuestLength,
@@ -442,6 +445,7 @@ const createBlankJourney = (quests: Quest[] = []): Journey => {
     questIds: [],
     publicQuestIds: [],
     rootQuestIds: [],
+    rootBranchSide: "right" as const,
     ringOrder: null,
     treeNodes: [],
     treeEdges: [],
@@ -450,6 +454,8 @@ const createBlankJourney = (quests: Quest[] = []): Journey => {
     isActive: true
   };
 };
+
+const connectsToJourneyRing = (journey: Pick<Journey, "rootQuestIds">) => !(journey.rootQuestIds ?? []).length;
 
 const buildLinearJourneyTree = (baseJourney: Journey, questIds: string[], quests: Quest[]) => {
   const questById = new Map(quests.map(q => [q.id, q]));
@@ -487,7 +493,8 @@ const buildJourneyFromQuestIds = (baseJourney: Journey, questIds: string[], ques
     questIds,
     publicQuestIds: (baseJourney.publicQuestIds ?? []).filter((questId) => questIds.includes(questId)),
     rootQuestIds: baseJourney.rootQuestIds ?? [],
-    ringOrder: baseJourney.ringOrder ?? null,
+    rootBranchSide: baseJourney.rootBranchSide ?? "right",
+    ringOrder: connectsToJourneyRing(baseJourney) ? baseJourney.ringOrder ?? null : null,
     timeline: questIds.map((questId, index) => ({
       id: `${baseJourney.id}-timeline-${questId}`,
       title: questById.get(questId)?.title || baseJourney.timeline.find(item => item.questId === questId)?.title || `Experience ${index + 1}`,
@@ -541,7 +548,8 @@ const buildJourneyFromTree = (baseJourney: Journey, treeNodes: JourneyTreeNode[]
     questIds,
     publicQuestIds: (baseJourney.publicQuestIds ?? []).filter((questId) => questIds.includes(questId)),
     rootQuestIds: baseJourney.rootQuestIds ?? [],
-    ringOrder: baseJourney.ringOrder ?? null,
+    rootBranchSide: baseJourney.rootBranchSide ?? "right",
+    ringOrder: connectsToJourneyRing(baseJourney) ? baseJourney.ringOrder ?? null : null,
     timeline: questIds.map((questId, index) => ({
       id: `${baseJourney.id}-timeline-${questId}`,
       title: questById.get(questId)?.title || `Experience ${index + 1}`,
@@ -581,6 +589,7 @@ const createJourneyBranchDraft = (parentNode: JourneyTreeRenderNode | null, ques
     description: "A connected journey unlocked from another branch.",
     questIds: [],
     rootQuestIds: [parentNode.questId],
+    rootBranchSide: "right" as const,
     timeline: [],
     totalCount: 0,
     nextQuestId: null,
@@ -833,7 +842,7 @@ export default function QuestBuilderAdmin() {
   const [libraryKind, setLibraryKind] = useState<'quests' | 'journeys'>('quests');
   const [editorKind, setEditorKind] = useState<'quest' | 'journey'>('quest');
   const [focusIndex, setFocusIndex] = useState<number | null>(null);
-  const [activeTab, setActiveTab] = useState<'basic' | 'tags' | 'metadata'>('basic');
+  const [activeTab, setActiveTab] = useState<'basic' | 'tags' | 'metadata' | 'links'>('basic');
   const [previewMode, setPreviewMode] = useState<'hero' | 'details'>('hero');
   const [activeWidgetConfig, setActiveWidgetConfig] = useState<{
     stepIndex: number; 
@@ -868,6 +877,10 @@ export default function QuestBuilderAdmin() {
   const [isJourneyAddChoiceOpen, setIsJourneyAddChoiceOpen] = useState(false);
   const [autoCompleteQuestSearch, setAutoCompleteQuestSearch] = useState('');
   const [isAutoCompleteQuestSearchOpen, setIsAutoCompleteQuestSearchOpen] = useState(false);
+  const [unlockQuestSearch, setUnlockQuestSearch] = useState('');
+  const [isUnlockQuestSearchOpen, setIsUnlockQuestSearchOpen] = useState(false);
+  const [unlockedByQuestSearch, setUnlockedByQuestSearch] = useState('');
+  const [isUnlockedByQuestSearchOpen, setIsUnlockedByQuestSearchOpen] = useState(false);
   const [journeyIconSearch, setJourneyIconSearch] = useState('');
   const [isJourneyIconPickerOpen, setIsJourneyIconPickerOpen] = useState(false);
   const [activeCategory, setActiveCategory] = useState<QuestCategory | "All">("All");
@@ -904,6 +917,8 @@ export default function QuestBuilderAdmin() {
             imagePosition: q.image_position || "center",
             galleryUrls: q.gallery_urls || [],
             autoCompleteQuestIds: q.auto_complete_quest_ids || [],
+            unlockQuestIds: q.unlock_quest_ids || [],
+            unlockedByQuestIds: q.unlocked_by_quest_ids || [],
             categories: (q.categories as QuestCategory[]) || (q.category ? [q.category] : ["Adventure"]),
             cost: (q.cost as QuestCost) || "Free",
             length: (q.length as QuestLength) || "A few hours",
@@ -943,7 +958,20 @@ export default function QuestBuilderAdmin() {
           .order('created_at', { ascending: false });
         if (error) throw error;
 
-        setSavedJourneys((data || []).map((row) => mapJourney(row as JourneyRow)));
+        const fetchedJourneys = (data || []).map((row) => mapJourney(row as JourneyRow));
+        const offRingJourneyIdsWithOrder = fetchedJourneys
+          .filter((item) => !connectsToJourneyRing(item) && item.ringOrder !== null && item.ringOrder !== undefined)
+          .map((item) => item.id);
+        if (offRingJourneyIdsWithOrder.length) {
+          void Promise.all(
+            offRingJourneyIdsWithOrder.map((id) =>
+              client.from('journeys').update({ ring_order: null }).eq('id', id)
+            )
+          ).catch((cleanupError) => console.error("Failed to clear off-ring journey order:", cleanupError));
+        }
+        setSavedJourneys(fetchedJourneys.map((item) => (
+          connectsToJourneyRing(item) ? item : { ...item, ringOrder: null }
+        )));
       } catch (error) {
         console.error("Error fetching journeys:", error);
         setSavedJourneys(previewJourneys);
@@ -963,6 +991,7 @@ export default function QuestBuilderAdmin() {
   const handleSave = async () => {
     try {
       const client = requireSupabase(); 
+      const uniqueIds = (questIds: string[]) => Array.from(new Set(questIds.filter(id => id && id !== quest.id)));
       const questData = {
         slug: quest.slug,
         title: quest.title,
@@ -990,6 +1019,8 @@ export default function QuestBuilderAdmin() {
         accessibility: quest.accessibility,
         location_types: quest.locationTypes,
         auto_complete_quest_ids: quest.autoCompleteQuestIds || [],
+        unlock_quest_ids: uniqueIds(quest.unlockQuestIds || []),
+        unlocked_by_quest_ids: uniqueIds(quest.unlockedByQuestIds || []),
         is_curated: true,
         is_active: true
       };
@@ -1003,10 +1034,66 @@ export default function QuestBuilderAdmin() {
       }
 
       if (result.error) throw result.error;
+      const savedQuestId = result.data.id as string;
+      const desiredUnlockQuestIds = uniqueIds(quest.unlockQuestIds || []);
+      const desiredUnlockedByQuestIds = uniqueIds(quest.unlockedByQuestIds || []);
+      const currentSavedQuest = savedQuests.find(item => item.id === quest.id);
+      const relatedQuestIds = Array.from(new Set([
+        ...desiredUnlockQuestIds,
+        ...desiredUnlockedByQuestIds,
+        ...(currentSavedQuest?.unlockQuestIds || []),
+        ...(currentSavedQuest?.unlockedByQuestIds || []),
+        ...savedQuests.filter(item => (item.unlockedByQuestIds || []).includes(quest.id)).map(item => item.id),
+        ...savedQuests.filter(item => (item.unlockQuestIds || []).includes(quest.id)).map(item => item.id)
+      ].filter(id => id && id !== savedQuestId)));
+
+      const inverseUpdates = relatedQuestIds.map(questId => {
+        const targetQuest = savedQuests.find(item => item.id === questId);
+        if (!targetQuest) return null;
+
+        const nextUnlockQuestIds = new Set(targetQuest.unlockQuestIds || []);
+        const nextUnlockedByQuestIds = new Set(targetQuest.unlockedByQuestIds || []);
+
+        if (desiredUnlockQuestIds.includes(questId)) nextUnlockedByQuestIds.add(savedQuestId);
+        else nextUnlockedByQuestIds.delete(savedQuestId);
+
+        if (desiredUnlockedByQuestIds.includes(questId)) nextUnlockQuestIds.add(savedQuestId);
+        else nextUnlockQuestIds.delete(savedQuestId);
+
+        return client
+          .from('quests')
+          .update({
+            unlock_quest_ids: Array.from(nextUnlockQuestIds),
+            unlocked_by_quest_ids: Array.from(nextUnlockedByQuestIds)
+          })
+          .eq('id', questId);
+      }).filter(Boolean);
+
+      const inverseResults = await Promise.all(inverseUpdates);
+      const inverseError = inverseResults.find((item: any) => item?.error)?.error;
+      if (inverseError) throw inverseError;
+
       alert("Quest successfully saved!");
       setSavedQuests(prev => {
-        const mapped = { ...quest, id: result.data.id }; 
-        return isNew ? [mapped, ...prev] : prev.map(q => q.id === quest.id ? mapped : q);
+        const mapped = { ...quest, id: savedQuestId, unlockQuestIds: desiredUnlockQuestIds, unlockedByQuestIds: desiredUnlockedByQuestIds };
+        const nextQuests = isNew ? [mapped, ...prev] : prev.map(q => q.id === quest.id ? mapped : q);
+        return nextQuests.map(item => {
+          if (item.id === savedQuestId) return item;
+          const nextUnlockQuestIds = new Set(item.unlockQuestIds || []);
+          const nextUnlockedByQuestIds = new Set(item.unlockedByQuestIds || []);
+
+          if (desiredUnlockQuestIds.includes(item.id)) nextUnlockedByQuestIds.add(savedQuestId);
+          else nextUnlockedByQuestIds.delete(savedQuestId);
+
+          if (desiredUnlockedByQuestIds.includes(item.id)) nextUnlockQuestIds.add(savedQuestId);
+          else nextUnlockQuestIds.delete(savedQuestId);
+
+          return {
+            ...item,
+            unlockQuestIds: Array.from(nextUnlockQuestIds),
+            unlockedByQuestIds: Array.from(nextUnlockedByQuestIds)
+          };
+        });
       });
       setView('grid');
     } catch (error: any) {
@@ -1020,6 +1107,7 @@ export default function QuestBuilderAdmin() {
       const generatedJourney = journey.treeNodes?.length
         ? buildJourneyFromTree(journey, journey.treeNodes, journey.treeEdges ?? [], savedQuests)
         : buildJourneyFromQuestIds(journey, journey.questIds, savedQuests);
+      const ringOrder = connectsToJourneyRing(generatedJourney) ? generatedJourney.ringOrder : null;
       const journeyData = {
         slug: generatedJourney.slug,
         title: generatedJourney.title,
@@ -1038,7 +1126,8 @@ export default function QuestBuilderAdmin() {
         quest_ids: generatedJourney.questIds,
         public_quest_ids: generatedJourney.visibility === "exclusive" ? generatedJourney.publicQuestIds : [],
         root_quest_ids: generatedJourney.rootQuestIds ?? [],
-        ring_order: generatedJourney.ringOrder,
+        root_branch_side: generatedJourney.rootBranchSide ?? "right",
+        ring_order: ringOrder,
         tree_nodes: generatedJourney.treeNodes ?? [],
         tree_edges: generatedJourney.treeEdges ?? [],
         is_active: true
@@ -1052,7 +1141,7 @@ export default function QuestBuilderAdmin() {
       if (result.error) throw result.error;
       alert("Journey successfully saved!");
       setSavedJourneys(prev => {
-        const mapped = { ...generatedJourney, id: result.data.id };
+        const mapped = { ...generatedJourney, id: result.data.id, ringOrder };
         return isNew ? [mapped, ...prev] : prev.map(item => item.id === generatedJourney.id ? mapped : item);
       });
       setLibraryKind('journeys');
@@ -1109,7 +1198,7 @@ export default function QuestBuilderAdmin() {
       item.description.toLowerCase().includes(searchQuery.toLowerCase())
     );
     const orderedRingJourneys = [...savedJourneys]
-      .filter(item => item.isActive)
+      .filter(item => item.isActive && connectsToJourneyRing(item))
       .sort((a, b) => {
         const aOrder = typeof a.ringOrder === "number" ? a.ringOrder : Number.MAX_SAFE_INTEGER;
         const bOrder = typeof b.ringOrder === "number" ? b.ringOrder : Number.MAX_SAFE_INTEGER;
@@ -1187,15 +1276,25 @@ export default function QuestBuilderAdmin() {
     const handleReorderJourneys = (orderedJourneyIds: string[]) => {
       const orderById = new Map(orderedJourneyIds.map((id, index) => [id, index]));
       const nextJourneys = savedJourneys.map((item) => (
-        orderById.has(item.id) ? { ...item, ringOrder: orderById.get(item.id) ?? null } : item
+        connectsToJourneyRing(item)
+          ? { ...item, ringOrder: orderById.get(item.id) ?? null }
+          : { ...item, ringOrder: null }
       ));
+      const offRingJourneyIdsWithOrder = savedJourneys
+        .filter((item) => !connectsToJourneyRing(item) && item.ringOrder !== null && item.ringOrder !== undefined)
+        .map((item) => item.id);
       setSavedJourneys(nextJourneys);
       try {
         const client = requireSupabase();
         void Promise.all(
-          orderedJourneyIds.map((id, index) =>
-            client.from('journeys').update({ ring_order: index }).eq('id', id)
-          )
+          [
+            ...orderedJourneyIds.map((id, index) =>
+              client.from('journeys').update({ ring_order: index }).eq('id', id)
+            ),
+            ...offRingJourneyIdsWithOrder.map((id) =>
+              client.from('journeys').update({ ring_order: null }).eq('id', id)
+            )
+          ]
         );
       } catch (error) {
         console.error("Failed to persist journey ring order:", error);
@@ -1222,7 +1321,7 @@ export default function QuestBuilderAdmin() {
             </View>
           </View>
           <View className="flex-row gap-3">
-            <Pressable onPress={() => { setQuest(createBlankQuest()); setAutoCompleteQuestSearch(''); setIsAutoCompleteQuestSearchOpen(false); setEditorKind('quest'); setView('editor'); setPreviewMode('hero'); setActiveTab('basic'); }} className="bg-stone px-6 py-3 rounded-full border border-line">
+            <Pressable onPress={() => { setQuest(createBlankQuest()); setAutoCompleteQuestSearch(''); setIsAutoCompleteQuestSearchOpen(false); setUnlockQuestSearch(''); setIsUnlockQuestSearchOpen(false); setUnlockedByQuestSearch(''); setIsUnlockedByQuestSearchOpen(false); setEditorKind('quest'); setView('editor'); setPreviewMode('hero'); setActiveTab('basic'); }} className="bg-stone px-6 py-3 rounded-full border border-line">
               <AppText className="text-ink font-sansSemi">+ Create New Quest</AppText>
             </Pressable>
             <Pressable onPress={() => { setJourney(createBlankJourney(savedQuests)); setJourneyQuestSearch(''); setJourneyRootQuestSearch(''); setIsJourneyQuestSearchOpen(false); setIsJourneyRootQuestSearchOpen(false); setJourneyAddParentNodeId(null); setJourneyAddParentNode(null); setSelectedJourneyTreeNode(null); setIsJourneyAddChoiceOpen(false); setJourneyIconSearch(''); setIsJourneyIconPickerOpen(false); setEditorKind('journey'); setView('editor'); }} className="bg-accent px-6 py-3 rounded-full">
@@ -1411,7 +1510,7 @@ export default function QuestBuilderAdmin() {
                     </View>
                   </View>
 
-                  <Pressable onPress={() => { setQuest(q); setAutoCompleteQuestSearch(''); setIsAutoCompleteQuestSearchOpen(false); setEditorKind('quest'); setView('editor'); setPreviewMode('hero'); setActiveTab('basic'); }} className="bg-stone py-2 rounded-lg items-center border border-line hover:bg-stone-300">
+                  <Pressable onPress={() => { setQuest(q); setAutoCompleteQuestSearch(''); setIsAutoCompleteQuestSearchOpen(false); setUnlockQuestSearch(''); setIsUnlockQuestSearchOpen(false); setUnlockedByQuestSearch(''); setIsUnlockedByQuestSearchOpen(false); setEditorKind('quest'); setView('editor'); setPreviewMode('hero'); setActiveTab('basic'); }} className="bg-stone py-2 rounded-lg items-center border border-line hover:bg-stone-300">
                     <AppText className="text-ink font-sansSemi text-sm">Edit Quest</AppText>
                   </Pressable>
                 </View>
@@ -1501,7 +1600,8 @@ export default function QuestBuilderAdmin() {
     const addRootQuestToJourney = (questToAdd: Quest) => {
       setJourney(prev => ({
         ...prev,
-        rootQuestIds: Array.from(new Set([...(prev.rootQuestIds ?? []), questToAdd.id]))
+        rootQuestIds: Array.from(new Set([...(prev.rootQuestIds ?? []), questToAdd.id])),
+        ringOrder: null
       }));
       setJourneyRootQuestSearch('');
       setIsJourneyRootQuestSearchOpen(false);
@@ -1519,8 +1619,15 @@ export default function QuestBuilderAdmin() {
           : buildJourneyFromQuestIds(prev, prev.questIds, savedQuests);
         const treeNodes = [...(base.treeNodes ?? [])];
         const treeEdges = [...(base.treeEdges ?? [])];
-        const outgoingNodeIds = new Set(treeEdges.map(edge => edge.fromNodeId));
-        const journeyEndpoint = [...treeNodes].reverse().find(node => node.kind === "quest" && !outgoingNodeIds.has(node.id));
+        const nodeById = new Map(treeNodes.map(node => [node.id, node]));
+        const outgoingMainNodeIds = new Set(
+          treeEdges
+            .filter(edge => nodeById.get(edge.toNodeId)?.branchId !== "side-branch")
+            .map(edge => edge.fromNodeId)
+        );
+        const journeyEndpoint = [...treeNodes]
+          .reverse()
+          .find(node => node.kind === "quest" && node.branchId !== "side-branch" && !outgoingMainNodeIds.has(node.id));
         const parentNode = parentNodeId
           ? treeNodes.find(node => node.id === parentNodeId)
           : journeyEndpoint || null;
@@ -1532,7 +1639,7 @@ export default function QuestBuilderAdmin() {
           kind: "quest",
           questId: questToAdd.id,
           title: questToAdd.title,
-          branchId: parentNode && (journeyAddPlacement === "branch" || shouldBranchFromSharedRoot) ? "side-branch" : undefined,
+          branchId: parentNodeId && parentNode && (journeyAddPlacement === "branch" || shouldBranchFromSharedRoot) ? "side-branch" : undefined,
           prerequisites: isPlaceholderParent
             ? parentNode.prerequisites
             : parentNode?.questId
@@ -1776,6 +1883,24 @@ export default function QuestBuilderAdmin() {
                     onRemove={() => removeRootQuestFromJourney(q.id)}
                   />
                 ))}
+                {selectedRootQuests.length === 1 ? (
+                  <View className="mt-3 rounded-xl border border-line bg-stone p-4">
+                    <AppText className="mb-3 text-xs font-sansSemi uppercase tracking-widest text-ink/50">Branch side</AppText>
+                    <View className="flex-row rounded-full border border-line bg-surface p-1">
+                      {(["left", "right"] as const).map((side) => (
+                        <Pressable
+                          key={side}
+                          onPress={() => updateJourneyField("rootBranchSide", side)}
+                          className={`flex-1 rounded-full px-4 py-2 ${generatedJourney.rootBranchSide === side ? "bg-accent" : "bg-transparent"}`}
+                        >
+                          <AppText className={`text-center font-sansSemi capitalize ${generatedJourney.rootBranchSide === side ? "text-accentText" : "text-ink/60"}`}>
+                            {side}
+                          </AppText>
+                        </Pressable>
+                      ))}
+                    </View>
+                  </View>
+                ) : null}
               </View>
             )}
 
@@ -1825,6 +1950,7 @@ export default function QuestBuilderAdmin() {
                 onPress={() => {
                   setJourneyAddParentNodeId(null);
                   setJourneyAddParentNode(null);
+                  setJourneyAddPlacement("linear");
                   setIsJourneyRootQuestSearchOpen(false);
                   setIsJourneyQuestSearchOpen(value => !value);
                 }}
@@ -2013,6 +2139,14 @@ export default function QuestBuilderAdmin() {
   const linkedAutoCompleteQuests = (quest.autoCompleteQuestIds || [])
     .map(id => savedQuests.find(q => q.id === id))
     .filter(Boolean) as Quest[];
+  const linkedJourneys = savedJourneys.filter(journey => {
+    if (!quest.id || quest.id.startsWith("draft-")) return false;
+    if ((journey.questIds || []).includes(quest.id)) return true;
+    if ((journey.rootQuestIds || []).includes(quest.id)) return true;
+    if ((journey.publicQuestIds || []).includes(quest.id)) return true;
+    if ((journey.timeline || []).some(item => item.questId === quest.id)) return true;
+    return (journey.treeNodes || []).some(node => node.questId === quest.id);
+  });
   const autoCompleteSearch = autoCompleteQuestSearch.trim().toLowerCase();
   const addableAutoCompleteQuests = savedQuests.filter(q => {
     if (q.id === quest.id) return false;
@@ -2021,6 +2155,28 @@ export default function QuestBuilderAdmin() {
     return q.title.toLowerCase().includes(autoCompleteSearch) || q.description.toLowerCase().includes(autoCompleteSearch);
   });
   const updateAutoCompleteQuestIds = (questIds: string[]) => updateField("autoCompleteQuestIds", questIds);
+  const linkedUnlockQuests = (quest.unlockQuestIds || [])
+    .map(id => savedQuests.find(q => q.id === id))
+    .filter(Boolean) as Quest[];
+  const linkedUnlockedByQuests = (quest.unlockedByQuestIds || [])
+    .map(id => savedQuests.find(q => q.id === id))
+    .filter(Boolean) as Quest[];
+  const unlockQuestSearchText = unlockQuestSearch.trim().toLowerCase();
+  const unlockedByQuestSearchText = unlockedByQuestSearch.trim().toLowerCase();
+  const addableUnlockQuests = savedQuests.filter(q => {
+    if (q.id === quest.id) return false;
+    if ((quest.unlockQuestIds || []).includes(q.id)) return false;
+    if (!unlockQuestSearchText) return true;
+    return q.title.toLowerCase().includes(unlockQuestSearchText) || q.description.toLowerCase().includes(unlockQuestSearchText);
+  });
+  const addableUnlockedByQuests = savedQuests.filter(q => {
+    if (q.id === quest.id) return false;
+    if ((quest.unlockedByQuestIds || []).includes(q.id)) return false;
+    if (!unlockedByQuestSearchText) return true;
+    return q.title.toLowerCase().includes(unlockedByQuestSearchText) || q.description.toLowerCase().includes(unlockedByQuestSearchText);
+  });
+  const updateUnlockQuestIds = (questIds: string[]) => updateField("unlockQuestIds", Array.from(new Set(questIds.filter(id => id !== quest.id))));
+  const updateUnlockedByQuestIds = (questIds: string[]) => updateField("unlockedByQuestIds", Array.from(new Set(questIds.filter(id => id !== quest.id))));
 
   return (
     <View className="flex-1 flex-row bg-surface">
@@ -2038,9 +2194,9 @@ export default function QuestBuilderAdmin() {
         </View>
 
         <View className="flex-row border-b border-line bg-stone">
-          {(['basic', 'tags', 'metadata'] as const).map(tab => (
+          {(['basic', 'tags', 'metadata', 'links'] as const).map(tab => (
             <Pressable key={tab} onPress={() => setActiveTab(tab)} className={`flex-1 p-4 items-center ${activeTab === tab ? 'bg-surface border-b-2 border-orange' : ''}`}>
-              <AppText className={activeTab === tab ? 'text-ink font-sansSemi' : 'text-ink/50 capitalize'}>{tab} Info</AppText>
+              <AppText className={activeTab === tab ? 'text-ink font-sansSemi' : 'text-ink/50 capitalize'}>{tab === 'links' ? 'Links' : `${tab} Info`}</AppText>
             </Pressable>
           ))}
         </View>
@@ -2096,7 +2252,7 @@ export default function QuestBuilderAdmin() {
                   <View className="flex-1"><AppText className="text-xs mb-1">Max Size</AppText><TextInput className="bg-surface border border-line rounded p-2" value={quest.maxParticipants.toString()} keyboardType="number-pad" onChangeText={(txt) => updateField("maxParticipants", parseInt(txt) || 5)} /></View>
                 </View>
               )}
-              <View className="z-40 mb-2"><MultiToggleGroup label="Categories" options={["Adventure", "Skill", "Culture", "Food & Drink", "Wellness", "Social"]} selected={quest.categories} onSelect={(val) => updateField("categories", val)} /></View>
+              <View className="z-40 mb-2"><MultiToggleGroup label="Categories" options={["Adventure", "Skill", "Culture", "Food & Drink", "Fitness", "Social"]} selected={quest.categories} onSelect={(val) => updateField("categories", val)} /></View>
               <View className="mb-6 z-40"><Dropdown label="Cost" value={quest.cost} options={["Free", "£", "££", "£££"]} onSelect={(val) => updateField("cost", val)} /></View>
               <View className="flex-row gap-4 z-30"><DurationInput value={quest.duration} onChange={(val) => updateField("duration", val)} /><Dropdown label="Difficulty" value={quest.difficulty} options={["Easy", "Medium", "Challenging"]} onSelect={(val) => updateField("difficulty", val)} /></View>
               <View className="flex-row gap-4 z-20"><View className="flex-1 mb-6"><AppText variant="subtitle" className="mb-2">Points Awarded</AppText><TextInput className="bg-surface border border-line rounded-lg p-4 font-sans text-ink" value={quest.pointsValue.toString()} keyboardType="number-pad" onChangeText={(txt) => updateField("pointsValue", parseInt(txt) || 10)} /></View><View className="flex-1" /></View>
@@ -2118,6 +2274,36 @@ export default function QuestBuilderAdmin() {
               <MultiToggleGroup label="Seasons" options={["Spring", "Summer", "Autumn", "Winter", "All year"]} selected={quest.seasons} onSelect={(val) => updateField("seasons", val)} />
               <MultiToggleGroup label="Accessibility" options={["Walking", "Public Transport", "Driving", "Wheelchair Accessible"]} selected={quest.accessibility} onSelect={(val) => updateField("accessibility", val)} />
               <MultiToggleGroup label="Location Types" options={["City", "Town", "Countryside", "Abroad", "Anywhere"]} selected={quest.locationTypes} onSelect={(val) => updateField("locationTypes", val)} />
+            </View>
+          )}
+
+          {activeTab === 'links' && (
+            <View className="z-50">
+              <View className="mb-8">
+                <AppText variant="subtitle" className="mb-3">Journeys</AppText>
+                {linkedJourneys.length === 0 ? (
+                  <View className="mb-4 rounded-xl border border-dashed border-line bg-stone p-6">
+                    <AppText className="text-center text-ink/50">This quest is not part of any journeys yet.</AppText>
+                  </View>
+                ) : (
+                  <View className="mb-4">
+                    {linkedJourneys.map(journey => (
+                      <View key={journey.id} className="mb-3 flex-row items-center rounded-xl border border-line bg-surface p-3">
+                        <Image source={{ uri: journey.backgroundImageUrl }} className="mr-3 h-12 w-12 rounded-lg bg-stone" contentFit="cover" />
+                        <View className="mr-3 h-10 w-10 items-center justify-center rounded-full border border-line bg-stone">
+                          <JourneyIcon name={journey.iconName} size={20} color="#1C1A17" />
+                        </View>
+                        <View className="flex-1">
+                          <AppText className="font-sansSemi text-ink" numberOfLines={1}>{journey.title}</AppText>
+                          <AppText className="mt-1 text-xs text-ink/50" numberOfLines={1}>
+                            {journey.visibility === "exclusive" ? "Exclusive" : "Global"} · {journey.totalCount} quests
+                          </AppText>
+                        </View>
+                      </View>
+                    ))}
+                  </View>
+                )}
+              </View>
 
               <View className="mb-8">
                 <View className="mb-3 flex-row items-center justify-between">
@@ -2164,6 +2350,130 @@ export default function QuestBuilderAdmin() {
                             onPress={() => {
                               updateAutoCompleteQuestIds([...(quest.autoCompleteQuestIds || []), q.id]);
                               setAutoCompleteQuestSearch('');
+                            }}
+                            className="mb-2 flex-row items-center rounded-xl border border-line bg-surface p-3"
+                          >
+                            <Image source={{ uri: q.imageUrl }} className="mr-3 h-12 w-12 rounded-lg bg-stone" contentFit="cover" />
+                            <View className="flex-1">
+                              <AppText className="font-sansSemi text-ink" numberOfLines={1}>{q.title}</AppText>
+                              <AppText className="mt-1 text-xs text-ink/50" numberOfLines={1}>{q.length} · {q.difficulty}</AppText>
+                            </View>
+                            <AppText className="text-orange font-sansSemi">Link</AppText>
+                          </Pressable>
+                        ))}
+                      </ScrollView>
+                    </View>
+                  </View>
+                )}
+              </View>
+
+              <View className="mb-8">
+                <View className="mb-3 flex-row items-center justify-between">
+                  <AppText variant="subtitle">Unlocks Quests</AppText>
+                  <Pressable
+                    onPress={() => setIsUnlockQuestSearchOpen(value => !value)}
+                    className="h-10 w-10 items-center justify-center rounded-full border border-line bg-accent"
+                  >
+                    <AppText className="text-accentText text-xl">+</AppText>
+                  </Pressable>
+                </View>
+
+                {linkedUnlockQuests.length === 0 ? (
+                  <View className="mb-4 rounded-xl border border-dashed border-line bg-stone p-6">
+                    <AppText className="text-center text-ink/50">No unlockable quests linked yet.</AppText>
+                  </View>
+                ) : (
+                  <View className="mb-4">
+                    {linkedUnlockQuests.map(q => (
+                      <LinkedSubQuestItem
+                        key={q.id}
+                        quest={q}
+                        onRemove={() => updateUnlockQuestIds((quest.unlockQuestIds || []).filter(id => id !== q.id))}
+                      />
+                    ))}
+                  </View>
+                )}
+
+                {isUnlockQuestSearchOpen && (
+                  <View className="rounded-xl border border-line bg-stone p-4">
+                    <TextInput
+                      className="mb-3 rounded-lg border border-line bg-surface p-3 font-sans text-ink"
+                      placeholder="Search quests to unlock..."
+                      value={unlockQuestSearch}
+                      onChangeText={setUnlockQuestSearch}
+                    />
+                    <View className="max-h-80 gap-2">
+                      <ScrollView nestedScrollEnabled>
+                        {addableUnlockQuests.length === 0 ? (
+                          <AppText className="py-4 text-center text-ink/50">No matching quests.</AppText>
+                        ) : addableUnlockQuests.map(q => (
+                          <Pressable
+                            key={q.id}
+                            onPress={() => {
+                              updateUnlockQuestIds([...(quest.unlockQuestIds || []), q.id]);
+                              setUnlockQuestSearch('');
+                            }}
+                            className="mb-2 flex-row items-center rounded-xl border border-line bg-surface p-3"
+                          >
+                            <Image source={{ uri: q.imageUrl }} className="mr-3 h-12 w-12 rounded-lg bg-stone" contentFit="cover" />
+                            <View className="flex-1">
+                              <AppText className="font-sansSemi text-ink" numberOfLines={1}>{q.title}</AppText>
+                              <AppText className="mt-1 text-xs text-ink/50" numberOfLines={1}>{q.length} · {q.difficulty}</AppText>
+                            </View>
+                            <AppText className="text-orange font-sansSemi">Link</AppText>
+                          </Pressable>
+                        ))}
+                      </ScrollView>
+                    </View>
+                  </View>
+                )}
+              </View>
+
+              <View className="mb-8">
+                <View className="mb-3 flex-row items-center justify-between">
+                  <AppText variant="subtitle">Unlocked By</AppText>
+                  <Pressable
+                    onPress={() => setIsUnlockedByQuestSearchOpen(value => !value)}
+                    className="h-10 w-10 items-center justify-center rounded-full border border-line bg-accent"
+                  >
+                    <AppText className="text-accentText text-xl">+</AppText>
+                  </Pressable>
+                </View>
+
+                {linkedUnlockedByQuests.length === 0 ? (
+                  <View className="mb-4 rounded-xl border border-dashed border-line bg-stone p-6">
+                    <AppText className="text-center text-ink/50">This quest does not require another quest to unlock it.</AppText>
+                  </View>
+                ) : (
+                  <View className="mb-4">
+                    {linkedUnlockedByQuests.map(q => (
+                      <LinkedSubQuestItem
+                        key={q.id}
+                        quest={q}
+                        onRemove={() => updateUnlockedByQuestIds((quest.unlockedByQuestIds || []).filter(id => id !== q.id))}
+                      />
+                    ))}
+                  </View>
+                )}
+
+                {isUnlockedByQuestSearchOpen && (
+                  <View className="rounded-xl border border-line bg-stone p-4">
+                    <TextInput
+                      className="mb-3 rounded-lg border border-line bg-surface p-3 font-sans text-ink"
+                      placeholder="Search quests that unlock this..."
+                      value={unlockedByQuestSearch}
+                      onChangeText={setUnlockedByQuestSearch}
+                    />
+                    <View className="max-h-80 gap-2">
+                      <ScrollView nestedScrollEnabled>
+                        {addableUnlockedByQuests.length === 0 ? (
+                          <AppText className="py-4 text-center text-ink/50">No matching quests.</AppText>
+                        ) : addableUnlockedByQuests.map(q => (
+                          <Pressable
+                            key={q.id}
+                            onPress={() => {
+                              updateUnlockedByQuestIds([...(quest.unlockedByQuestIds || []), q.id]);
+                              setUnlockedByQuestSearch('');
                             }}
                             className="mb-2 flex-row items-center rounded-xl border border-line bg-surface p-3"
                           >

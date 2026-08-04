@@ -17,7 +17,7 @@ import type {
 import type { Accent } from "../../../shared/design/tokens";
 import { useExperienceStore } from "../../app/store/useExperienceStore";
 import { QuestCountry } from "../../../shared/types/domain";
-import { getJourneyQuestIdsFromTree } from "../utils/journeyTree";
+import { areRequirementSetsMet, getJourneyQuestIdsFromTree } from "../utils/journeyTree";
 
 export type QuestRow = {
   id: string;
@@ -50,6 +50,8 @@ export type QuestRow = {
   categories?: string[];
   gallery_urls?: string[];
   auto_complete_quest_ids?: string[];
+  unlock_quest_ids?: string[];
+  unlocked_by_quest_ids?: string[];
 
   // ✨ NEW: The stats returned by our Supabase View
   view_count?: number;
@@ -77,6 +79,7 @@ export type JourneyRow = {
   quest_ids?: string[];
   public_quest_ids?: string[];
   root_quest_ids?: string[];
+  root_branch_side?: Journey["rootBranchSide"] | null;
   ring_order?: number | null;
   tree_nodes?: Journey["treeNodes"];
   tree_edges?: Journey["treeEdges"];
@@ -105,6 +108,8 @@ export function mapQuest(row: QuestRow): Quest {
     imagePosition: (row.image_position as "top" | "center" | "bottom") || "center",
     galleryUrls: row.gallery_urls || [],
     autoCompleteQuestIds: row.auto_complete_quest_ids || [],
+    unlockQuestIds: row.unlock_quest_ids || [],
+    unlockedByQuestIds: row.unlocked_by_quest_ids || [],
     categories: (row.categories as QuestCategory[]) || (row.category ? [row.category as QuestCategory] : ["Adventure"]),
     category: (row.category as QuestCategory) || "Adventure",
     cost: (row.cost as QuestCost) || "Free",
@@ -150,6 +155,7 @@ export function mapJourney(row: JourneyRow): Journey {
     questIds: row.quest_ids || [],
     publicQuestIds: row.public_quest_ids || [],
     rootQuestIds: row.root_quest_ids || [],
+    rootBranchSide: row.root_branch_side || "right",
     ringOrder: row.ring_order ?? null,
     treeNodes: row.tree_nodes || [],
     treeEdges: row.tree_edges || [],
@@ -418,6 +424,50 @@ export function getExclusiveQuestLock(
     isLocked: !completedQuestIds.has(previousQuestId),
     previousQuestId,
     reason: "previousQuest" as const
+  };
+}
+
+export function getJourneyLock(
+  journey: Journey,
+  completedQuestIds: Set<string>,
+  completedJourneyIds: Set<string>
+) {
+  const unmetRootQuestId = (journey.rootQuestIds ?? []).find((questId) => !completedQuestIds.has(questId));
+  if (unmetRootQuestId) return { isLocked: true };
+  if (!journey.requirementSets?.length) return null;
+
+  const isUnlocked = areRequirementSetsMet(journey.requirementSets, {
+    completedQuestIds,
+    completedJourneyIds
+  });
+
+  return isUnlocked ? null : { isLocked: true };
+}
+
+export function getSideQuestLock(
+  quest: Quest,
+  quests: Quest[],
+  completedQuestIds: Set<string>
+) {
+  if (completedQuestIds.has(quest.id)) return null;
+
+  const unlockerIds = Array.from(new Set([
+    ...(quest.unlockedByQuestIds ?? []),
+    ...quests
+      .filter((item) => (item.unlockQuestIds ?? []).includes(quest.id))
+      .map((item) => item.id)
+  ]));
+  if (unlockerIds.length === 0) return null;
+  if (unlockerIds.some((questId) => completedQuestIds.has(questId))) return null;
+
+  const unlocker = unlockerIds
+    .map((questId) => quests.find((item) => item.id === questId))
+    .find(Boolean) as Quest | undefined;
+
+  return {
+    isLocked: true,
+    unlockerQuestId: unlockerIds[0],
+    unlockerQuestTitle: unlocker?.title || "the required quest"
   };
 }
 

@@ -9,7 +9,7 @@ import { Screen } from "../../../src/shared/components/Screen";
 import { AppText } from "../../../src/shared/components/AppText";
 import { TopBar } from "../../../src/shared/components/TopBar";
 import { JourneyIcon } from "../../../src/features/quests/components/JourneyIcon";
-import { getJourneyQuestIds, useJourneys, useQuests, useUserQuestStatuses } from "../../../src/features/quests/api/questApi";
+import { getJourneyLock, getJourneyQuestIds, useJourneys, useQuests, useUserJourneyStatuses, useUserQuestStatuses } from "../../../src/features/quests/api/questApi";
 import { useThemeColors } from "../../../src/shared/design/useThemeColors";
 import type { QuestCategory, QuestCost, QuestLength } from "../../../src/shared/types/domain";
 
@@ -21,7 +21,7 @@ const CATEGORIES: (QuestCategory | "For You" | "All" | "Saved")[] = [
   "Skill",
   "Culture",
   "Food & Drink",
-  "Wellness",
+  "Fitness",
   "Social"
 ];
 const COSTS: (QuestCost | "All")[] = ["All", "Free", "£", "££", "£££"];
@@ -38,6 +38,7 @@ export default function JourneysIndexScreen() {
   const { data: journeys = [], isLoading } = useJourneys();
   const { data: quests = [] } = useQuests();
   const { data: questStatuses } = useUserQuestStatuses();
+  const { data: journeyStatuses } = useUserJourneyStatuses();
   const [contentWidth, setContentWidth] = useState(0);
   const [searchQuery, setSearchQuery] = useState("");
   const [activeCategory, setActiveCategory] = useState<QuestCategory | "For You" | "All" | "Saved">("For You");
@@ -48,10 +49,12 @@ export default function JourneysIndexScreen() {
   const cardWidth = contentWidth;
   const questById = useMemo(() => new Map(quests.map((quest) => [quest.id, quest])), [quests]);
   const completedQuestIds = useMemo(() => new Set(questStatuses?.completed || []), [questStatuses?.completed]);
+  const completedJourneyIds = useMemo(() => new Set(journeyStatuses?.completed || []), [journeyStatuses?.completed]);
   const filteredJourneys = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
     return journeys.filter((journey) => {
       if (!journey.isActive) return false;
+      if (getJourneyLock(journey, completedQuestIds, completedJourneyIds)?.isLocked) return false;
       const includedQuests = getJourneyQuestIds(journey).map((questId) => questById.get(questId)).filter(Boolean);
       const matchesSearch =
         !query ||
@@ -67,7 +70,7 @@ export default function JourneysIndexScreen() {
       const matchesLength = activeLength === "All" || includedQuests.some((quest) => quest!.length === activeLength);
       return matchesSearch && matchesCategory && matchesCost && matchesLength;
     });
-  }, [activeCategory, activeCost, activeLength, journeys, questById, searchQuery]);
+  }, [activeCategory, activeCost, activeLength, completedJourneyIds, completedQuestIds, journeys, questById, searchQuery]);
 
   return (
     <Screen contentClassName="px-5">

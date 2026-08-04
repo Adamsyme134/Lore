@@ -11,6 +11,7 @@ export default function TabLayout() {
       }}
     >
       <Tabs.Screen name="today" options={{ title: "Today" }} />
+      <Tabs.Screen name="journeys" options={{ title: "Journeys" }} />
       <Tabs.Screen name="explore" options={{ title: "Explore" }} />
       <Tabs.Screen name="archive" options={{ title: "Lore" }} />
       <Tabs.Screen name="map" options={{ title: "Map" }} />

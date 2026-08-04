@@ -13,7 +13,7 @@ const categoryIcons: Record<QuestCategory, IoniconName> = {
   Skill: "construct-outline",
   Culture: "library-outline",
   "Food & Drink": "restaurant-outline",
-  Wellness: "leaf-outline",
+  Fitness: "leaf-outline",
   Social: "people-outline"
 };
 

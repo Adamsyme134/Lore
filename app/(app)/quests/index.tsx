@@ -9,7 +9,7 @@ import { Screen } from "../../../src/shared/components/Screen";
 import { AppText } from "../../../src/shared/components/AppText";
 import { difficultyPillClass, difficultyPillTextClass, difficultyPillTextColor } from "../../../src/shared/components/Chip";
 import { TopBar } from "../../../src/shared/components/TopBar";
-import { getExclusiveJourneyQuestIds, useJourneys, useQuests, useUserQuestStatuses } from "../../../src/features/quests/api/questApi";
+import { getExclusiveJourneyQuestIds, getSideQuestLock, useJourneys, useQuests, useUserQuestStatuses } from "../../../src/features/quests/api/questApi";
 import { useExperienceStore } from "../../../src/features/app/store/useExperienceStore";
 import { useThemeColors } from "../../../src/shared/design/useThemeColors";
 import type { QuestCategory, QuestCost, QuestLength } from "../../../src/shared/types/domain";
@@ -22,7 +22,7 @@ const CATEGORIES: (QuestCategory | "For You" | "All" | "Saved")[] = [
   "Skill",
   "Culture",
   "Food & Drink",
-  "Wellness",
+  "Fitness",
   "Social"
 ];
 const COSTS: (QuestCost | "All")[] = ["All", "Free", "£", "££", "£££"];
@@ -53,6 +53,7 @@ export default function QuestsIndexScreen() {
     () => new Set([...(questStatuses?.active || []), ...Object.keys(activeQuests)]),
     [activeQuests, questStatuses?.active]
   );
+  const completedQuestIds = useMemo(() => new Set(questStatuses?.completed || []), [questStatuses?.completed]);
   const availableQuests = useMemo(() => {
     return quests.filter((quest) => {
       const matchesSearch =
@@ -61,6 +62,7 @@ export default function QuestsIndexScreen() {
 
       if (exclusiveQuestIds.has(quest.id)) return false;
       if (activeQuestIds.has(quest.id)) return false;
+      if (getSideQuestLock(quest, quests, completedQuestIds)?.isLocked) return false;
 
       if (activeCategory === "Saved") {
         return matchesSearch && savedQuestIds.includes(quest.id);
@@ -76,7 +78,7 @@ export default function QuestsIndexScreen() {
 
       return matchesSearch && matchesCategory && matchesCost && matchesLength;
     });
-  }, [activeCategory, activeCost, activeLength, activeQuestIds, exclusiveQuestIds, quests, savedQuestIds, searchQuery]);
+  }, [activeCategory, activeCost, activeLength, activeQuestIds, completedQuestIds, exclusiveQuestIds, quests, savedQuestIds, searchQuery]);
 
   return (
     <Screen contentClassName="px-5">

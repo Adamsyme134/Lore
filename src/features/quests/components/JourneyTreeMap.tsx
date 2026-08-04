@@ -741,13 +741,18 @@ export function JourneyTreeMap({
   const userVisibleNodeIds = new Set([...unlockedNodeIds, ...previewLockedNodeIds]);
   const visibleNodes = model.nodes.filter((node) => builderMode || userVisibleNodeIds.has(node.id));
   const visibleNodeIds = new Set(visibleNodes.map((node) => node.id));
-  const outgoingNodeIds = new Set(model.edges.map((edge) => edge.fromNodeId));
-  const addableNodes = visibleNodes.filter((node) => node.kind === "quest");
+  const nodeById = new Map(model.nodes.map((node) => [node.id, node]));
+  const outgoingMainNodeIds = new Set(
+    model.edges
+      .filter((edge) => nodeById.get(edge.toNodeId)?.branchId !== "side-branch")
+      .map((edge) => edge.fromNodeId)
+  );
+  const addableNodes = visibleNodes.filter((node) => node.kind === "quest" && node.branchId !== "side-branch");
   const rootPlusAngle = -38;
   const rootPlusX = model.center.x + Math.cos((rootPlusAngle * Math.PI) / 180) * model.ringRadius;
   const rootPlusY = model.center.y + Math.sin((rootPlusAngle * Math.PI) / 180) * model.ringRadius;
   const addButtons = addableNodes.map((node, index) => {
-    const isEndpoint = !outgoingNodeIds.has(node.id);
+    const isEndpoint = !outgoingMainNodeIds.has(node.id);
     const addAngle = isEndpoint ? node.angle : node.angle + (index % 2 === 0 ? 28 : -28);
     const radians = (addAngle * Math.PI) / 180;
     return {

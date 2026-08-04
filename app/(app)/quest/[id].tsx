@@ -8,7 +8,7 @@ import { AppText } from "../../../src/shared/components/AppText";
 import { Button } from "../../../src/shared/components/Button";
 import { QuestDetailBlock } from "../../../src/features/quests/components/QuestDetailBlock";
 import { useExperienceStore } from "../../../src/features/app/store/useExperienceStore";
-import { getExclusiveQuestLock, getJourneyQuestIds, useJourneys, useQuest, useQuests, useSaveQuest, useActivateQuest, useQuitQuest, useTrackQuestView, useUserJourneyStatuses, useUserQuestStatuses } from "../../../src/features/quests/api/questApi";
+import { getExclusiveQuestLock, getJourneyQuestIds, getSideQuestLock, useJourneys, useQuest, useQuests, useSaveQuest, useActivateQuest, useQuitQuest, useTrackQuestView, useUserJourneyStatuses, useUserQuestStatuses } from "../../../src/features/quests/api/questApi";
 import { useGroupQuestProgress, useUpdateQuestStepProgress, useUserQuestState, type GroupQuestParticipant } from "../../../src/features/quests/api/groupQuestApi";
 import { Ionicons } from '@expo/vector-icons'; 
 
@@ -152,8 +152,9 @@ export default function QuestDetailScreen() {
 
   const activeJourneyIds = new Set(journeyStatuses?.active || []);
   const exclusiveLock = getExclusiveQuestLock(quest.id, journeys, completedQuestIds, activeJourneyIds);
+  const sideQuestLock = getSideQuestLock(quest, quests, completedQuestIds);
 
-  if (exclusiveLock?.isLocked) {
+  if (exclusiveLock?.isLocked || sideQuestLock?.isLocked) {
     return (
       <Screen contentClassName="px-5">
         <View style={{ paddingTop: Math.max(insets.top, 20) }} className="pb-4">
@@ -167,11 +168,15 @@ export default function QuestDetailScreen() {
           </View>
           <AppText variant="title" className="text-center">Quest locked</AppText>
           <AppText className="mt-3 text-center text-muted">
-            {exclusiveLock.reason === "journey"
-              ? `Start ${exclusiveLock.journey.title} to unlock its quests.`
-              : `Complete the previous quest in ${exclusiveLock.journey.title} to unlock this one.`}
+            {sideQuestLock?.isLocked
+              ? `Complete ${sideQuestLock.unlockerQuestTitle} quest to unlock this.`
+              : exclusiveLock?.reason === "journey"
+                ? `Start ${exclusiveLock.journey.title} to unlock its quests.`
+                : `Complete the previous quest in ${exclusiveLock?.journey.title} to unlock this one.`}
           </AppText>
-          <Button label="Back to journey" className="mt-6" onPress={() => router.replace({ pathname: "/journey/[id]", params: { id: exclusiveLock.journey.id } })} />
+          {exclusiveLock?.isLocked ? (
+            <Button label="Back to journey" className="mt-6" onPress={() => router.replace({ pathname: "/journey/[id]", params: { id: exclusiveLock.journey.id } })} />
+          ) : null}
         </View>
       </Screen>
     );
