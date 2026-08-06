@@ -9,10 +9,13 @@ import { Screen } from "../../../src/shared/components/Screen";
 import { AppText } from "../../../src/shared/components/AppText";
 import { difficultyPillClass, difficultyPillTextClass, difficultyPillTextColor } from "../../../src/shared/components/Chip";
 import { useThemeColors } from "../../../src/shared/design/useThemeColors";
-import { JourneyIcon } from "../../../src/features/quests/components/JourneyIcon";
-import { getJourneyQuestIds, useJourneys, useQuests, useUserJourneyStatuses, useUserQuestStatuses } from "../../../src/features/quests/api/questApi";
+import {
+  getQuestCollectionLock,
+  useQuestCollections,
+  useQuests,
+  useUserQuestStatuses
+} from "../../../src/features/quests/api/questApi";
 import { useLoreEntries } from "../../../src/features/lore/api/loreApi";
-import { buildJourneyTreeRenderModel } from "../../../src/features/quests/utils/journeyTree";
 import type { Quest } from "../../../src/shared/types/domain";
 
 function contentPosition(imagePosition?: string) {
@@ -20,7 +23,7 @@ function contentPosition(imagePosition?: string) {
   return posMatch ? { left: `${posMatch[1]}%`, top: `${posMatch[2]}%` } : (imagePosition || "center");
 }
 
-function JourneyTimeline({
+function CollectionProgress({
   total,
   completedCount
 }: {
@@ -32,22 +35,17 @@ function JourneyTimeline({
   return (
     <View className="mt-6">
       <AppText className="mb-4 font-sansSemi text-ivory/90">
-        {completedCount} / {total} experiences completed
+        {completedCount} / {total} quests completed
       </AppText>
       <View className="flex-row items-center">
         {Array.from({ length: visibleTotal }).slice(0, 8).map((_, index, visibleItems) => {
           const isComplete = index < completedCount;
-          const isNext = index === completedCount;
 
           return (
             <View key={index} className="flex-1 flex-row items-center">
               <View
                 className={`h-6 w-6 items-center justify-center rounded-full border ${
-                  isComplete
-                    ? "border-accent bg-accent"
-                    : isNext
-                      ? "border-accent bg-background/70"
-                      : "border-ivory/55 bg-background/35"
+                  isComplete ? "border-accent bg-accent" : "border-ivory/55 bg-background/35"
                 }`}
               >
                 {isComplete ? <Ionicons name="checkmark" size={14} color="#183431" /> : null}
@@ -61,27 +59,21 @@ function JourneyTimeline({
   );
 }
 
-function JourneyQuestRow({
+function CollectionQuestRow({
   quest,
-  displayTitle,
   index,
   isComplete,
-  isNext,
-  isLocked,
   total,
   onPress
 }: {
   quest: Quest;
-  displayTitle?: string;
   index: number;
   isComplete: boolean;
-  isNext: boolean;
-  isLocked: boolean;
   total: number;
   onPress: () => void;
 }) {
   return (
-    <View className={`mb-3 flex-row items-stretch ${isLocked ? "opacity-55" : ""}`}>
+    <View className="mb-3 flex-row items-stretch">
       <View className="relative mr-3 w-10 items-center justify-center">
         {index > 0 ? <View className="absolute top-0 h-1/2 w-px bg-line" /> : null}
         {index < total - 1 ? <View className="absolute bottom-0 h-1/2 w-px bg-line" /> : null}
@@ -97,14 +89,7 @@ function JourneyQuestRow({
           )}
         </View>
       </View>
-      <Pressable
-        onPress={onPress}
-        disabled={isLocked}
-        className={`flex-1 overflow-hidden rounded-[12px] border ${
-          isNext ? "border-accent" : "border-line/60"
-        }`}
-        style={{ height: 114 }}
-      >
+      <Pressable onPress={onPress} className="flex-1 overflow-hidden rounded-[12px] border border-line/60" style={{ height: 114 }}>
         <Image
           source={{ uri: quest.imageUrl }}
           style={{ height: "100%", width: "100%" }}
@@ -116,12 +101,10 @@ function JourneyQuestRow({
           locations={[0, 0.52, 1]}
           style={{ position: "absolute", top: 0, right: 0, bottom: 0, left: 0 }}
         />
-        {isLocked ? <View className="absolute inset-0 bg-black/35" /> : null}
-        {isLocked ? <View className="absolute inset-0 bg-stone/45" /> : null}
         <View className="absolute inset-0 flex-row items-center px-4 py-3">
           <View className="flex-1 pr-3">
             <AppText variant="subtitle" className="text-xl leading-6 text-ivory" numberOfLines={2}>
-              {displayTitle ?? quest.title}
+              {quest.title}
             </AppText>
             <AppText className="mt-1 text-xs text-ivory/75" numberOfLines={1}>
               <Ionicons name="location-outline" size={11} color="#F3F0EB" /> {quest.locationHint}
@@ -129,55 +112,39 @@ function JourneyQuestRow({
             <View className="mt-3 flex-row flex-wrap gap-2">
               {[...(quest.categories || []), quest.length, quest.difficulty].filter(Boolean).slice(0, 3).map((tag) => (
                 <View key={tag} className={`rounded-full border px-2 py-0.5 ${difficultyPillClass(tag) || "border-ivory/20 bg-ivory/15"}`}>
-                  <AppText className={`text-[8px] font-sansSemi ${difficultyPillTextClass(tag) || "text-ivory"}`} style={difficultyPillTextColor(tag) ? { color: difficultyPillTextColor(tag) } : undefined}>{tag}</AppText>
+                  <AppText
+                    className={`text-[8px] font-sansSemi ${difficultyPillTextClass(tag) || "text-ivory"}`}
+                    style={difficultyPillTextColor(tag) ? { color: difficultyPillTextColor(tag) } : undefined}
+                  >
+                    {tag}
+                  </AppText>
                 </View>
               ))}
             </View>
           </View>
-          {isNext && !isLocked ? (
-            <View className="rounded-full bg-accent px-4 py-2">
-              <AppText className="font-sansSemi text-accentText" style={{ color: "#183431" }}>Next up</AppText>
-            </View>
-          ) : isLocked ? (
-            <Ionicons name="lock-closed-outline" size={24} color="#F3F0EB" />
-          ) : (
-            <Ionicons name="chevron-forward" size={22} color="#F3F0EB" />
-          )}
+          <Ionicons name="chevron-forward" size={22} color="#F3F0EB" />
         </View>
       </Pressable>
     </View>
   );
 }
 
-function isJourneyQuestLocked(
-  index: number,
-  questId: string,
-  questIds: string[],
-  completedQuestIds: Set<string>,
-  isExclusive: boolean,
-  publicQuestIds: string[],
-  isJourneyStarted: boolean,
-  rootQuestIds: string[] = []
-) {
-  if (!isExclusive || (publicQuestIds ?? []).includes(questId) || completedQuestIds.has(questId)) return false;
-  if (!isJourneyStarted) return true;
-  if (index <= 0) return rootQuestIds.some((rootQuestId) => !completedQuestIds.has(rootQuestId));
-  return !completedQuestIds.has(questIds[index - 1]);
-}
-
-export default function JourneyDetailScreen() {
+export default function CollectionDetailScreen() {
   const router = useRouter();
   const colors = useThemeColors();
   const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { data: journeys = [], isLoading: isLoadingJourneys } = useJourneys();
+  const { data: collections = [], isLoading: isLoadingCollections } = useQuestCollections();
   const { data: quests = [], isLoading: isLoadingQuests } = useQuests();
   const { data: questStatuses } = useUserQuestStatuses();
-  const { data: journeyStatuses } = useUserJourneyStatuses();
   const { data: loreEntries = [] } = useLoreEntries();
 
-  const journey = journeys.find((item) => item.id === id || item.slug === id);
+  const collection = collections.find((item) => item.id === id || item.slug === id);
   const questById = useMemo(() => new Map(quests.map((quest) => [quest.id, quest])), [quests]);
+  const collectionQuests = useMemo(
+    () => collection?.questIds.map((questId) => questById.get(questId)).filter(Boolean) as Quest[] || [],
+    [collection?.questIds, questById]
+  );
   const completedQuestIds = useMemo(() => {
     const ids = new Set(questStatuses?.completed || []);
     loreEntries.forEach((entry) => {
@@ -186,49 +153,10 @@ export default function JourneyDetailScreen() {
     });
     return ids;
   }, [loreEntries, questStatuses?.completed]);
-  const activeQuestIds = useMemo(() => new Set(questStatuses?.active || []), [questStatuses?.active]);
-  const orderedQuestIds = useMemo(() => {
-    if (!journey) return [];
-    return getJourneyQuestIds(journey);
-  }, [journey]);
-  const orderedQuests = orderedQuestIds.map((questId) => questById.get(questId)).filter(Boolean) as Quest[];
-  const hiddenQuestIds = useMemo(() => {
-    if (!journey) return new Set<string>();
-    const model = buildJourneyTreeRenderModel({
-      journeys,
-      questById,
-      progress: {
-        completedQuestIds,
-        activeQuestIds,
-        completedStepIndexesByQuestId: questStatuses?.completedStepIndexesByQuestId
-      }
-    });
-    const unlockedNodeIds = new Set(
-      model.nodes
-        .filter((node) => node.state !== "hidden" && node.state !== "locked")
-        .map((node) => node.id)
-    );
-    const previewLockedNodeIds = new Set(
-      model.edges
-        .filter((edge) => edge.from && edge.to?.state === "locked" && unlockedNodeIds.has(edge.from.id))
-        .map((edge) => edge.toNodeId)
-    );
-    const visibleNodeIds = new Set([...unlockedNodeIds, ...previewLockedNodeIds]);
+  const completedCount = collectionQuests.filter((quest) => completedQuestIds.has(quest.id)).length;
+  const collectionLock = collection ? getQuestCollectionLock(collection, collections, completedQuestIds) : null;
 
-    return new Set(
-      model.nodes
-        .filter((node) => node.journeyId === journey.id && node.questId && !visibleNodeIds.has(node.id))
-        .map((node) => node.questId as string)
-    );
-  }, [activeQuestIds, completedQuestIds, journey, journeys, questById, questStatuses?.completedStepIndexesByQuestId]);
-  const completedCount = orderedQuestIds.filter((questId) => completedQuestIds.has(questId)).length;
-  const nextQuestId = orderedQuestIds.find((questId) => !completedQuestIds.has(questId)) || orderedQuestIds[0];
-  const isExclusive = journey?.visibility === "exclusive";
-  const activeJourneyIds = useMemo(() => new Set(journeyStatuses?.active || []), [journeyStatuses?.active]);
-  const isJourneyStarted = journey ? activeJourneyIds.has(journey.id) || completedCount > 0 : false;
-  const areRootQuestsComplete = journey ? (journey.rootQuestIds ?? []).every((questId) => completedQuestIds.has(questId)) : true;
-
-  if ((isLoadingJourneys || isLoadingQuests) && !journey) {
+  if ((isLoadingCollections || isLoadingQuests) && !collection) {
     return (
       <Screen scroll={false} contentClassName="items-center justify-center">
         <ActivityIndicator size="large" color={colors.accent} />
@@ -236,13 +164,13 @@ export default function JourneyDetailScreen() {
     );
   }
 
-  if (!journey) {
+  if (!collection) {
     return (
       <Screen contentClassName="px-5">
         <Pressable onPress={() => router.back()} className="mb-6 h-10 w-10 items-center justify-center rounded-full bg-surface">
           <Ionicons name="arrow-back" size={20} color={colors.text} />
         </Pressable>
-        <AppText variant="title">Journey not found.</AppText>
+        <AppText variant="title">Collection not found.</AppText>
       </Screen>
     );
   }
@@ -260,18 +188,18 @@ export default function JourneyDetailScreen() {
         >
           <Ionicons name="arrow-back" size={20} color="white" />
         </Pressable>
-        <Pressable className="h-11 w-11 items-center justify-center rounded-full border border-white/20 bg-[#1c1a17]/30">
-          <Ionicons name="ellipsis-horizontal" size={20} color="white" />
-        </Pressable>
+        <View className="h-11 w-11 items-center justify-center rounded-full border border-white/20 bg-[#1c1a17]/30">
+          <Ionicons name={(collection.iconName as any) || "albums-outline"} size={20} color="white" />
+        </View>
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 140 }}>
         <View className="h-[460px] overflow-hidden">
           <Image
-            source={{ uri: journey.backgroundImageUrl }}
+            source={{ uri: collection.coverImageUrl }}
             style={{ height: "100%", width: "100%" }}
             contentFit="cover"
-            contentPosition={contentPosition(journey.imagePosition) as any}
+            contentPosition={contentPosition(collection.imagePosition) as any}
           />
           <LinearGradient
             colors={["rgba(0,0,0,0.08)", "rgba(0,0,0,0.58)", "rgba(7,20,18,0.96)"]}
@@ -280,48 +208,42 @@ export default function JourneyDetailScreen() {
           />
           <View className="absolute bottom-0 left-0 right-0 px-6 pb-8">
             <View className="mb-5 h-14 w-14 items-center justify-center rounded-full border border-accent/40 bg-background/80">
-              <JourneyIcon name={journey.iconName} size={25} color="#F3F0EB" />
+              <Ionicons name={(collection.iconName as any) || "albums-outline"} size={25} color="#F3F0EB" />
             </View>
             <AppText variant="display" className="text-ivory">
-              {journey.title}
+              {collection.title}
             </AppText>
             <AppText className="mt-2 text-xl leading-7 text-ivory/90">
-              {journey.description}
+              {collection.description || "A curated group of quests to complete in any order."}
             </AppText>
-            <JourneyTimeline total={orderedQuestIds.length} completedCount={completedCount} />
+            <CollectionProgress total={collectionQuests.length} completedCount={completedCount} />
           </View>
         </View>
 
         <View className="px-5 pt-7">
           <View className="mb-4 flex-row items-center justify-between gap-3">
             <AppText variant="subtitle" className="text-2xl text-ink">
-              Your path
+              Quests in this collection
             </AppText>
-            {isExclusive && (!isJourneyStarted || !areRootQuestsComplete) ? (
+            {collectionLock?.isLocked ? (
               <View className="rounded-full border border-line bg-surface px-3 py-1.5">
                 <AppText variant="caption" className="font-sansSemi text-muted">Locked</AppText>
               </View>
             ) : null}
           </View>
-          {orderedQuests.length === 0 ? (
+          {collectionQuests.length === 0 ? (
             <View className="rounded-card border border-dashed border-line py-12">
-              <AppText className="text-center text-muted">No quests have been added to this journey yet.</AppText>
+              <AppText className="text-center text-muted">No quests have been added to this collection yet.</AppText>
             </View>
           ) : (
-            orderedQuests.map((quest, index) => (
-              <JourneyQuestRow
+            collectionQuests.map((quest, index) => (
+              <CollectionQuestRow
                 key={quest.id}
                 quest={quest}
-                displayTitle={hiddenQuestIds.has(quest.id) ? "??" : quest.title}
                 index={index}
                 isComplete={completedQuestIds.has(quest.id)}
-                isNext={isJourneyStarted && quest.id === nextQuestId}
-                isLocked={isJourneyQuestLocked(index, quest.id, orderedQuestIds, completedQuestIds, isExclusive, journey.publicQuestIds, isJourneyStarted, journey.rootQuestIds ?? [])}
-                total={orderedQuests.length}
-                onPress={() => {
-                  if (isJourneyQuestLocked(index, quest.id, orderedQuestIds, completedQuestIds, isExclusive, journey.publicQuestIds, isJourneyStarted, journey.rootQuestIds ?? [])) return;
-                  router.push({ pathname: "/quest/[id]", params: { id: quest.id } });
-                }}
+                total={collectionQuests.length}
+                onPress={() => router.push({ pathname: "/quest/[id]", params: { id: quest.id } })}
               />
             ))
           )}

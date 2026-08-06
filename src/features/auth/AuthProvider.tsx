@@ -25,6 +25,12 @@ function mapProfile(row: any): Profile {
     fullName: row.full_name ?? "New explorer",
     avatarUrl: row.avatar_url ?? null,
     homeCity: row.home_city ?? null,
+    country: row.country ?? null,
+    allowAbroad: row.allow_abroad ?? false,
+    preferredCategories: row.preferred_categories ?? [],
+    preferredMoods: row.preferred_moods ?? [],
+    maxDifficulty: row.max_difficulty ?? null,
+    maxCost: row.max_cost ?? null,
     pointsTotal: row.points_total ?? 0,
     currentStreak: row.current_streak ?? 0
   };
@@ -53,18 +59,26 @@ export function AuthProvider({ children }: AuthProviderProps) {
       return;
     }
 
-    const { data, error } = await supabase
+    const profileResult = await supabase
       .from("profiles")
-      .select("id, handle, full_name, avatar_url, home_city, points_total, current_streak")
+      .select("id, handle, full_name, avatar_url, home_city, country, allow_abroad, preferred_categories, preferred_moods, max_difficulty, max_cost, points_total, current_streak")
       .eq("id", userId)
       .single();
 
-    if (error) {
+    const fallbackResult = profileResult.error
+      ? await supabase
+        .from("profiles")
+        .select("id, handle, full_name, avatar_url, home_city, points_total, current_streak")
+        .eq("id", userId)
+        .single()
+      : profileResult;
+
+    if (fallbackResult.error) {
       setProfile(null);
       return;
     }
 
-    setProfile(mapProfile(data));
+    setProfile(mapProfile(fallbackResult.data));
   }, []);
 
   useEffect(() => {

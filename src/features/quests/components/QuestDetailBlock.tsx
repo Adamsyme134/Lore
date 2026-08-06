@@ -1,5 +1,5 @@
-import { View } from "react-native";
-import type { Quest } from "../../../shared/types/domain";
+import { useWindowDimensions, View } from "react-native";
+import type { Quest, QuestCollection } from "../../../shared/types/domain";
 import { AppText } from "../../../shared/components/AppText";
 import { Chip } from "../../../shared/components/Chip";
 import { accentClass } from "../../../shared/design/tokens";
@@ -13,6 +13,7 @@ import { ChecklistWidget } from './widgets/ChecklistWidget';
 import { MapWidget } from './widgets/MapWidget';
 import { CardRevealWidget } from './widgets/CardRevealWidget';
 import { QuestLinkWidget } from './widgets/QuestLinkWidget';
+import { CollectionLinkWidget } from './widgets/CollectionLinkWidget';
 const parseConfig = (str: string) => {
   const obj: Record<string, string> = {};
   str.split('&').forEach(pair => {
@@ -55,6 +56,8 @@ type QuestDetailBlockProps = {
   onStepsListLayout?: (y: number) => void;
   onBlockLayout?: (y: number) => void;
   linkedQuests?: Quest[];
+  linkedCollections?: QuestCollection[];
+  completedQuestIds?: Set<string>;
 };
 
 export function QuestDetailBlock({
@@ -67,9 +70,13 @@ export function QuestDetailBlock({
   onStepLayout,
   onStepsListLayout,
   onBlockLayout,
-  linkedQuests = []
+  linkedQuests = [],
+  linkedCollections = [],
+  completedQuestIds = new Set<string>()
 }: QuestDetailBlockProps) {
   const { getVariable } = useQuestExecution();
+  const { width } = useWindowDimensions();
+  const collectionWidth = Math.min(255, Math.max(205, width * 0.43));
   const accent = accentClass[quest.accent] || accentClass['orange']; 
   const isGroup = quest.maxParticipants > 1;
   const groupLabel = isGroup ? `Group (${quest.minParticipants}-${quest.maxParticipants})` : "Solo";
@@ -162,6 +169,19 @@ export function QuestDetailBlock({
                         flushInline();
                         const raw = part.slice(7, -1);
                         blocks.push(<QuestLinkWidget key={`quest-${i}`} config={raw} quests={linkedQuests} />);
+                      } else if (part.startsWith("[COLLECTION:")) {
+                        flushInline();
+                        const raw = part.slice(12, -1);
+                        blocks.push(
+                          <CollectionLinkWidget
+                            key={`collection-${i}`}
+                            config={raw}
+                            collections={linkedCollections}
+                            quests={linkedQuests}
+                            completedQuestIds={completedQuestIds}
+                            width={collectionWidth}
+                          />
+                        );
                       } else if (part.startsWith('[CHECKLIST:')) { 
                         flushInline();
                         const raw = part.slice(11, -1);

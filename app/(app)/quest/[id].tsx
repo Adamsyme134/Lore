@@ -8,7 +8,7 @@ import { AppText } from "../../../src/shared/components/AppText";
 import { Button } from "../../../src/shared/components/Button";
 import { QuestDetailBlock } from "../../../src/features/quests/components/QuestDetailBlock";
 import { useExperienceStore } from "../../../src/features/app/store/useExperienceStore";
-import { getExclusiveQuestLock, getJourneyQuestIds, getSideQuestLock, useJourneys, useQuest, useQuests, useSaveQuest, useActivateQuest, useQuitQuest, useTrackQuestView, useUserJourneyStatuses, useUserQuestStatuses } from "../../../src/features/quests/api/questApi";
+import { getExclusiveQuestLock, getJourneyQuestIds, getSideQuestLock, useJourneys, useQuest, useQuestCollections, useQuests, useSaveQuest, useActivateQuest, useQuitQuest, useTrackQuestView, useUserJourneyStatuses, useUserQuestInterestEvents, useUserQuestStatuses } from "../../../src/features/quests/api/questApi";
 import { useGroupQuestProgress, useUpdateQuestStepProgress, useUserQuestState, type GroupQuestParticipant } from "../../../src/features/quests/api/groupQuestApi";
 import { Ionicons } from '@expo/vector-icons'; 
 
@@ -18,6 +18,8 @@ import { JourneyMembershipSection } from "../../../src/features/quests/component
 import { useAddFriendGroupQuest, useCreateFriendGroup, useFriendGroups, useFriendsList } from "../../../src/features/social/api/socialApi";
 import { useThemeColors } from "../../../src/shared/design/useThemeColors";
 import { useLoreEntries } from "../../../src/features/lore/api/loreApi";
+import { useAuth } from "../../../src/features/auth/AuthProvider";
+import { getQuestRecommendationReasons } from "../../../src/features/quests/utils/recommendations";
 
 function SegmentedProgressBar({ completed, total }: { completed: number; total: number }) {
   const safeTotal = Math.max(total, 1);
@@ -60,12 +62,15 @@ function notify(message: string) {
 export default function QuestDetailScreen() {
   const router = useRouter();
   const colors = useThemeColors();
+  const { profile } = useAuth();
   const { id, groupId } = useLocalSearchParams<{ id: string; groupId?: string }>();
   const { data: quest } = useQuest(id);
   const { data: quests = [] } = useQuests();
+  const { data: collections = [] } = useQuestCollections();
   const { data: journeys = [] } = useJourneys();
   const { data: questStatuses } = useUserQuestStatuses();
   const { data: journeyStatuses } = useUserJourneyStatuses();
+  const { data: questInterestEvents = [] } = useUserQuestInterestEvents();
   const { data: loreEntries = [], isLoading: isLoadingLoreEntries } = useLoreEntries();
   const { savedQuestIds, activeQuests, toggleQuestStep } = useExperienceStore();
   const saveQuest = useSaveQuest();
@@ -78,6 +83,7 @@ export default function QuestDetailScreen() {
   const createFriendGroup = useCreateFriendGroup();
   const addFriendGroupQuest = useAddFriendGroupQuest();
   const [isProgressExpanded, setIsProgressExpanded] = useState(true);
+  const [isRecommendationReasonsOpen, setIsRecommendationReasonsOpen] = useState(false);
   const [expandedStepIndex, setExpandedStepIndex] = useState<number | null>(null);
   const [isAddToGroupOpen, setIsAddToGroupOpen] = useState(false);
   const [newQuestGroupName, setNewQuestGroupName] = useState("");
@@ -101,6 +107,32 @@ export default function QuestDetailScreen() {
     if (!quest) return [];
     return journeys.filter((journey) => journey.isActive && getJourneyQuestIds(journey).includes(quest.id));
   }, [journeys, quest?.id]);
+  const activeJourneyIds = useMemo(() => {
+    const ids = new Set(journeyStatuses?.active || []);
+    journeys.forEach((journey) => {
+      if (getJourneyQuestIds(journey).some((questId) => completedQuestIds.has(questId))) ids.add(journey.id);
+    });
+    return ids;
+  }, [completedQuestIds, journeyStatuses?.active, journeys]);
+  const activeQuestIds = useMemo(
+    () => new Set([...(questStatuses?.active || []), ...Object.keys(activeQuests)]),
+    [activeQuests, questStatuses?.active]
+  );
+  const recommendationReasons = useMemo(() => {
+    if (!quest) return [];
+    return getQuestRecommendationReasons({
+      quest,
+      quests,
+      allQuests: quests,
+      completedQuestIds,
+      activeQuestIds,
+      savedQuestIds: new Set(savedQuestIds),
+      journeys,
+      collections,
+      events: questInterestEvents,
+      profile
+    });
+  }, [activeQuestIds, collections, completedQuestIds, journeys, profile, quest, questInterestEvents, quests, savedQuestIds]);
   
   // Fire exactly once when the quest ID is resolved and opened
   useEffect(() => {
@@ -150,7 +182,6 @@ export default function QuestDetailScreen() {
     );
   }
 
-  const activeJourneyIds = new Set(journeyStatuses?.active || []);
   const exclusiveLock = getExclusiveQuestLock(quest.id, journeys, completedQuestIds, activeJourneyIds);
   const sideQuestLock = getSideQuestLock(quest, quests, completedQuestIds);
 
@@ -316,11 +347,27 @@ export default function QuestDetailScreen() {
           </Pressable>
 
           <Pressable 
-            onPress={() => {}} 
+            onPress={() => setIsRecommendationReasonsOpen((value) => !value)} 
             className="h-10 w-10 items-center justify-center rounded-full bg-[#1c1a17]/30 backdrop-blur-md border border-white/20"
           >
             <Ionicons name="ellipsis-horizontal" size={20} color="white" />
           </Pressable>
+
+          {isRecommendationReasonsOpen ? (
+            <View className="absolute right-5 top-[70px] w-72 rounded-[18px] border border-white/15 bg-[#11100e] p-4">
+              <AppText className="mb-3 text-[11px] font-sansBold uppercase text-ivory/70">
+                Why this was recommended
+              </AppText>
+              {recommendationReasons.map((reason) => (
+                <View key={reason.label} className="mb-2 flex-row">
+                  <AppText className="mr-2 text-xs text-ivory/55">•</AppText>
+                  <AppText className="flex-1 text-xs leading-4 text-ivory/85">
+                    {reason.label}
+                  </AppText>
+                </View>
+              ))}
+            </View>
+          ) : null}
         </View>
 
         {/* SCROLL VIEW 
@@ -470,6 +517,8 @@ export default function QuestDetailScreen() {
                   }
                 }}
                 linkedQuests={quests}
+                linkedCollections={collections}
+                completedQuestIds={completedQuestIds}
               />
             </View>
 

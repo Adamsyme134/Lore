@@ -64,6 +64,7 @@ export default function Journeys() {
             <JourneyTreeMap
               journeys={activeJourneys}
               quests={quests}
+              height="100%"
               progress={journeyTreeProgress}
               selectedNodeId={selectedJourneyNodeId}
               onSelectNode={(node) => setSelectedJourneyNodeId(node.id)}

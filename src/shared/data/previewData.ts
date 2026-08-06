@@ -1,4 +1,4 @@
-import type { FriendMoment, Journey, LoreEntry, Quest } from "../types/domain";
+import type { FriendMoment, Journey, LoreEntry, Quest, QuestCollection } from "../types/domain";
 
 export const previewQuests: Quest[] = [
   {
@@ -328,6 +328,39 @@ export const previewJourneys: Journey[] = [
       { id: "maker-edge-1", fromNodeId: "maker-root", toNodeId: "maker-pottery", hiddenUntilUnlocked: true },
       { id: "maker-edge-2", fromNodeId: "maker-root", toNodeId: "maker-repair", hiddenUntilUnlocked: true }
     ],
+    isActive: true
+  }
+];
+
+export const previewQuestCollections: QuestCollection[] = [
+  {
+    id: "outdoor-starters",
+    slug: "outdoor-starters",
+    title: "Solo Treks",
+    description: "Quiet adventures for independent explorers.",
+    coverImageUrl: "https://images.unsplash.com/photo-1445308394109-4ec2920981b1?auto=format&fit=crop&w=1200&q=85",
+    imagePosition: "50% 50%",
+    iconName: "leaf-outline",
+    questIds: ["sunrise-high-place", "train-no-plan"],
+    unlockQuestIds: [],
+    alwaysUnlocked: true,
+    unlockedByKind: null,
+    unlockedById: null,
+    isActive: true
+  },
+  {
+    id: "local-discoveries",
+    slug: "local-discoveries",
+    title: "Local Discoveries",
+    description: "Hidden gems and local favourites in your city.",
+    coverImageUrl: "https://images.unsplash.com/photo-1516483638261-f4dbaf036963?auto=format&fit=crop&w=1200&q=85",
+    imagePosition: "50% 50%",
+    iconName: "business-outline",
+    questIds: ["unknown-cafe", "independent-cinema", "sketch-in-public"],
+    unlockQuestIds: [],
+    alwaysUnlocked: true,
+    unlockedByKind: null,
+    unlockedById: null,
     isActive: true
   }
 ];

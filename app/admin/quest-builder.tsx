@@ -13,8 +13,9 @@ import { JOURNEY_COLOR_SCHEMES } from "../../src/features/quests/constants/journ
 import { YouTubeWidget } from "../../src/features/quests/components/widgets/YouTubeWidget";
 import { CardRevealWidget } from "../../src/features/quests/components/widgets/CardRevealWidget";
 import { QuestLinkWidget } from "../../src/features/quests/components/widgets/QuestLinkWidget";
+import { CollectionLinkWidget } from "../../src/features/quests/components/widgets/CollectionLinkWidget";
 import { searchLocations, type LocationSearchResult } from "../../src/features/location/api/locationSearchApi";
-import { mapJourney, type JourneyRow } from "../../src/features/quests/api/questApi";
+import { mapJourney, mapQuestCollection, type JourneyRow, type QuestCollectionRow } from "../../src/features/quests/api/questApi";
 import type { JourneyTreeRenderNode } from "../../src/features/quests/utils/journeyTree";
 import { previewJourneys } from "../../src/shared/data/previewData";
 import type { 
@@ -29,7 +30,9 @@ import type {
   QuestLocationType, 
   QuestCountry,
   JourneyTreeEdge,
-  JourneyTreeNode
+  JourneyTreeNode,
+  QuestCollection,
+  QuestCollectionUnlockKind
 } from "../../src/shared/types/domain";
 import { requireSupabase } from "../../src/lib/supabase";
 
@@ -55,7 +58,7 @@ const JOURNEY_ICON_OPTIONS = [
 });
 
 // -- WIDGETS SETUP -- //
-type WidgetType = 'RANDOMISER' | 'LOCATION' | 'YOUTUBE' | 'LINK' | 'QUEST' | 'CHECKLIST' | 'MAP' | 'CARD_REVEAL';
+type WidgetType = 'RANDOMISER' | 'LOCATION' | 'YOUTUBE' | 'LINK' | 'QUEST' | 'COLLECTION' | 'CHECKLIST' | 'MAP' | 'CARD_REVEAL';
 export const WIDGET_REGISTRY: Record<WidgetType, {
   id: string;
   icon: string;
@@ -97,6 +100,13 @@ export const WIDGET_REGISTRY: Record<WidgetType, {
     label: "Quest Link",
     placeholder: "Choose Quest...",
     theme: { bg: "bg-blue/10", border: "border-blue/40", text: "text-blue", containerBg: "bg-blue/5", containerBorder: "border-blue/30", activeBg: "active:bg-blue/20" }
+  },
+  COLLECTION: {
+    id: "collection",
+    icon: "🗂️",
+    label: "Collection Link",
+    placeholder: "Choose Collection...",
+    theme: { bg: "bg-orange/10", border: "border-orange/40", text: "text-orange", containerBg: "bg-orange/5", containerBorder: "border-orange/30", activeBg: "active:bg-orange/20" }
   },
   CHECKLIST: {
     id: "checklist",
@@ -451,6 +461,25 @@ const createBlankJourney = (quests: Quest[] = []): Journey => {
     treeEdges: [],
     requirementSets: [],
     capabilityUnlocks: [],
+    isActive: true
+  };
+};
+
+const createBlankCollection = (quests: Quest[] = []): QuestCollection => {
+  const firstQuest = quests[0];
+  return {
+    id: `draft-collection-${Date.now()}`,
+    slug: `new-collection-${Date.now()}`,
+    title: "Untitled Collection",
+    description: "A themed group of quests.",
+    coverImageUrl: firstQuest?.imageUrl || "https://images.unsplash.com/photo-1445308394109-4ec2920981b1?auto=format&fit=crop&w=1200&q=85",
+    imagePosition: "50% 50%",
+    iconName: "albums-outline",
+    questIds: [],
+    unlockQuestIds: [],
+    alwaysUnlocked: true,
+    unlockedByKind: null,
+    unlockedById: null,
     isActive: true
   };
 };
@@ -839,8 +868,8 @@ function JourneyRingOrderItem({
 export default function QuestBuilderAdmin() {
   const [leftPanelVisible, setLeftPanelVisible] = useState(true); // <-- ADD THIS
   const [view, setView] = useState<'grid' | 'editor'>('grid');
-  const [libraryKind, setLibraryKind] = useState<'quests' | 'journeys'>('quests');
-  const [editorKind, setEditorKind] = useState<'quest' | 'journey'>('quest');
+  const [libraryKind, setLibraryKind] = useState<'quests' | 'journeys' | 'collections'>('quests');
+  const [editorKind, setEditorKind] = useState<'quest' | 'journey' | 'collection'>('quest');
   const [focusIndex, setFocusIndex] = useState<number | null>(null);
   const [activeTab, setActiveTab] = useState<'basic' | 'tags' | 'metadata' | 'links'>('basic');
   const [previewMode, setPreviewMode] = useState<'hero' | 'details'>('hero');
@@ -864,6 +893,7 @@ export default function QuestBuilderAdmin() {
   
   const [savedQuests, setSavedQuests] = useState<Quest[]>([]);
   const [savedJourneys, setSavedJourneys] = useState<Journey[]>([]);
+  const [savedCollections, setSavedCollections] = useState<QuestCollection[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [journeyQuestSearch, setJourneyQuestSearch] = useState('');
   const [journeyRootQuestSearch, setJourneyRootQuestSearch] = useState('');
@@ -881,18 +911,25 @@ export default function QuestBuilderAdmin() {
   const [isUnlockQuestSearchOpen, setIsUnlockQuestSearchOpen] = useState(false);
   const [unlockedByQuestSearch, setUnlockedByQuestSearch] = useState('');
   const [isUnlockedByQuestSearchOpen, setIsUnlockedByQuestSearchOpen] = useState(false);
+  const [collectionQuestSearch, setCollectionQuestSearch] = useState('');
+  const [isCollectionQuestSearchOpen, setIsCollectionQuestSearchOpen] = useState(false);
+  const [collectionUnlockQuestSearch, setCollectionUnlockQuestSearch] = useState('');
+  const [isCollectionUnlockQuestSearchOpen, setIsCollectionUnlockQuestSearchOpen] = useState(false);
+  const [collectionUnlockSourceSearch, setCollectionUnlockSourceSearch] = useState('');
+  const [isCollectionUnlockSourceSearchOpen, setIsCollectionUnlockSourceSearchOpen] = useState(false);
   const [journeyIconSearch, setJourneyIconSearch] = useState('');
   const [isJourneyIconPickerOpen, setIsJourneyIconPickerOpen] = useState(false);
   const [activeCategory, setActiveCategory] = useState<QuestCategory | "All">("All");
   const [quest, setQuest] = useState<Quest>(createBlankQuest());
   const [journey, setJourney] = useState<Journey>(createBlankJourney());
+  const [collection, setCollection] = useState<QuestCollection>(createBlankCollection());
 
   useEffect(() => {
     const fetchQuests = async () => {
       try {
         const client = requireSupabase();
         const { data, error } = await client
-          .from('quests')
+          .from('v_quests_with_stats')
           .select('*')
           .eq('is_active', true) 
           .order('created_at', { ascending: false });
@@ -980,12 +1017,34 @@ export default function QuestBuilderAdmin() {
     fetchJourneys();
   }, []);
 
+  useEffect(() => {
+    const fetchCollections = async () => {
+      try {
+        const client = requireSupabase();
+        const { data, error } = await client
+          .from('quest_collections')
+          .select('*')
+          .eq('is_active', true)
+          .order('created_at', { ascending: false });
+        if (error) throw error;
+        setSavedCollections((data || []).map((row) => mapQuestCollection(row as QuestCollectionRow)));
+      } catch (error) {
+        console.error("Error fetching collections:", error);
+      }
+    };
+    fetchCollections();
+  }, []);
+
   const updateField = (field: keyof Quest, value: any) => {
     setQuest((prev) => ({ ...prev, [field]: value }));
   };
 
   const updateJourneyField = (field: keyof Journey, value: any) => {
     setJourney((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const updateCollectionField = (field: keyof QuestCollection, value: any) => {
+    setCollection((prev) => ({ ...prev, [field]: value }));
   };
 
   const handleSave = async () => {
@@ -1151,6 +1210,41 @@ export default function QuestBuilderAdmin() {
     }
   };
 
+  const handleSaveCollection = async () => {
+    try {
+      const client = requireSupabase();
+      const uniqueIds = (ids: string[]) => Array.from(new Set(ids.filter(Boolean)));
+      const collectionData = {
+        slug: collection.slug,
+        title: collection.title,
+        description: collection.description || "",
+        cover_image_url: collection.coverImageUrl,
+        image_position: collection.imagePosition || "50% 50%",
+        icon_name: collection.iconName || "albums-outline",
+        quest_ids: uniqueIds(collection.questIds),
+        unlock_quest_ids: uniqueIds(collection.unlockQuestIds || []),
+        always_unlocked: collection.alwaysUnlocked,
+        unlocked_by_kind: collection.alwaysUnlocked ? null : collection.unlockedByKind,
+        unlocked_by_id: collection.alwaysUnlocked ? null : collection.unlockedById,
+        is_active: true
+      };
+
+      const isNew = collection.id.startsWith("draft-");
+      const result = isNew
+        ? await client.from('quest_collections').insert([collectionData]).select().single()
+        : await client.from('quest_collections').update(collectionData).eq('id', collection.id).select().single();
+
+      if (result.error) throw result.error;
+      const mapped = mapQuestCollection(result.data as QuestCollectionRow);
+      alert("Collection successfully saved!");
+      setSavedCollections(prev => isNew ? [mapped, ...prev] : prev.map(item => item.id === collection.id ? mapped : item));
+      setLibraryKind('collections');
+      setView('grid');
+    } catch (error: any) {
+      alert(`Failed to save collection: ${error.message || "Check terminal"}`);
+    }
+  };
+
   const handleDeleteJourney = async () => {
     if (window.confirm(`Are you sure you want to permanently delete "${journey.title}"?`)) {
       try {
@@ -1165,6 +1259,24 @@ export default function QuestBuilderAdmin() {
         alert("Journey deleted successfully.");
       } catch (error: any) {
         alert("Failed to delete journey: " + (error.message || "Unknown error"));
+      }
+    }
+  };
+
+  const handleDeleteCollection = async () => {
+    if (window.confirm(`Are you sure you want to permanently delete "${collection.title}"?`)) {
+      try {
+        const client = requireSupabase();
+        if (!collection.id.startsWith('draft-')) {
+          const { error } = await client.from('quest_collections').update({ is_active: false }).eq('id', collection.id);
+          if (error) throw error;
+        }
+        setSavedCollections(prev => prev.filter(item => item.id !== collection.id));
+        setLibraryKind('collections');
+        setView('grid');
+        alert("Collection deleted successfully.");
+      } catch (error: any) {
+        alert("Failed to delete collection: " + (error.message || "Unknown error"));
       }
     }
   };
@@ -1196,6 +1308,10 @@ export default function QuestBuilderAdmin() {
     const filteredJourneys = savedJourneys.filter(item =>
       item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       item.description.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+    const filteredCollections = savedCollections.filter(item =>
+      item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (item.description || "").toLowerCase().includes(searchQuery.toLowerCase())
     );
     const orderedRingJourneys = [...savedJourneys]
       .filter(item => item.isActive && connectsToJourneyRing(item))
@@ -1311,9 +1427,11 @@ export default function QuestBuilderAdmin() {
       <View className="flex-1 bg-surface p-10">
         <View className="flex-row justify-between items-center mb-10">
           <View>
-            <AppText variant="display">{libraryKind === 'quests' ? 'Quest Library' : 'Journey Library'}</AppText>
+            <AppText variant="display">
+              {libraryKind === 'quests' ? 'Quest Library' : libraryKind === 'journeys' ? 'Journey Library' : 'Collection Library'}
+            </AppText>
             <View className="mt-4 flex-row rounded-full border border-line bg-stone p-1">
-              {(['quests', 'journeys'] as const).map(kind => (
+              {(['quests', 'journeys', 'collections'] as const).map(kind => (
                 <Pressable key={kind} onPress={() => setLibraryKind(kind)} className={`px-5 py-2 rounded-full ${libraryKind === kind ? 'bg-accent' : 'bg-transparent'}`}>
                   <AppText className={libraryKind === kind ? 'text-accentText font-sansSemi capitalize' : 'text-ink/60 capitalize'}>{kind}</AppText>
                 </Pressable>
@@ -1327,11 +1445,14 @@ export default function QuestBuilderAdmin() {
             <Pressable onPress={() => { setJourney(createBlankJourney(savedQuests)); setJourneyQuestSearch(''); setJourneyRootQuestSearch(''); setIsJourneyQuestSearchOpen(false); setIsJourneyRootQuestSearchOpen(false); setJourneyAddParentNodeId(null); setJourneyAddParentNode(null); setSelectedJourneyTreeNode(null); setIsJourneyAddChoiceOpen(false); setJourneyIconSearch(''); setIsJourneyIconPickerOpen(false); setEditorKind('journey'); setView('editor'); }} className="bg-accent px-6 py-3 rounded-full">
               <AppText className="text-accentText font-sansSemi">+ Create New Journey</AppText>
             </Pressable>
+            <Pressable onPress={() => { setCollection(createBlankCollection(savedQuests)); setCollectionQuestSearch(''); setIsCollectionQuestSearchOpen(false); setCollectionUnlockQuestSearch(''); setIsCollectionUnlockQuestSearchOpen(false); setCollectionUnlockSourceSearch(''); setIsCollectionUnlockSourceSearchOpen(false); setEditorKind('collection'); setActiveTab('basic'); setView('editor'); }} className="bg-orange px-6 py-3 rounded-full">
+              <AppText className="text-white font-sansSemi">+ Add Collection</AppText>
+            </Pressable>
           </View>
         </View>
 
         <ScrollView className="flex-1" contentContainerStyle={{ paddingBottom: 120 }}>
-        <TextInput className="bg-surface border border-line rounded-lg p-4 mb-6 font-sans text-ink max-w-md" placeholder={libraryKind === 'quests' ? 'Search quests...' : 'Search journeys...'} value={searchQuery} onChangeText={setSearchQuery} />
+        <TextInput className="bg-surface border border-line rounded-lg p-4 mb-6 font-sans text-ink max-w-md" placeholder={libraryKind === 'quests' ? 'Search quests...' : libraryKind === 'journeys' ? 'Search journeys...' : 'Search collections...'} value={searchQuery} onChangeText={setSearchQuery} />
 
         {libraryKind === 'quests' && (
           <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mb-8 max-h-12" contentContainerStyle={{ gap: 8 }}>
@@ -1517,6 +1638,50 @@ export default function QuestBuilderAdmin() {
               ))}
             </View>
           </ScrollView>
+        ) : libraryKind === 'collections' && filteredCollections.length === 0 ? (
+          <View className="items-center justify-center p-20 border border-dashed border-line rounded-[24px]">
+            <AppText className="text-ink/50 mb-4">No collections found.</AppText>
+          </View>
+        ) : libraryKind === 'collections' ? (
+          <ScrollView>
+            <View className="flex-row flex-wrap gap-6">
+              {filteredCollections.map(item => {
+                const includedCount = item.questIds.length;
+                const lockLabel = item.alwaysUnlocked
+                  ? "Always unlocked"
+                  : item.unlockedByKind === "collection"
+                    ? "Unlocked by collection"
+                    : "Unlocked by quest";
+                return (
+                  <View key={item.id} className="w-72 mb-4">
+                    <View className="h-80 overflow-hidden rounded-[24px] border border-line bg-stone">
+                      <Image source={{ uri: item.coverImageUrl }} style={{ width: '100%', height: '100%' }} contentFit="cover" />
+                      <LinearGradient
+                        colors={["transparent", "rgba(0,0,0,0.88)"]}
+                        style={{ position: "absolute", top: 0, right: 0, bottom: 0, left: 0 }}
+                      />
+                      <View className="absolute bottom-0 left-0 right-0 p-5">
+                        <AppText variant="title" className="text-ivory mb-2">{item.title}</AppText>
+                        <AppText className="text-ivory/80 mb-4">{includedCount} quests · {lockLabel}</AppText>
+                        <View className="flex-row">
+                          {item.questIds.slice(0, 4).map(id => {
+                            const q = savedQuests.find(questItem => questItem.id === id);
+                            return q ? <Image key={id} source={{ uri: q.imageUrl }} className="mr-2 h-10 w-10 rounded-lg bg-stone" contentFit="cover" /> : null;
+                          })}
+                        </View>
+                      </View>
+                    </View>
+                    <Pressable
+                      onPress={() => { setCollection(item); setCollectionQuestSearch(''); setIsCollectionQuestSearchOpen(false); setCollectionUnlockQuestSearch(''); setIsCollectionUnlockQuestSearchOpen(false); setCollectionUnlockSourceSearch(''); setIsCollectionUnlockSourceSearchOpen(false); setEditorKind('collection'); setActiveTab('basic'); setView('editor'); }}
+                      className="mt-3 bg-stone py-2 rounded-lg items-center border border-line hover:bg-stone-300"
+                    >
+                      <AppText className="text-ink font-sansSemi text-sm">Edit Collection</AppText>
+                    </Pressable>
+                  </View>
+                );
+              })}
+            </View>
+          </ScrollView>
         ) : filteredJourneys.length === 0 ? (
           <View className="items-center justify-center p-20 border border-dashed border-line rounded-[24px]">
             <AppText className="text-ink/50 mb-4">No journeys found.</AppText>
@@ -1551,6 +1716,264 @@ export default function QuestBuilderAdmin() {
           </ScrollView>
         )}
         </ScrollView>
+      </View>
+    );
+  }
+
+  if (editorKind === 'collection') {
+    const collectionQuestSearchText = collectionQuestSearch.trim().toLowerCase();
+    const collectionUnlockQuestSearchText = collectionUnlockQuestSearch.trim().toLowerCase();
+    const collectionUnlockSourceSearchText = collectionUnlockSourceSearch.trim().toLowerCase();
+    const includedQuests = collection.questIds.map(id => savedQuests.find(q => q.id === id)).filter(Boolean) as Quest[];
+    const linkedUnlockQuests = (collection.unlockQuestIds || []).map(id => savedQuests.find(q => q.id === id)).filter(Boolean) as Quest[];
+    const addableCollectionQuests = savedQuests.filter(q => {
+      if (collection.questIds.includes(q.id)) return false;
+      if (!collectionQuestSearchText) return true;
+      return q.title.toLowerCase().includes(collectionQuestSearchText) || q.description.toLowerCase().includes(collectionQuestSearchText);
+    });
+    const addableCollectionUnlockQuests = savedQuests.filter(q => {
+      if ((collection.unlockQuestIds || []).includes(q.id)) return false;
+      if (!collectionUnlockQuestSearchText) return true;
+      return q.title.toLowerCase().includes(collectionUnlockQuestSearchText) || q.description.toLowerCase().includes(collectionUnlockQuestSearchText);
+    });
+    const sourceKind = collection.unlockedByKind || "quest";
+    const unlockingQuest = collection.unlockedByKind === "quest" ? savedQuests.find(q => q.id === collection.unlockedById) : null;
+    const unlockingCollection = collection.unlockedByKind === "collection" ? savedCollections.find(item => item.id === collection.unlockedById) : null;
+    const addableUnlockSources = sourceKind === "quest"
+      ? savedQuests.filter(q => !collectionUnlockSourceSearchText || q.title.toLowerCase().includes(collectionUnlockSourceSearchText) || q.description.toLowerCase().includes(collectionUnlockSourceSearchText))
+      : savedCollections.filter(item => item.id !== collection.id && (!collectionUnlockSourceSearchText || item.title.toLowerCase().includes(collectionUnlockSourceSearchText) || (item.description || "").toLowerCase().includes(collectionUnlockSourceSearchText)));
+    const setCollectionUnlockSourceKind = (kind: QuestCollectionUnlockKind) => {
+      setCollection(prev => ({ ...prev, alwaysUnlocked: false, unlockedByKind: kind, unlockedById: null }));
+      setCollectionUnlockSourceSearch('');
+      setIsCollectionUnlockSourceSearchOpen(true);
+    };
+
+    return (
+      <View className="flex-1 flex-row bg-surface">
+        <View className="w-1/3 max-w-[520px] border-r border-line bg-surface">
+          <View className="p-6 border-b border-line flex-row justify-between items-center bg-surface">
+            <Pressable onPress={() => { setLibraryKind('collections'); setView('grid'); }} className="px-4 py-2 bg-stone rounded-md"><AppText className="text-ink">← Back</AppText></Pressable>
+            <View className="flex-row gap-3">
+              {!collection.id.startsWith('draft-') && (
+                <Pressable onPress={handleDeleteCollection} className="px-4 py-2 border border-[#E63946] rounded-md bg-[#E63946]/10"><AppText className="text-[#E63946] font-sansSemi">Delete</AppText></Pressable>
+              )}
+              <Pressable onPress={handleSaveCollection} className="px-6 py-2 bg-orange rounded-md"><AppText className="text-white font-sansSemi">Save</AppText></Pressable>
+            </View>
+          </View>
+
+          <View className="flex-row border-b border-line bg-stone">
+            {(['basic', 'links'] as const).map(tab => (
+              <Pressable key={tab} onPress={() => setActiveTab(tab)} className={`flex-1 p-4 items-center ${activeTab === tab ? 'bg-surface border-b-2 border-orange' : ''}`}>
+                <AppText className={activeTab === tab ? 'text-ink font-sansSemi' : 'text-ink/50 capitalize'}>{tab === 'links' ? 'Links' : 'Basic Info'}</AppText>
+              </Pressable>
+            ))}
+          </View>
+
+          <ScrollView className="flex-1 p-8" contentContainerStyle={{ paddingBottom: 100 }}>
+            {activeTab === 'basic' ? (
+              <View>
+                <AppText variant="subtitle" className="mb-2">Name</AppText>
+                <TextInput className="bg-surface border border-line rounded-lg p-4 mb-6 font-sans text-ink" value={collection.title} onChangeText={(txt) => updateCollectionField("title", txt)} />
+
+                <AppText variant="subtitle" className="mb-2">Slug</AppText>
+                <TextInput className="bg-surface border border-line rounded-lg p-4 mb-6 font-sans text-ink" value={collection.slug} onChangeText={(txt) => updateCollectionField("slug", txt)} />
+
+                <AppText variant="subtitle" className="mb-2">Description</AppText>
+                <TextInput className="bg-surface border border-line rounded-lg p-4 mb-6 font-sans text-ink" multiline numberOfLines={3} value={collection.description || ""} onChangeText={(txt) => updateCollectionField("description", txt)} />
+
+                <AppText variant="subtitle" className="mb-2">Cover Image URL</AppText>
+                <TextInput className="bg-surface border border-line rounded-lg p-4 mb-6 font-sans text-ink" value={collection.coverImageUrl} onChangeText={(txt) => updateCollectionField("coverImageUrl", txt)} />
+                <DraggableImageCrop imageUrl={collection.coverImageUrl} value={collection.imagePosition || "50% 50%"} onChange={(val) => updateCollectionField("imagePosition", val)} />
+
+                <View className="mb-3 mt-6 flex-row items-center justify-between">
+                  <View>
+                    <AppText variant="subtitle">Quests in Collection</AppText>
+                    <AppText className="mt-1 text-xs text-ink/50">Collections are unordered groups.</AppText>
+                  </View>
+                  <Pressable onPress={() => setIsCollectionQuestSearchOpen(value => !value)} className="h-10 w-10 items-center justify-center rounded-full border border-line bg-accent">
+                    <AppText className="text-accentText text-xl">+</AppText>
+                  </Pressable>
+                </View>
+
+                {includedQuests.length === 0 ? (
+                  <View className="mb-4 rounded-xl border border-dashed border-line bg-stone p-6">
+                    <AppText className="text-center text-ink/50">No quests selected yet.</AppText>
+                  </View>
+                ) : (
+                  <View className="mb-4">
+                    {includedQuests.map(q => (
+                      <LinkedSubQuestItem
+                        key={q.id}
+                        quest={q}
+                        onRemove={() => updateCollectionField("questIds", collection.questIds.filter(id => id !== q.id))}
+                      />
+                    ))}
+                  </View>
+                )}
+
+                {isCollectionQuestSearchOpen ? (
+                  <View className="mb-8 rounded-xl border border-line bg-stone p-4">
+                    <TextInput className="mb-3 rounded-lg border border-line bg-surface p-3 font-sans text-ink" placeholder="Search quests to add..." value={collectionQuestSearch} onChangeText={setCollectionQuestSearch} />
+                    <View className="max-h-80 gap-2">
+                      <ScrollView nestedScrollEnabled>
+                        {addableCollectionQuests.map(q => (
+                          <Pressable
+                            key={q.id}
+                            onPress={() => { updateCollectionField("questIds", [...collection.questIds, q.id]); setCollectionQuestSearch(''); }}
+                            className="mb-2 flex-row items-center rounded-xl border border-line bg-surface p-3"
+                          >
+                            <Image source={{ uri: q.imageUrl }} className="mr-3 h-12 w-12 rounded-lg bg-stone" contentFit="cover" />
+                            <View className="flex-1">
+                              <AppText className="font-sansSemi text-ink" numberOfLines={1}>{q.title}</AppText>
+                              <AppText className="mt-1 text-xs text-ink/50" numberOfLines={1}>{q.length} · {q.difficulty}</AppText>
+                            </View>
+                            <AppText className="text-orange font-sansSemi">Add</AppText>
+                          </Pressable>
+                        ))}
+                      </ScrollView>
+                    </View>
+                  </View>
+                ) : null}
+              </View>
+            ) : (
+              <View>
+                <ToggleGroup
+                  label="Locking"
+                  options={["Always Unlocked", "Unlocked By"]}
+                  selected={collection.alwaysUnlocked ? "Always Unlocked" : "Unlocked By"}
+                  onSelect={(val) => updateCollectionField("alwaysUnlocked", val === "Always Unlocked")}
+                />
+
+                {!collection.alwaysUnlocked ? (
+                  <View className="mb-8 rounded-xl border border-line bg-stone p-4">
+                    <ToggleGroup
+                      label="Unlocked by"
+                      options={["Quest", "Collection"]}
+                      selected={sourceKind === "collection" ? "Collection" : "Quest"}
+                      onSelect={(val) => setCollectionUnlockSourceKind(val === "Collection" ? "collection" : "quest")}
+                    />
+                    <View className="mb-3 rounded-xl border border-line bg-surface p-3">
+                      <AppText className="text-[10px] uppercase tracking-widest text-ink/50">Selected unlocker</AppText>
+                      <AppText className="mt-1 font-sansSemi text-ink">
+                        {unlockingQuest?.title || unlockingCollection?.title || "None selected"}
+                      </AppText>
+                    </View>
+                    <Pressable onPress={() => setIsCollectionUnlockSourceSearchOpen(value => !value)} className="mb-3 items-center rounded-lg border border-line bg-surface p-3">
+                      <AppText className="font-sansSemi text-ink">Choose {sourceKind}</AppText>
+                    </Pressable>
+                    {isCollectionUnlockSourceSearchOpen ? (
+                      <View>
+                        <TextInput className="mb-3 rounded-lg border border-line bg-surface p-3 font-sans text-ink" placeholder={`Search ${sourceKind}s...`} value={collectionUnlockSourceSearch} onChangeText={setCollectionUnlockSourceSearch} />
+                        <ScrollView nestedScrollEnabled className="max-h-80">
+                          {addableUnlockSources.map((item: Quest | QuestCollection) => {
+                            const isQuest = "imageUrl" in item;
+                            return (
+                              <Pressable
+                                key={item.id}
+                                onPress={() => {
+                                  updateCollectionField("unlockedByKind", sourceKind);
+                                  updateCollectionField("unlockedById", item.id);
+                                  setIsCollectionUnlockSourceSearchOpen(false);
+                                  setCollectionUnlockSourceSearch('');
+                                }}
+                                className="mb-2 flex-row items-center rounded-xl border border-line bg-surface p-3"
+                              >
+                                <Image source={{ uri: isQuest ? item.imageUrl : item.coverImageUrl }} className="mr-3 h-12 w-12 rounded-lg bg-stone" contentFit="cover" />
+                                <View className="flex-1">
+                                  <AppText className="font-sansSemi text-ink" numberOfLines={1}>{item.title}</AppText>
+                                  <AppText className="mt-1 text-xs text-ink/50" numberOfLines={1}>{isQuest ? "Quest" : "Collection"}</AppText>
+                                </View>
+                                <AppText className="text-orange font-sansSemi">Use</AppText>
+                              </Pressable>
+                            );
+                          })}
+                        </ScrollView>
+                      </View>
+                    ) : null}
+                  </View>
+                ) : null}
+
+                <View className="mb-3 flex-row items-center justify-between">
+                  <View className="flex-1 pr-3">
+                    <AppText variant="subtitle">Unlocks Quests</AppText>
+                    <AppText className="mt-1 text-xs text-ink/50">These quests unlock once every quest in this collection is completed.</AppText>
+                  </View>
+                  <Pressable onPress={() => setIsCollectionUnlockQuestSearchOpen(value => !value)} className="h-10 w-10 items-center justify-center rounded-full border border-line bg-accent">
+                    <AppText className="text-accentText text-xl">+</AppText>
+                  </Pressable>
+                </View>
+
+                {linkedUnlockQuests.length === 0 ? (
+                  <View className="mb-4 rounded-xl border border-dashed border-line bg-stone p-6">
+                    <AppText className="text-center text-ink/50">No quests are unlocked by completing this collection yet.</AppText>
+                  </View>
+                ) : (
+                  <View className="mb-4">
+                    {linkedUnlockQuests.map(q => (
+                      <LinkedSubQuestItem
+                        key={q.id}
+                        quest={q}
+                        onRemove={() => updateCollectionField("unlockQuestIds", (collection.unlockQuestIds || []).filter(id => id !== q.id))}
+                      />
+                    ))}
+                  </View>
+                )}
+
+                {isCollectionUnlockQuestSearchOpen ? (
+                  <View className="rounded-xl border border-line bg-stone p-4">
+                    <TextInput className="mb-3 rounded-lg border border-line bg-surface p-3 font-sans text-ink" placeholder="Search quests to unlock..." value={collectionUnlockQuestSearch} onChangeText={setCollectionUnlockQuestSearch} />
+                    <ScrollView nestedScrollEnabled className="max-h-80">
+                      {addableCollectionUnlockQuests.map(q => (
+                        <Pressable
+                          key={q.id}
+                          onPress={() => { updateCollectionField("unlockQuestIds", [...(collection.unlockQuestIds || []), q.id]); setCollectionUnlockQuestSearch(''); }}
+                          className="mb-2 flex-row items-center rounded-xl border border-line bg-surface p-3"
+                        >
+                          <Image source={{ uri: q.imageUrl }} className="mr-3 h-12 w-12 rounded-lg bg-stone" contentFit="cover" />
+                          <View className="flex-1">
+                            <AppText className="font-sansSemi text-ink" numberOfLines={1}>{q.title}</AppText>
+                            <AppText className="mt-1 text-xs text-ink/50" numberOfLines={1}>{q.length} · {q.difficulty}</AppText>
+                          </View>
+                          <AppText className="text-orange font-sansSemi">Link</AppText>
+                        </Pressable>
+                      ))}
+                    </ScrollView>
+                  </View>
+                ) : null}
+              </View>
+            )}
+          </ScrollView>
+        </View>
+
+        <View className="flex-1 bg-stone p-8">
+          <View className="mb-4 flex-row items-center justify-between">
+            <View>
+              <AppText variant="title" className="text-ink">{collection.title}</AppText>
+              <AppText className="mt-1 text-ink/60">{includedQuests.length} quests in this collection</AppText>
+            </View>
+            <View className="rounded-full border border-line bg-surface px-4 py-2">
+              <AppText className="text-xs font-sansSemi text-ink/60">Collection preview</AppText>
+            </View>
+          </View>
+          <View className="w-full max-w-[460px] overflow-hidden rounded-[28px] border border-line bg-surface shadow-xl">
+            <View className="h-[560px]">
+              <Image source={{ uri: collection.coverImageUrl }} style={{ width: "100%", height: "100%" }} contentFit="cover" />
+              <LinearGradient colors={["rgba(0,0,0,0.05)", "rgba(0,0,0,0.78)"]} style={{ position: "absolute", top: 0, right: 0, bottom: 0, left: 0 }} />
+              <View className="absolute bottom-0 left-0 right-0 p-8">
+                <View className="mb-5 h-12 w-12 items-center justify-center rounded-full bg-ivory/20">
+                  <Ionicons name={(collection.iconName as any) || "albums-outline"} size={24} color="#F3F0EB" />
+                </View>
+                <AppText variant="display" className="text-ivory">{collection.title}</AppText>
+                <AppText className="mt-3 text-base leading-6 text-ivory/80">{collection.description}</AppText>
+                <View className="mt-6 flex-row">
+                  {includedQuests.slice(0, 3).map(q => (
+                    <Image key={q.id} source={{ uri: q.imageUrl }} className="mr-3 h-20 w-20 rounded-xl bg-stone" contentFit="cover" />
+                  ))}
+                </View>
+              </View>
+            </View>
+          </View>
+        </View>
       </View>
     );
   }
@@ -2689,6 +3112,23 @@ export default function QuestBuilderAdmin() {
                                   </Pressable>
                                 );
                               }
+                              // --- VISUAL PREVIEW FOR COLLECTION LINKS ---
+                              if (widgetType === 'COLLECTION') {
+                                return (
+                                  <Pressable
+                                    key={chunkIndex}
+                                    onPress={() => setActiveWidgetConfig({ stepIndex: index, chunkIndex, type: widgetType, config: widgetConfig })}
+                                    className="w-full group relative"
+                                  >
+                                    <View pointerEvents="none">
+                                      <CollectionLinkWidget config={widgetConfig} collections={savedCollections} quests={savedQuests} completedQuestIds={new Set<string>()} width={255} />
+                                    </View>
+                                    <View className="absolute top-3 right-3 bg-surface px-3 py-1.5 rounded-full shadow flex-row items-center border border-line opacity-70 group-hover:opacity-100 z-10">
+                                      <AppText className="text-xs font-sansSemi">✏️ Edit Collection</AppText>
+                                    </View>
+                                  </Pressable>
+                                );
+                              }
                               // --- VISUAL PREVIEW FOR CHECKLIST ---
                               if (widgetType === 'CHECKLIST') {
                                 const c = parseConfig(widgetConfig);
@@ -3343,6 +3783,60 @@ updateField('steps', newSteps);
                                             <AppText className="mt-1 text-xs text-ink/50" numberOfLines={1}>{q.length} · {q.difficulty}</AppText>
                                           </View>
                                           <AppText className={isSelected ? 'text-blue font-sansSemi' : 'text-ink/40'}>{isSelected ? 'Selected' : 'Choose'}</AppText>
+                                        </Pressable>
+                                      );
+                                    })
+                                  )}
+                                </ScrollView>
+                              </View>
+                            );
+                          })()}
+
+                          {/* COLLECTION LINK CONFIG UI */}
+                          {activeWidgetConfig.type === 'COLLECTION' && (() => {
+                            const currentCfg = parseConfig(activeWidgetConfig.config);
+                            const selectedCollection = savedCollections.find(item => item.id === currentCfg.collectionId || item.slug === currentCfg.collectionId);
+
+                            const modifyConfig = (collectionId: string) => {
+                                const newConfigStr = serializeConfig({ collectionId });
+                                setActiveWidgetConfig(prev => prev ? {...prev, config: newConfigStr} : null);
+
+                                const newParts = rawStepText.split(WIDGET_REGEX);
+                                newParts[activeWidgetConfig!.chunkIndex] = `[COLLECTION:${newConfigStr}]`;
+                                const newRawText = newParts.join('');
+                                const newSteps = [...quest.steps];
+                                newSteps[index] = buildStepString(title, newRawText);
+                                updateField('steps', newSteps);
+                            };
+
+                            return (
+                              <View className="flex-col gap-3">
+                                <View pointerEvents="none">
+                                  <CollectionLinkWidget config={activeWidgetConfig.config} collections={savedCollections} quests={savedQuests} completedQuestIds={new Set<string>()} width={255} />
+                                </View>
+
+                                <AppText className="text-xs mb-1">Linked Collection</AppText>
+                                <ScrollView className="max-h-[280px] w-full" nestedScrollEnabled>
+                                  {savedCollections.length === 0 ? (
+                                    <View className="rounded-lg border border-dashed border-line bg-surface p-4">
+                                      <AppText className="text-center text-ink/50">No saved collections available.</AppText>
+                                    </View>
+                                  ) : (
+                                    savedCollections.map(item => {
+                                      const isSelected = selectedCollection?.id === item.id;
+                                      const questCount = item.questIds.length;
+                                      return (
+                                        <Pressable
+                                          key={item.id}
+                                          onPress={() => modifyConfig(item.id)}
+                                          className={`mb-2 flex-row items-center rounded-xl border p-3 ${isSelected ? 'border-orange bg-orange/10' : 'border-line bg-surface'}`}
+                                        >
+                                          <Image source={{ uri: item.coverImageUrl }} className="mr-3 h-12 w-12 rounded-lg bg-stone" contentFit="cover" />
+                                          <View className="flex-1">
+                                            <AppText className={isSelected ? 'font-sansSemi text-orange' : 'font-sansSemi text-ink'} numberOfLines={1}>{item.title}</AppText>
+                                            <AppText className="mt-1 text-xs text-ink/50" numberOfLines={1}>{questCount} quest{questCount === 1 ? '' : 's'}</AppText>
+                                          </View>
+                                          <AppText className={isSelected ? 'text-orange font-sansSemi' : 'text-ink/40'}>{isSelected ? 'Selected' : 'Choose'}</AppText>
                                         </Pressable>
                                       );
                                     })

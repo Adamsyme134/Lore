@@ -11,6 +11,7 @@ import { TopBar } from "../../../src/shared/components/TopBar";
 import { JourneyIcon } from "../../../src/features/quests/components/JourneyIcon";
 import { getJourneyLock, getJourneyQuestIds, useJourneys, useQuests, useUserJourneyStatuses, useUserQuestStatuses } from "../../../src/features/quests/api/questApi";
 import { useThemeColors } from "../../../src/shared/design/useThemeColors";
+import { useLoreEntries } from "../../../src/features/lore/api/loreApi";
 import type { QuestCategory, QuestCost, QuestLength } from "../../../src/shared/types/domain";
 
 const CATEGORIES: (QuestCategory | "For You" | "All" | "Saved")[] = [
@@ -39,6 +40,7 @@ export default function JourneysIndexScreen() {
   const { data: quests = [] } = useQuests();
   const { data: questStatuses } = useUserQuestStatuses();
   const { data: journeyStatuses } = useUserJourneyStatuses();
+  const { data: loreEntries = [] } = useLoreEntries();
   const [contentWidth, setContentWidth] = useState(0);
   const [searchQuery, setSearchQuery] = useState("");
   const [activeCategory, setActiveCategory] = useState<QuestCategory | "For You" | "All" | "Saved">("For You");
@@ -48,7 +50,14 @@ export default function JourneysIndexScreen() {
   const gap = 12;
   const cardWidth = contentWidth;
   const questById = useMemo(() => new Map(quests.map((quest) => [quest.id, quest])), [quests]);
-  const completedQuestIds = useMemo(() => new Set(questStatuses?.completed || []), [questStatuses?.completed]);
+  const completedQuestIds = useMemo(() => {
+    const ids = new Set(questStatuses?.completed || []);
+    loreEntries.forEach((entry) => {
+      if (entry.questId) ids.add(entry.questId);
+      entry.autoCompletedQuests?.forEach((quest) => ids.add(quest.id));
+    });
+    return ids;
+  }, [loreEntries, questStatuses?.completed]);
   const completedJourneyIds = useMemo(() => new Set(journeyStatuses?.completed || []), [journeyStatuses?.completed]);
   const filteredJourneys = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();

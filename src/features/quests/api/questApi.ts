@@ -1,10 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../../auth/AuthProvider";
 import { requireSupabase, supabase } from "../../../lib/supabase";
-import { previewJourneys, previewQuests } from "../../../shared/data/previewData";
+import { previewJourneys, previewQuestCollections, previewQuests } from "../../../shared/data/previewData";
 import type { 
   Journey,
+  JourneyRequirementSet,
+  JourneyTreeEdge,
+  JourneyTreeNode,
   JourneyTimelineItem,
+  QuestCollection,
   Quest, 
   QuestCategory, 
   QuestCost, 
@@ -16,6 +20,7 @@ import type {
 } from "../../../shared/types/domain";
 import type { Accent } from "../../../shared/design/tokens";
 import { useExperienceStore } from "../../app/store/useExperienceStore";
+import type { QuestInterestEvent, QuestInterestEventType } from "../../app/store/useExperienceStore";
 import { QuestCountry } from "../../../shared/types/domain";
 import { areRequirementSetsMet, getJourneyQuestIdsFromTree } from "../utils/journeyTree";
 
@@ -88,6 +93,87 @@ export type JourneyRow = {
   is_active?: boolean;
 };
 
+export type QuestCollectionRow = {
+  id: string;
+  slug: string;
+  title: string;
+  description?: string | null;
+  cover_image_url?: string | null;
+  image_position?: string | null;
+  icon_name?: string | null;
+  quest_ids?: string[] | null;
+  unlock_quest_ids?: string[] | null;
+  always_unlocked?: boolean | null;
+  unlocked_by_kind?: QuestCollection["unlockedByKind"] | null;
+  unlocked_by_id?: string | null;
+  is_active?: boolean | null;
+};
+
+type UserQuestEventRow = {
+  quest_id: string;
+  event_type: QuestInterestEventType;
+  weight: number;
+  created_at: string;
+};
+
+function mapJourneyRequirementSet(requirement: any): JourneyRequirementSet {
+  return {
+    ...requirement,
+    questIds: requirement.questIds ?? requirement.quest_ids ?? [],
+    journeyIds: requirement.journeyIds ?? requirement.journey_ids ?? [],
+    capabilityIds: requirement.capabilityIds ?? requirement.capability_ids ?? [],
+    minimumCompleted: requirement.minimumCompleted ?? requirement.minimum_completed
+  };
+}
+
+function mapJourneyTreeNode(node: any): JourneyTreeNode {
+  return {
+    ...node,
+    questId: node.questId ?? node.quest_id,
+    iconName: node.iconName ?? node.icon_name,
+    capabilityId: node.capabilityId ?? node.capability_id,
+    branchId: node.branchId ?? node.branch_id,
+    sharedAnchorNodeId: node.sharedAnchorNodeId ?? node.shared_anchor_node_id,
+    layoutAngle: node.layoutAngle ?? node.layout_angle,
+    layoutDepth: node.layoutDepth ?? node.layout_depth,
+    hiddenUntil: (node.hiddenUntil ?? node.hidden_until ?? []).map(mapJourneyRequirementSet),
+    prerequisites: (node.prerequisites ?? []).map(mapJourneyRequirementSet)
+  };
+}
+
+function mapJourneyTreeEdge(edge: any): JourneyTreeEdge {
+  return {
+    ...edge,
+    fromNodeId: edge.fromNodeId ?? edge.from_node_id,
+    toNodeId: edge.toNodeId ?? edge.to_node_id,
+    requirementSetIds: edge.requirementSetIds ?? edge.requirement_set_ids ?? [],
+    hiddenUntilUnlocked: edge.hiddenUntilUnlocked ?? edge.hidden_until_unlocked
+  };
+}
+
+const questEventWeights: Record<QuestInterestEventType, number> = {
+  viewed: 1,
+  clicked: 2,
+  saved: 4,
+  started: 6,
+  completed: 10,
+  completed_similar_journey: 12,
+  completed_similar_collection: 12
+};
+
+export async function recordQuestEventRemote(questId: string, eventType: QuestInterestEventType) {
+  if (!supabase) return;
+  const { error } = await supabase.rpc("record_user_quest_event", {
+    quest_id_param: questId,
+    event_type_param: eventType,
+    metadata_param: {}
+  });
+
+  if (error) {
+    console.warn("Quest interest event was not recorded.", error);
+  }
+}
+
 export function mapQuest(row: QuestRow): Quest {
   return {
     id: row.id,
@@ -157,10 +243,28 @@ export function mapJourney(row: JourneyRow): Journey {
     rootQuestIds: row.root_quest_ids || [],
     rootBranchSide: row.root_branch_side || "right",
     ringOrder: row.ring_order ?? null,
-    treeNodes: row.tree_nodes || [],
-    treeEdges: row.tree_edges || [],
-    requirementSets: row.requirement_sets || [],
+    treeNodes: (row.tree_nodes || []).map(mapJourneyTreeNode),
+    treeEdges: (row.tree_edges || []).map(mapJourneyTreeEdge),
+    requirementSets: (row.requirement_sets || []).map(mapJourneyRequirementSet),
     capabilityUnlocks: row.capability_unlocks || [],
+    isActive: row.is_active ?? true
+  };
+}
+
+export function mapQuestCollection(row: QuestCollectionRow): QuestCollection {
+  return {
+    id: row.id,
+    slug: row.slug,
+    title: row.title,
+    description: row.description || "",
+    coverImageUrl: row.cover_image_url || "https://images.unsplash.com/photo-1445308394109-4ec2920981b1?auto=format&fit=crop&w=1200&q=85",
+    imagePosition: row.image_position || "50% 50%",
+    iconName: row.icon_name || "albums-outline",
+    questIds: row.quest_ids || [],
+    unlockQuestIds: row.unlock_quest_ids || [],
+    alwaysUnlocked: row.always_unlocked ?? true,
+    unlockedByKind: row.unlocked_by_kind || null,
+    unlockedById: row.unlocked_by_id || null,
     isActive: row.is_active ?? true
   };
 }
@@ -190,6 +294,18 @@ async function fetchJourneysFromSupabase() {
   return (data ?? []).map((row) => mapJourney(row as JourneyRow));
 }
 
+async function fetchQuestCollectionsFromSupabase() {
+  const client = requireSupabase();
+  const { data, error } = await client
+    .from("quest_collections")
+    .select("*")
+    .eq("is_active", true)
+    .order("created_at", { ascending: false });
+
+  if (error) throw error;
+  return (data ?? []).map((row) => mapQuestCollection(row as QuestCollectionRow));
+}
+
 export function useQuests() {
   const { isBackendReady } = useAuth();
   return useQuery({
@@ -205,6 +321,15 @@ export function useJourneys() {
     queryKey: ["journeys", isBackendReady ? "remote" : "preview"],
     queryFn: () => (isBackendReady ? fetchJourneysFromSupabase() : Promise.resolve(previewJourneys)),
     initialData: isBackendReady ? undefined : previewJourneys
+  });
+}
+
+export function useQuestCollections() {
+  const { isBackendReady } = useAuth();
+  return useQuery({
+    queryKey: ["quest-collections", isBackendReady ? "remote" : "preview"],
+    queryFn: () => (isBackendReady ? fetchQuestCollectionsFromSupabase() : Promise.resolve(previewQuestCollections)),
+    initialData: isBackendReady ? undefined : previewQuestCollections
   });
 }
 
@@ -270,6 +395,56 @@ export function useUserQuestStatuses() {
       );
     },
     initialData: localStatuses
+  });
+}
+
+export function useUserQuestInterestEvents() {
+  const { isBackendReady, user } = useAuth();
+  const previewEvents = useExperienceStore((state) => state.questInterestEvents);
+
+  return useQuery({
+    queryKey: ["user-quest-interest-events", isBackendReady ? "remote" : "preview", user?.id],
+    queryFn: async (): Promise<QuestInterestEvent[]> => {
+      if (!isBackendReady || !user || !supabase) return previewEvents;
+
+      const { data, error } = await supabase
+        .from("user_quest_events")
+        .select("quest_id, event_type, weight, created_at")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false })
+        .limit(1000);
+
+      if (error) {
+        console.warn("Quest interest events are unavailable; recommendations will use status-only signals.", error);
+        return [];
+      }
+
+      return ((data ?? []) as UserQuestEventRow[]).map((row) => ({
+        questId: row.quest_id,
+        eventType: row.event_type,
+        weight: row.weight,
+        createdAt: row.created_at
+      }));
+    },
+    initialData: isBackendReady ? undefined : previewEvents
+  });
+}
+
+export function useRecordQuestInterestEvent() {
+  const { isBackendReady } = useAuth();
+  const queryClient = useQueryClient();
+  const recordPreviewEvent = useExperienceStore((state) => state.recordQuestInterestEvent);
+
+  return useMutation({
+    mutationFn: async ({ questId, eventType }: { questId: string; eventType: QuestInterestEventType }) => {
+      recordPreviewEvent(questId, eventType, questEventWeights[eventType]);
+      if (isBackendReady) {
+        await recordQuestEventRemote(questId, eventType);
+      }
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["user-quest-interest-events"] });
+    }
   });
 }
 
@@ -432,6 +607,7 @@ export function getJourneyLock(
   completedQuestIds: Set<string>,
   completedJourneyIds: Set<string>
 ) {
+  if (getJourneyQuestIds(journey).some((questId) => completedQuestIds.has(questId))) return null;
   const unmetRootQuestId = (journey.rootQuestIds ?? []).find((questId) => !completedQuestIds.has(questId));
   if (unmetRootQuestId) return { isLocked: true };
   if (!journey.requirementSets?.length) return null;
@@ -442,6 +618,27 @@ export function getJourneyLock(
   });
 
   return isUnlocked ? null : { isLocked: true };
+}
+
+export function isQuestCollectionComplete(collection: QuestCollection, completedQuestIds: Set<string>) {
+  return collection.questIds.length > 0 && collection.questIds.every((questId) => completedQuestIds.has(questId));
+}
+
+export function getQuestCollectionLock(
+  collection: QuestCollection,
+  collections: QuestCollection[],
+  completedQuestIds: Set<string>
+) {
+  if (collection.alwaysUnlocked || !collection.unlockedByKind || !collection.unlockedById) return null;
+
+  if (collection.unlockedByKind === "quest") {
+    return completedQuestIds.has(collection.unlockedById) ? null : { isLocked: true };
+  }
+
+  const unlockingCollection = collections.find((item) => item.id === collection.unlockedById);
+  if (!unlockingCollection) return { isLocked: true };
+
+  return isQuestCollectionComplete(unlockingCollection, completedQuestIds) ? null : { isLocked: true };
 }
 
 export function getSideQuestLock(
@@ -497,9 +694,12 @@ export function useStartJourney() {
 // ✨ NEW: Mutation to trigger a view count increment
 export function useTrackQuestView() {
   const { isBackendReady } = useAuth();
+  const recordPreviewEvent = useExperienceStore((state) => state.recordQuestInterestEvent);
   return useMutation({
     mutationFn: async (questId: string) => {
+      recordPreviewEvent(questId, "viewed", questEventWeights.viewed);
       if (!isBackendReady || !supabase) return;
+      await recordQuestEventRemote(questId, "viewed");
       const { error } = await supabase.rpc("increment_quest_view", { quest_id_param: questId });
       if (error) throw error;
     }
@@ -510,11 +710,14 @@ export function useActivateQuest() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const activateQuest = useExperienceStore((state) => state.activateQuest);
+  const recordPreviewEvent = useExperienceStore((state) => state.recordQuestInterestEvent);
 
   return useMutation({
     mutationFn: async (questId: string) => {
       activateQuest(questId); 
+      recordPreviewEvent(questId, "started", questEventWeights.started);
       if (!user || !supabase) return;
+      await recordQuestEventRemote(questId, "started");
 
       const { error } = await supabase
         .from("user_quests")
@@ -679,11 +882,14 @@ export function useSaveQuest() {
   const { isBackendReady, user } = useAuth();
   const queryClient = useQueryClient();
   const toggleSavedQuest = useExperienceStore((state) => state.toggleSavedQuest);
+  const recordPreviewEvent = useExperienceStore((state) => state.recordQuestInterestEvent);
 
   return useMutation({
     mutationFn: async (questId: string) => {
       toggleSavedQuest(questId);
+      recordPreviewEvent(questId, "saved", questEventWeights.saved);
       if (!isBackendReady || !user || !supabase) return;
+      await recordQuestEventRemote(questId, "saved");
 
       const { error } = await supabase
         .from("user_quests")

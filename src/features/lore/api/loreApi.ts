@@ -5,6 +5,7 @@ import { decode } from "base64-arraybuffer";
 import { requireSupabase, supabase } from "../../../lib/supabase";
 import { useAuth } from "../../auth/AuthProvider";
 import { useExperienceStore } from "../../app/store/useExperienceStore";
+import { recordQuestEventRemote } from "../../quests/api/questApi";
 import type { LoreEntry, NewLoreEntryInput, Quest } from "../../../shared/types/domain";
 import type { Accent } from "../../../shared/design/tokens";
 import { mapQuest, type QuestRow } from "../../quests/api/questApi";
@@ -387,6 +388,7 @@ export function useCreateLoreEntry() {
         await client
           .from("user_quests")
           .upsert({ user_id: user.id, quest_id: input.quest.id, status: "completed", completed_at: new Date().toISOString() }, { onConflict: "user_id,quest_id" });
+        await recordQuestEventRemote(input.quest.id, "completed");
 
         if (autoCompletedQuestIds.length > 0) {
           const completedAt = new Date().toISOString();
@@ -405,6 +407,8 @@ export function useCreateLoreEntry() {
           if (linkedQuestError) {
             throw linkedQuestError;
           }
+
+          await Promise.all(autoCompletedQuestIds.map((questId) => recordQuestEventRemote(questId, "completed")));
         }
 
         const { error: pointsError } = await client.rpc("award_lore_points", {

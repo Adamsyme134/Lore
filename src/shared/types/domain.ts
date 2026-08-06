@@ -172,6 +172,24 @@ export type Journey = {
   isActive: boolean;
 };
 
+export type QuestCollectionUnlockKind = "quest" | "collection";
+
+export type QuestCollection = {
+  id: string;
+  slug: string;
+  title: string;
+  description?: string;
+  coverImageUrl: string;
+  imagePosition?: string;
+  iconName?: string;
+  questIds: string[];
+  unlockQuestIds: string[];
+  alwaysUnlocked: boolean;
+  unlockedByKind?: QuestCollectionUnlockKind | null;
+  unlockedById?: string | null;
+  isActive: boolean;
+};
+
 export type Quest = {
   id: string;
   slug: string;
@@ -274,6 +292,12 @@ export type Profile = {
   fullName: string;
   avatarUrl?: string | null;
   homeCity?: string | null;
+  country?: string | null;
+  allowAbroad?: boolean | null;
+  preferredCategories?: QuestCategory[] | null;
+  preferredMoods?: QuestMood[] | null;
+  maxDifficulty?: QuestDifficulty | null;
+  maxCost?: QuestCost | null;
   pointsTotal: number;
   currentStreak?: number;
 };

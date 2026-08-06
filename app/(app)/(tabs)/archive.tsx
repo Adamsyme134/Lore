@@ -25,20 +25,27 @@ export default function ArchiveScreen() {
         {loreEntries.map((entry) => (
           <View 
             key={entry.id} 
-            className="w-1/3 aspect-[3/4] p-[1px] items-center justify-center overflow-hidden"
+            className="relative w-1/3 aspect-[3/4] p-[1px] items-center justify-center overflow-hidden"
           >
             <TouchableOpacity 
               onPress={() => router.push(`/lore/${entry.id}`)}
               activeOpacity={0.8}
-              // ✨ Render at 3x size, then shrink by 66% so it fits perfectly
+              className="h-full w-full"
+            >
+              {/* Renders the full card layout without breaking text wrapping */}
+              <View
+                pointerEvents="none"
+                className="absolute rounded-2xl overflow-hidden"
+                // ✨ Render at 3x size, then shrink by 66% so it fits perfectly
               style={{
+                position: 'absolute',
+                left: '-100%',
+                top: '-100%',
                 width: '300%',
                 height: '300%',
                 transform: [{ scale: 0.3333 }]
               }}
             >
-              {/* Renders the full card layout without breaking text wrapping */}
-              <View pointerEvents="none" className="w-full h-full rounded-2xl overflow-hidden">
                 <LoreCard 
                   heroImageUri={entry.imageUrl}
                   title={entry.questTitle}

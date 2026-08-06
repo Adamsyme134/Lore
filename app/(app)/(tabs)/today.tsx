@@ -15,6 +15,7 @@ import { JourneyIcon } from "../../../src/features/quests/components/JourneyIcon
 import { CategoryIconBadge } from "../../../src/features/quests/components/QuestMetadata";
 import { router } from "expo-router";
 import { useThemeColors } from "../../../src/shared/design/useThemeColors";
+import { useLoreEntries } from "../../../src/features/lore/api/loreApi";
 import type { Journey, Quest } from "../../../src/shared/types/domain";
 
 function contentPosition(imagePosition?: string) {
@@ -148,15 +149,22 @@ export default function TodayScreen() {
   const previewPoints = useExperienceStore((state) => state.previewPoints);
   const { data: questStatuses, refetch: refetchQuestStatuses } = useUserQuestStatuses();
   const { data: journeyStatuses, refetch: refetchJourneyStatuses } = useUserJourneyStatuses();
+  const { data: loreEntries = [] } = useLoreEntries();
 
   const points = profile?.pointsTotal ?? previewPoints;
 
   // ✨ NEW: Calculate exactly which quests go where based on Supabase truth
   const activeQuestIds = questStatuses?.active || [];
-  const completedQuestIds = questStatuses?.completed || [];
   const activeJourneyIds = journeyStatuses?.active || [];
   const questById = useMemo(() => new Map(quests.map((quest) => [quest.id, quest])), [quests]);
-  const completedQuestIdSet = useMemo(() => new Set(completedQuestIds), [completedQuestIds]);
+  const completedQuestIdSet = useMemo(() => {
+    const ids = new Set(questStatuses?.completed || []);
+    loreEntries.forEach((entry) => {
+      if (entry.questId) ids.add(entry.questId);
+      entry.autoCompletedQuests?.forEach((quest) => ids.add(quest.id));
+    });
+    return ids;
+  }, [loreEntries, questStatuses?.completed]);
   const inProgressTileSize = Math.min(176, Math.max(148, (width - 64) / 2.15)) * 1.1;
 
   // In Progress = Only quests explicitly marked as "active"
@@ -165,8 +173,11 @@ export default function TodayScreen() {
   [quests, activeQuestIds]);
 
   const inProgressJourneys = useMemo(
-    () => journeys.filter((journey) => activeJourneyIds.includes(journey.id)),
-    [activeJourneyIds, journeys]
+    () => journeys.filter((journey) =>
+      activeJourneyIds.includes(journey.id) ||
+      getJourneyQuestIds(journey).some((questId) => completedQuestIdSet.has(questId))
+    ),
+    [activeJourneyIds, completedQuestIdSet, journeys]
   );
 
   const handleRefresh = useCallback(async () => {

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Animated, PanResponder, Pressable, View } from "react-native";
-import type { StyleProp, TextStyle } from "react-native";
+import { Animated, PanResponder, Platform, Pressable, View } from "react-native";
+import type { DimensionValue, StyleProp, TextStyle } from "react-native";
 import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
 import Svg, { Circle, Line } from "react-native-svg";
@@ -31,7 +31,7 @@ type JourneyTreeMapProps = {
   savedQuestIds?: string[];
   completedLoreEntries?: LoreEntry[];
   onAddNode?: (parentNode: JourneyTreeRenderNode | null, placement?: "linear" | "branch") => void;
-  height?: number;
+  height?: DimensionValue;
 };
 
 const stateTone: Record<JourneyNodeProgressState, { border: string; fill: string; icon: string; text: string }> = {
@@ -401,7 +401,7 @@ elevation: 5,
               height: iconSize,
               lineHeight: iconSize,
               textAlign: "center",
-              transform: [{ translateX: 2.7 }, { translateY: 2.5 }]
+              transform: Platform.OS === "android" ? [] : [{ translateX: 2.7 }, { translateY: 2.5 }]
             }}
           />
         </Animated.View>
@@ -448,7 +448,9 @@ function QuestPopup({
   const popupLeft = Math.max((viewport.width - popupWidth) / 2, 8);
   const imageSize = isCompact ? 92 : 170;
   const panelPadding = isCompact ? 12 : 18;
-  const panelHeight = imageSize + panelPadding * 2;
+  const panelHeight = Platform.OS === "android" && isCompact
+    ? Math.max(imageSize + panelPadding * 2, 192)
+    : imageSize + panelPadding * 2;
   const popupTop = Math.min(viewport.height - panelHeight, viewport.height * SELECTED_NODE_FOCUS_Y_RATIO + 44);
   const progressTotal = Math.max(node.journeyTotalCount || 1, 1);
   const progressCompleted = Math.min(node.journeyCompletedCount || 0, progressTotal);
@@ -627,7 +629,7 @@ export function JourneyTreeMap({
   height = 520
 }: JourneyTreeMapProps) {
   const colors = useThemeColors();
-  const [viewport, setViewport] = useState({ width: 360, height });
+  const [viewport, setViewport] = useState({ width: 360, height: typeof height === "number" ? height : 520 });
   const [internalSelectedNodeId, setInternalSelectedNodeId] = useState<string | null>(null);
   const scaleAnim = useRef(new Animated.Value(DEFAULT_SCALE)).current;
   const scaleRef = useRef(DEFAULT_SCALE);

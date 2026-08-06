@@ -4,6 +4,22 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import type { LoreEntry, Quest } from "../../../shared/types/domain";
 import { previewLoreEntries } from "../../../shared/data/previewData";
 
+export type QuestInterestEventType =
+  | "viewed"
+  | "clicked"
+  | "saved"
+  | "started"
+  | "completed"
+  | "completed_similar_journey"
+  | "completed_similar_collection";
+
+export type QuestInterestEvent = {
+  questId: string;
+  eventType: QuestInterestEventType;
+  weight: number;
+  createdAt: string;
+};
+
 function formatDate(date: Date) {
   return new Intl.DateTimeFormat("en-GB", {
     day: "2-digit",
@@ -31,8 +47,10 @@ type ExperienceState = {
   completedQuestIds: string[];
   activeQuests: Record<string, number[]>;
   activeJourneyIds: string[];
+  questInterestEvents: QuestInterestEvent[];
   previewLoreEntries: LoreEntry[];
   previewPoints: number;
+  recordQuestInterestEvent: (questId: string, eventType: QuestInterestEventType, weight: number) => void;
   toggleSavedQuest: (questId: string) => void;
   markQuestComplete: (questId: string) => void;
   activateQuest: (questId: string) => void;
@@ -52,8 +70,22 @@ export const useExperienceStore = create<ExperienceState>()(
       completedQuestIds: [],
       activeQuests: {},
       activeJourneyIds: [],
+      questInterestEvents: [],
       previewLoreEntries,
       previewPoints: previewLoreEntries.reduce((sum, entry) => sum + entry.pointsAwarded, 0),
+
+      recordQuestInterestEvent: (questId, eventType, weight) =>
+        set((state) => ({
+          questInterestEvents: [
+            {
+              questId,
+              eventType,
+              weight,
+              createdAt: new Date().toISOString()
+            },
+            ...state.questInterestEvents
+          ].slice(0, 1000)
+        })),
       
       toggleSavedQuest: (questId) =>
         set((state) => ({
@@ -151,6 +183,21 @@ export const useExperienceStore = create<ExperienceState>()(
           return {
             completedQuestIds: nextCompletedQuestIds,
             activeQuests: nextActiveQuests,
+            questInterestEvents: [
+              {
+                questId: input.quest.id,
+                eventType: "completed" as const,
+                weight: 10,
+                createdAt: now.toISOString()
+              },
+              ...autoCompletedQuestIds.map((questId) => ({
+                questId,
+                eventType: "completed" as const,
+                weight: 10,
+                createdAt: now.toISOString()
+              })),
+              ...state.questInterestEvents
+            ].slice(0, 1000),
             previewLoreEntries: [entry, ...state.previewLoreEntries],
             previewPoints: state.previewPoints + pointsAwarded
           };
